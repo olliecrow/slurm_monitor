@@ -1,5 +1,8 @@
 # slurm_monitor
 
+<img width="557" height="617" alt="image" src="https://github.com/user-attachments/assets/e1284784-98b5-41a1-b154-adf8dc02232d" />
+
+
 `slurm_monitor` is a terminal-first monitor for Slurm clusters with:
 - local mode (run on a node that has Slurm CLI tools installed),
 - remote mode over SSH (including SSH config aliases and bastion/proxy jumps),
