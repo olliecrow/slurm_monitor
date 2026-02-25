@@ -1,6 +1,6 @@
 # slurm_monitor
 
-<img width="557" height="617" alt="image" src="https://github.com/user-attachments/assets/e1284784-98b5-41a1-b154-adf8dc02232d" />
+<img width="555" height="616" alt="image" src="https://github.com/user-attachments/assets/c7137a9a-b790-43fa-8986-070dde76ca2d" />
 
 
 `slurm_monitor` is a terminal-first monitor for Slurm clusters with:
