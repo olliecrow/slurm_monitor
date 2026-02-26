@@ -277,6 +277,25 @@ func TestClipToViewportPadsToFullFrame(t *testing.T) {
 			t.Fatalf("expected line %d width 6, got %d", i+1, lipgloss.Width(line))
 		}
 	}
+	if strings.Contains(out, viewportClipText) {
+		t.Fatalf("did not expect clip marker when content fits viewport, got: %q", out)
+	}
+}
+
+func TestClipToViewportMarksTerminalHeightClipping(t *testing.T) {
+	out := clipToViewport("a\nb\nc\nd\ne", 48, 3)
+	lines := strings.Split(out, "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected exactly 3 lines, got %d", len(lines))
+	}
+	if !strings.Contains(lines[2], viewportClipText) {
+		t.Fatalf("expected last visible row to contain clip marker, got: %q", lines[2])
+	}
+	for i, line := range lines {
+		if lipgloss.Width(line) != 48 {
+			t.Fatalf("expected line %d width 48, got %d", i+1, lipgloss.Width(line))
+		}
+	}
 }
 
 func seededModel() Model {
