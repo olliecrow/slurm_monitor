@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -97,6 +98,16 @@ func TestQueueSummaryRendersWithoutBars(t *testing.T) {
 	}
 }
 
+func TestQueuePanelBudgetKeepsUserTitleWhenOnlyOneLineRemains(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+
+	out := m.renderQueuePanelWithBudget(6, 16, true, true, 70)
+	if !strings.Contains(out, "user view") {
+		t.Fatalf("expected user section title even when queue budget is tight, got: %q", out)
+	}
+}
+
 func TestCompactViewIncludesPendingDemandColumnsWhenWidthAllows(t *testing.T) {
 	m := seededModel()
 	m.compact = true
@@ -117,6 +128,23 @@ func TestNodeTableShowsNodeAlert(t *testing.T) {
 	out := m.renderNodeTable(10)
 	if !strings.Contains(out, "node alert: drain=1") {
 		t.Fatalf("expected node table to include drain alert, got: %q", out)
+	}
+}
+
+func TestNodeTableBudgetKeepsAlertAndTotalInTightSpace(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.snapshot.Nodes[0].State = "MIXED+DRAIN"
+
+	out := m.renderNodeTableWithBudget(4, 16, true, 60)
+	if !strings.Contains(out, "node summary") {
+		t.Fatalf("expected node summary title in tight budget, got: %q", out)
+	}
+	if !strings.Contains(out, "node alert: drain=1") {
+		t.Fatalf("expected node alert in tight budget, got: %q", out)
+	}
+	if !strings.Contains(out, "TOTAL") {
+		t.Fatalf("expected TOTAL row in tight budget, got: %q", out)
 	}
 }
 
@@ -156,6 +184,44 @@ func TestUserViewShowsHiddenCountWhenCapped(t *testing.T) {
 	}
 	if strings.Count(out, "alice") != 1 {
 		t.Fatalf("expected only top user to render when capped, got: %q", out)
+	}
+}
+
+func TestViewShowsHiddenUserIndicatorInTightLayout(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	for i := 0; i < 20; i++ {
+		m.snapshot.Users = append(m.snapshot.Users, slurm.UserSummary{
+			User:    fmt.Sprintf("user-%02d", i),
+			Running: 1,
+			Pending: 1,
+		})
+	}
+	m.width = 80
+	m.height = 20
+
+	out := m.View()
+	if !strings.Contains(out, "user view (top ") || !strings.Contains(out, "hidden)") {
+		t.Fatalf("expected user view hidden-count indicator in tight layout, got: %q", out)
+	}
+}
+
+func TestViewKeepsNodeAlertAndTotalInTightLayout(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.snapshot.Nodes[0].State = "MIXED+DRAIN"
+	m.width = 80
+	m.height = 20
+
+	out := m.View()
+	if !strings.Contains(out, "node summary") {
+		t.Fatalf("expected node summary title in tight layout, got: %q", out)
+	}
+	if !strings.Contains(out, "node alert: drain=1") {
+		t.Fatalf("expected node alert in tight layout, got: %q", out)
+	}
+	if !strings.Contains(out, "TOTAL") {
+		t.Fatalf("expected TOTAL row in tight layout, got: %q", out)
 	}
 }
 

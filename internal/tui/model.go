@@ -285,6 +285,7 @@ func (m Model) renderMain(maxHeight int) string {
 		return ""
 	}
 	inner := max(20, m.width-6)
+	contentWidth := panelContentWidth(inner)
 	compactLayout := m.compact || m.width < 118 || maxHeight < 18
 
 	queueTarget := max(9, maxHeight/2)
@@ -298,21 +299,14 @@ func (m Model) renderMain(maxHeight int) string {
 		nodeTarget = max(3, maxHeight-queueTarget-1)
 	}
 
-	showDemandCols := m.width >= 70
-	queueBodyHeight := max(1, queueTarget-2)
-	userRows := max(1, queueBodyHeight-8)
-	userRows = min(userRows, maxUserRowsForHeight(maxHeight, compactLayout))
-	queueBody := m.renderQueuePanel(userRows, showDemandCols)
-	queueBody = clipToHeight(queueBody, queueBodyHeight)
+	showDemandCols := contentWidth >= 62
+	queueBodyHeight := panelContentHeight(queueTarget)
+	queueBody := m.renderQueuePanelWithBudget(queueBodyHeight, maxHeight, compactLayout, showDemandCols, contentWidth)
 	queuePanel := m.styles.panel.Width(inner).Render(queueBody)
 
-	nodeLimit := max(1, nodeTarget-5)
-	if compactLayout && maxHeight <= 28 && nodeLimit > 6 {
-		nodeLimit = 6
-	}
-	nodeLimit = min(nodeLimit, maxNodeRowsForHeight(maxHeight, compactLayout))
-	nodePanel := m.styles.panel.Width(inner).Render(m.renderNodeTable(nodeLimit))
-	nodePanel = clipToHeight(nodePanel, nodeTarget)
+	nodeBodyHeight := panelContentHeight(nodeTarget)
+	nodeBody := m.renderNodeTableWithBudget(nodeBodyHeight, maxHeight, compactLayout, contentWidth)
+	nodePanel := m.styles.panel.Width(inner).Render(nodeBody)
 
 	body := lipgloss.JoinVertical(lipgloss.Left, nodePanel, "", queuePanel)
 	return clipToHeight(body, maxHeight)
@@ -335,6 +329,47 @@ func (m Model) renderQueuePanel(userLimit int, showDemand bool) string {
 
 	lines = append(lines, "")
 	lines = append(lines, m.renderUserLines(userLimit, showDemand)...)
+	lines = fitLinesToWidth(lines, panelContentWidth(max(20, m.width-6)))
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) renderQueuePanelWithBudget(contentHeight, maxHeight int, compactLayout, showDemand bool, contentWidth int) string {
+	if m.snapshot == nil {
+		return "queue summary\n(no data)"
+	}
+	if contentHeight <= 0 {
+		return ""
+	}
+
+	q := m.snapshot.Queue
+	total := q.Running + q.Pending + q.Other
+	lines := []string{
+		m.sectionTitle("queue summary"),
+		m.queueStatusLine("running", q.Running),
+		m.queueStatusLine("pending", q.Pending),
+		m.queueStatusLine("other", q.Other),
+		m.queueStatusLine("total", total),
+	}
+
+	available := contentHeight - len(lines)
+	if available > 1 {
+		lines = append(lines, "")
+		available--
+	}
+
+	if available > 0 {
+		maxUserRows := maxUserRowsForHeight(maxHeight, compactLayout)
+		userRowBudget := available
+		userRows := 0
+		if userRowBudget > 2 {
+			userRows = userRowBudget - 2
+		}
+		userRows = min(userRows, maxUserRows)
+		lines = append(lines, m.renderUserLinesWithBudget(userRows, userRowBudget, showDemand, contentWidth)...)
+	}
+
+	lines = clipLines(lines, contentHeight)
+	lines = fitLinesToWidth(lines, contentWidth)
 	return strings.Join(lines, "\n")
 }
 
@@ -383,7 +418,61 @@ func (m Model) renderUserLines(limit int, showDemand bool) []string {
 	for _, u := range users {
 		lines = append(lines, fmt.Sprintf("%-18s %8d %8d", truncateRunes(u.User, 18), u.Running, u.Pending))
 	}
-	return lines
+	return fitLinesToWidth(lines, panelContentWidth(max(20, m.width-6)))
+}
+
+func (m Model) renderUserLinesWithBudget(maxRows, rowBudget int, showDemand bool, contentWidth int) []string {
+	if m.snapshot == nil || rowBudget <= 0 {
+		return nil
+	}
+	users := append([]slurm.UserSummary(nil), m.snapshot.Users...)
+	slurm.SortUsersByPendingDemand(users)
+
+	totalUsers := len(users)
+	if maxRows < 0 {
+		maxRows = 0
+	}
+	visibleRows := 0
+	if rowBudget >= 2 {
+		visibleRows = min(maxRows, rowBudget-2)
+		if visibleRows > totalUsers {
+			visibleRows = totalUsers
+		}
+	}
+	visibleUsers := users[:visibleRows]
+	hiddenUsers := totalUsers - len(visibleUsers)
+
+	title := "user view"
+	if hiddenUsers > 0 {
+		title = fmt.Sprintf("user view (top %d/%d, +%d hidden)", len(visibleUsers), totalUsers, hiddenUsers)
+	}
+	lines := []string{m.sectionTitle(title)}
+	if rowBudget == 1 {
+		return fitLinesToWidth(lines, contentWidth)
+	}
+
+	if showDemand {
+		lines = append(lines, fmt.Sprintf("%-12s %7s %7s %14s %14s", "user", "running", "pending", "pendingCPUJobs", "pendingGPUJobs"))
+		for _, u := range visibleUsers {
+			lines = append(lines, fmt.Sprintf(
+				"%-12s %7d %7d %14d %14d",
+				truncateRunes(u.User, 12),
+				u.Running,
+				u.Pending,
+				u.PendingCPUJobs,
+				u.PendingGPUJobs,
+			))
+		}
+		lines = clipLines(lines, rowBudget)
+		return fitLinesToWidth(lines, contentWidth)
+	}
+
+	lines = append(lines, fmt.Sprintf("%-18s %8s %8s", "user", "running", "pending"))
+	for _, u := range visibleUsers {
+		lines = append(lines, fmt.Sprintf("%-18s %8d %8d", truncateRunes(u.User, 18), u.Running, u.Pending))
+	}
+	lines = clipLines(lines, rowBudget)
+	return fitLinesToWidth(lines, contentWidth)
 }
 
 func (m Model) renderNodeTable(limit int) string {
@@ -408,6 +497,7 @@ func (m Model) renderNodeTable(limit int) string {
 	if hiddenNodes > 0 {
 		title = fmt.Sprintf("node summary (top %d/%d, +%d hidden)", len(nodes), totalNodes, hiddenNodes)
 	}
+	contentWidth := panelContentWidth(max(20, m.width-6))
 	lines := []string{m.sectionTitle(title)}
 	if alert, ok := nodeStateAlert(m.snapshot); ok {
 		lines = append(lines, m.styles.bad.Render(alert))
@@ -435,6 +525,7 @@ func (m Model) renderNodeTable(limit int) string {
 			uifmt.Ratio(t.GPUAlloc, t.GPUTotal),
 		)
 		lines = append(lines, m.styles.accent.Render(totalLine))
+		lines = fitLinesToWidth(lines, contentWidth)
 		return strings.Join(lines, "\n")
 	}
 
@@ -487,6 +578,136 @@ func (m Model) renderNodeTable(limit int) string {
 		gpuPct,
 	)
 	lines = append(lines, m.styles.accent.Render(totalLine))
+	lines = fitLinesToWidth(lines, contentWidth)
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) renderNodeTableWithBudget(contentHeight, maxHeight int, compactLayout bool, contentWidth int) string {
+	if m.snapshot == nil || contentHeight <= 0 {
+		return ""
+	}
+	const (
+		compactRowFmt = "%-14s %-9s %-10s %-9s %-13s %-13s"
+		wideRowFmt    = "%-12s %-14s %-14s %-10s %-6s %-13s %-6s %-10s %-6s"
+	)
+
+	compact := m.compact || m.width < 122
+	if compactLayout && m.width < 132 {
+		compact = true
+	}
+	maxRows := maxNodeRowsForHeight(maxHeight, compactLayout)
+	nodes := m.snapshot.Nodes
+	totalNodes := len(nodes)
+
+	alert, hasAlert := nodeStateAlert(m.snapshot)
+	mandatoryLines := 2 // title + total
+	if hasAlert {
+		mandatoryLines++
+	}
+	remainingAfterMandatory := contentHeight - mandatoryLines
+	showHeader := remainingAfterMandatory > 0
+	visibleRows := 0
+	if showHeader {
+		visibleRows = min(totalNodes, min(maxRows, remainingAfterMandatory-1))
+	}
+	hiddenNodes := totalNodes - visibleRows
+
+	title := "node summary"
+	if hiddenNodes > 0 {
+		title = fmt.Sprintf("node summary (top %d/%d, +%d hidden)", visibleRows, totalNodes, hiddenNodes)
+	}
+
+	t := m.snapshot.Totals()
+	lines := []string{m.sectionTitle(title)}
+	if hasAlert {
+		lines = append(lines, m.styles.bad.Render(alert))
+	}
+
+	if compact {
+		if showHeader {
+			lines = append(lines, fmt.Sprintf(compactRowFmt, "node", "part", "state", "cpu", "mem", "gpu"))
+		}
+		for i := 0; i < visibleRows; i++ {
+			n := nodes[i]
+			lines = append(lines, fmt.Sprintf(
+				compactRowFmt,
+				truncateRunes(n.Name, 14),
+				truncateRunes(n.Partition, 9),
+				truncateRunes(n.State, 10),
+				uifmt.Ratio(n.CPUAlloc, n.CPUTotal),
+				uifmt.MemPair(n.MemAllocMB, n.MemTotalMB),
+				uifmt.Ratio(n.GPUAlloc, n.GPUTotal),
+			))
+		}
+		totalLine := fmt.Sprintf(
+			compactRowFmt,
+			"TOTAL",
+			"",
+			"",
+			uifmt.Ratio(t.CPUAlloc, t.CPUTotal),
+			uifmt.MemPair(t.MemAllocMB, t.MemTotalMB),
+			uifmt.Ratio(t.GPUAlloc, t.GPUTotal),
+		)
+		lines = append(lines, m.styles.accent.Render(totalLine))
+		lines = clipLines(lines, contentHeight)
+		lines = fitLinesToWidth(lines, contentWidth)
+		return strings.Join(lines, "\n")
+	}
+
+	if showHeader {
+		lines = append(lines, fmt.Sprintf(
+			wideRowFmt,
+			"node", "partition", "state", "cpu", "cpu%", "mem", "mem%", "gpu", "gpu%",
+		))
+	}
+	for i := 0; i < visibleRows; i++ {
+		n := nodes[i]
+		lines = append(lines, fmt.Sprintf(
+			wideRowFmt,
+			truncateRunes(n.Name, 12),
+			truncateRunes(n.Partition, 14),
+			truncateRunes(n.State, 14),
+			uifmt.Ratio(n.CPUAlloc, n.CPUTotal),
+			uifmt.Percent(n.CPUUtil, n.HasCPU),
+			uifmt.MemPair(n.MemAllocMB, n.MemTotalMB),
+			uifmt.Percent(n.MemUtil, n.HasMem),
+			uifmt.Ratio(n.GPUAlloc, n.GPUTotal),
+			uifmt.Percent(n.GPUUtil, n.HasGPU),
+		))
+	}
+
+	var cpuPct, memPct, gpuPct string
+	if t.CPUTotal > 0 {
+		cpuPct = fmt.Sprintf("%.1f%%", float64(t.CPUAlloc)/float64(t.CPUTotal)*100.0)
+	} else {
+		cpuPct = "n/a"
+	}
+	if t.MemTotalMB > 0 {
+		memPct = fmt.Sprintf("%.1f%%", float64(t.MemAllocMB)/float64(t.MemTotalMB)*100.0)
+	} else {
+		memPct = "n/a"
+	}
+	if t.GPUTotal > 0 {
+		gpuPct = fmt.Sprintf("%.1f%%", float64(t.GPUAlloc)/float64(t.GPUTotal)*100.0)
+	} else {
+		gpuPct = "n/a"
+	}
+
+	totalLine := fmt.Sprintf(
+		wideRowFmt,
+		"TOTAL",
+		"",
+		"",
+		uifmt.Ratio(t.CPUAlloc, t.CPUTotal),
+		cpuPct,
+		uifmt.MemPair(t.MemAllocMB, t.MemTotalMB),
+		memPct,
+		uifmt.Ratio(t.GPUAlloc, t.GPUTotal),
+		gpuPct,
+	)
+	lines = append(lines, m.styles.accent.Render(totalLine))
+	lines = clipLines(lines, contentHeight)
+	lines = fitLinesToWidth(lines, contentWidth)
 	return strings.Join(lines, "\n")
 }
 
@@ -645,6 +866,35 @@ func lineCount(s string) int {
 		return 0
 	}
 	return strings.Count(s, "\n") + 1
+}
+
+func panelContentHeight(panelHeight int) int {
+	return max(1, panelHeight-2)
+}
+
+func panelContentWidth(panelWidth int) int {
+	return max(1, panelWidth-4)
+}
+
+func fitLinesToWidth(lines []string, width int) []string {
+	if width <= 0 {
+		return lines
+	}
+	out := make([]string, len(lines))
+	for i, line := range lines {
+		out[i] = truncateRunes(line, width)
+	}
+	return out
+}
+
+func clipLines(lines []string, maxLines int) []string {
+	if maxLines <= 0 || len(lines) == 0 {
+		return nil
+	}
+	if len(lines) <= maxLines {
+		return lines
+	}
+	return lines[:maxLines]
 }
 
 func max(a, b int) int {
