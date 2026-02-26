@@ -207,3 +207,19 @@ Enforcement:
 - Tests cover capped node/user labels and stable frame width behavior.
 References:
 `internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`.
+
+Decision:
+Apply per-panel line budgeting so node alert and `TOTAL` remain visible even in tight terminal layouts.
+Context:
+Global height caps alone can still clip required node-summary lines when panel borders/padding and long labels consume extra rows.
+Rationale:
+Budgeting from panel content height keeps rendering deterministic across varying terminal sizes while preserving critical operator signals.
+Trade-offs:
+Very small terminals may show zero per-node rows while still showing section title, alert, and aggregate totals.
+Enforcement:
+- Node panel computes mandatory-line budget (`title`, optional `node alert`, `TOTAL`) before allocating per-node rows.
+- Queue panel computes remaining line budget for user rows and always shows hidden-count metadata when rows are dropped.
+- Generated table lines are width-fitted to panel content width to prevent wrap-driven vertical drift.
+- Tests cover tight-height behavior for node alert + `TOTAL` preservation and hidden-user indicators.
+References:
+`internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`.
