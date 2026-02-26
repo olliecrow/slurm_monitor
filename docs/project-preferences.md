@@ -23,6 +23,7 @@ These preferences define how `slurm_monitor` should be maintained as an open-sou
 ## Verification Expectations
 
 - Verify key paths in both local and remote modes when behavior changes.
+- Run `slurm-monitor doctor` and `slurm-monitor dry-run` as first-line checks before live monitor sessions.
 - Include concise verification evidence in PRs/issues when practical.
 
 ## Collaboration Preferences
