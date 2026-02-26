@@ -179,3 +179,15 @@ Enforcement:
 Node-state parsing preserves `+DRAIN`/`+DOWN` qualifiers (only cosmetic `*` is stripped). Node summary renders a `node alert` line when any nodes are `DOWN` or `DRAIN`. Header does not render node alert badges.
 References:
 `internal/slurm/parse.go`, `internal/slurm/parse_test.go`, `internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`, `docs/architecture.md`.
+
+Decision:
+TUI mode is read-only and non-interactive by design.
+Context:
+The monitor is intended as an observability surface, not an in-terminal control plane.
+Rationale:
+Keeping TUI read-only and non-interactive reduces operator risk and keeps the interface simple.
+Trade-offs:
+No action controls from the TUI.
+Enforcement:
+- TUI does not expose mutating commands.
+- Bottom status line shows `Ctrl+C to exit` as the only interaction hint.
