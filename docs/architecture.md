@@ -51,6 +51,7 @@ Design principles:
 - minimal round trips per poll tick (single combined remote command per poll for node + queue collection)
 - clear parsers with defensive handling for missing optional metrics
 - deterministic parse errors with useful context
+- preserve scheduler-critical composite node state qualifiers (`+DRAIN`, `+DOWN`) during parsing; only cosmetic state markers are stripped
 
 ## 4) Snapshot aggregation
 Responsibilities:
@@ -121,6 +122,8 @@ All terminals:
 - top: connection header + last update/staleness
 - middle: node summary panel
 - bottom: combined queue panel (queue summary section + user summary section)
+- when any node is `DOWN` or `DRAIN`, render a node-health alert line at the top of the node summary panel
+- keep node-health alerts out of the header to reduce top-line noise and keep clock/status readability
 
 Compact terminals:
 - maintain the same vertical panel order while reducing visible row/detail counts to fit height

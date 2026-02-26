@@ -166,3 +166,16 @@ Enforcement:
 Argument parsing supports `doctor` and `dry-run`; `doctor` reports pass/fail from non-mutating preflight checks; `dry-run` prints planned stages and executes no transport commands.
 References:
 `internal/config/config.go`, `internal/app/preflight.go`, `internal/app/preflight_test.go`, `docs/spec.md` (Helper Command Behavior).
+
+Decision:
+Preserve composite node state qualifiers and prioritize node-summary health alerts for `DOWN`/`DRAIN`.
+Context:
+Collapsing node states to base values (for example showing `MIXED` instead of `MIXED+DRAIN`) hid scheduler-critical conditions and could mislead operators when jobs were blocked by maintenance/drain status.
+Rationale:
+Displaying full composite state makes scheduler constraints explicit, and placing a red health alert in the node summary keeps the warning next to node evidence while keeping the header focused on liveness.
+Trade-offs:
+Composite states consume more horizontal space; wide-mode state column was widened to reduce truncation. Header omits duplicate alerts by design.
+Enforcement:
+Node-state parsing preserves `+DRAIN`/`+DOWN` qualifiers (only cosmetic `*` is stripped). Node summary renders a `node alert` line when any nodes are `DOWN` or `DRAIN`. Header does not render node alert badges.
+References:
+`internal/slurm/parse.go`, `internal/slurm/parse_test.go`, `internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`, `docs/architecture.md`.
