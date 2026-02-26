@@ -385,6 +385,9 @@ func (m Model) renderNodeTable(limit int) string {
 
 	compact := m.compact || m.width < 122
 	lines := []string{m.sectionTitle("node summary")}
+	if alert, ok := nodeStateAlert(m.snapshot); ok {
+		lines = append(lines, m.styles.bad.Render(alert))
+	}
 	if compact {
 		lines = append(lines, fmt.Sprintf("%-14s %-9s %-10s %-9s %-13s %-13s", "node", "part", "state", "cpu", "mem", "gpu"))
 		for _, n := range nodes {
@@ -412,15 +415,15 @@ func (m Model) renderNodeTable(limit int) string {
 	}
 
 	lines = append(lines, fmt.Sprintf(
-		"%-12s %-14s %-8s %-10s %-6s %-13s %-6s %-10s %-6s",
+		"%-12s %-14s %-14s %-10s %-6s %-13s %-6s %-10s %-6s",
 		"node", "partition", "state", "cpu", "cpu%", "mem", "mem%", "gpu", "gpu%",
 	))
 	for _, n := range nodes {
 		lines = append(lines, fmt.Sprintf(
-			"%-12s %-14s %-8s %-10s %-6s %-13s %-6s %-10s %-6s",
+			"%-12s %-14s %-14s %-10s %-6s %-13s %-6s %-10s %-6s",
 			truncateRunes(n.Name, 12),
 			truncateRunes(n.Partition, 14),
-			truncateRunes(n.State, 8),
+			truncateRunes(n.State, 14),
 			uifmt.Ratio(n.CPUAlloc, n.CPUTotal),
 			uifmt.Percent(n.CPUUtil, n.HasCPU),
 			uifmt.MemPair(n.MemAllocMB, n.MemTotalMB),
@@ -448,7 +451,7 @@ func (m Model) renderNodeTable(limit int) string {
 	}
 
 	totalLine := fmt.Sprintf(
-		"%-12s %-14s %-8s %-10s %-6s %-13s %-6s %-10s %-6s",
+		"%-12s %-14s %-14s %-10s %-6s %-13s %-6s %-10s %-6s",
 		"TOTAL",
 		"",
 		"",
@@ -461,6 +464,32 @@ func (m Model) renderNodeTable(limit int) string {
 	)
 	lines = append(lines, m.styles.accent.Render(totalLine))
 	return strings.Join(lines, "\n")
+}
+
+func nodeStateAlert(snap *slurm.Snapshot) (string, bool) {
+	if snap == nil || len(snap.Nodes) == 0 {
+		return "", false
+	}
+	var down, drain int
+	for _, n := range snap.Nodes {
+		state := strings.ToUpper(n.State)
+		if strings.Contains(state, "DOWN") {
+			down++
+		}
+		if strings.Contains(state, "DRAIN") {
+			drain++
+		}
+	}
+	switch {
+	case down > 0 && drain > 0:
+		return fmt.Sprintf("node alert: down=%d drain=%d", down, drain), true
+	case down > 0:
+		return fmt.Sprintf("node alert: down=%d", down), true
+	case drain > 0:
+		return fmt.Sprintf("node alert: drain=%d", drain), true
+	default:
+		return "", false
+	}
 }
 
 func (m Model) queueStatusLine(label string, value int) string {
