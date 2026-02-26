@@ -108,6 +108,34 @@ func TestQueuePanelBudgetKeepsUserTitleWhenOnlyOneLineRemains(t *testing.T) {
 	}
 }
 
+func TestUserLinesBudgetTwoRowsShowsOneUser(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+
+	lines := m.renderUserLinesWithBudget(10, 2, true, 80)
+	out := strings.Join(lines, "\n")
+	if !strings.Contains(out, "user view (top 1/3, +2 hidden)") {
+		t.Fatalf("expected one visible user in tight two-row budget, got: %q", out)
+	}
+	if !strings.Contains(out, "alice") {
+		t.Fatalf("expected top user row in tight two-row budget, got: %q", out)
+	}
+}
+
+func TestUserLinesBudgetOneRowUsesHiddenOnlyLabel(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+
+	lines := m.renderUserLinesWithBudget(10, 1, true, 80)
+	out := strings.Join(lines, "\n")
+	if !strings.Contains(out, "user view (+3 hidden)") {
+		t.Fatalf("expected hidden-only user label for one-row budget, got: %q", out)
+	}
+	if strings.Contains(out, "top 0/") {
+		t.Fatalf("expected no top 0/N label, got: %q", out)
+	}
+}
+
 func TestCompactViewIncludesPendingDemandColumnsWhenWidthAllows(t *testing.T) {
 	m := seededModel()
 	m.compact = true
@@ -201,7 +229,7 @@ func TestViewShowsHiddenUserIndicatorInTightLayout(t *testing.T) {
 	m.height = 20
 
 	out := m.View()
-	if !strings.Contains(out, "user view (top ") || !strings.Contains(out, "hidden)") {
+	if !strings.Contains(out, "user view (") || !strings.Contains(out, "hidden)") {
 		t.Fatalf("expected user view hidden-count indicator in tight layout, got: %q", out)
 	}
 }
