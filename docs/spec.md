@@ -96,7 +96,7 @@ The tool should run for long periods with minimal operator interaction and provi
 ### 1) Node summary view
 Per-node fields:
 - node name
-- node state
+- node state (preserve full Slurm composite state including qualifiers such as `+DRAIN` and `+DOWN`)
 - CPU allocation (`allocated/total`)
 - CPU utilization (if available from Slurm-reported metrics; else display `n/a`)
 - memory allocation (`allocated/total`)
@@ -104,6 +104,7 @@ Per-node fields:
 - GPU allocation (`allocated/total`)
 - GPU utilization (if available; else `n/a`)
 - partition(s)
+- explicit node-health alert line in the node summary panel when any node is `DOWN` or `DRAIN`
 
 Aggregate row:
 - totals across visible nodes for allocation/usage signals where mathematically valid.
@@ -133,6 +134,7 @@ Per-user fields:
 - Non-interactive display: no in-app controls or navigation; monitor-only rendering.
 - Header includes a heartbeat clock, last-update age, and refresh cadence.
 - Header includes a status spinner so refresh/liveness is visible even when metrics are stable.
+- Header intentionally omits node-health alert badges; `DOWN`/`DRAIN` alerts are shown directly in the node summary panel.
 - Body renders two vertically stacked panels in fixed order:
   - node summary
   - combined queue panel (queue summary section + user view section)

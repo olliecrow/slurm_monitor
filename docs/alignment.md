@@ -141,3 +141,20 @@ This file maps stated requirements to planned behavior/docs and later test cover
 - References:
   - `docs/spec.md` (Platform Support)
   - `docs/implementation-plan.md` (Phase 0 acceptance checks + Phase 7 matrix)
+
+### R14: Critical node health visibility (DOWN/DRAIN)
+- Requirement:
+  - scheduler-critical node state qualifiers (for example `+DRAIN`/`+DOWN`) must be visible in the node state field
+  - UI must surface a prominent node-health alert in the node summary panel when any nodes are `DOWN` or `DRAIN`
+  - header should remain focused on liveness/connection and avoid duplicate node-health alerts
+- Planned enforcement:
+  - node state parser preserves composite state qualifiers rather than collapsing to base state
+  - node summary renderer shows a red alert line when `DOWN`/`DRAIN` states are present
+  - wide layout keeps a wider state column to reduce truncation for composite states
+- References:
+  - `docs/spec.md` (Runtime Data Contract, TUI Behavior)
+  - `docs/architecture.md` (Collector pipeline, Rendering layout plan)
+  - `internal/slurm/parse.go`
+  - `internal/tui/model.go`
+  - `internal/slurm/parse_test.go`
+  - `internal/tui/model_test.go`
