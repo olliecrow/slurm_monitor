@@ -142,6 +142,7 @@ Per-user fields:
 - Node and user tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
 - Row budgets are computed from per-panel content height (not just global terminal height) so mandatory lines remain visible under tight layouts.
 - When rows are clipped, section headers must show deterministic truncation metadata (for example `top X/Y, +N hidden`).
+- When no rows fit in a panel budget, headers should still show hidden-row metadata without `top 0/...` phrasing (for example `+N hidden`).
 - Node summary must always include node-alert line (when applicable) and `TOTAL` aggregate row, even when per-node rows are clipped.
 - Connectivity indicator states:
   - connected
