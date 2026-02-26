@@ -66,6 +66,20 @@ This file maps stated requirements to planned behavior/docs and later test cover
   - `internal/config/config.go`
   - `cmd/slurm-monitor/main.go`
 
+### R13: Non-mutating helper commands for setup and preview
+- Requirement:
+  - `doctor` command runs preflight checks and exits pass/fail without entering monitor loop
+  - `dry-run` command prints resolved runtime plan without executing local or remote commands
+- Planned enforcement:
+  - command parser supports explicit `doctor` and `dry-run` commands
+  - helper command handlers are isolated from monitor loop execution
+- References:
+  - `docs/spec.md` (CLI Contract, Helper Command Behavior)
+  - `docs/architecture.md` (Capability detection)
+  - `internal/config/config.go`
+  - `internal/app/preflight.go`
+  - `internal/app/preflight_test.go`
+
 ### R11: Queue types and requested-resource visibility
 - Requirement:
   - monitor not only job counts, but also job-state mix and requested resources by workload.
