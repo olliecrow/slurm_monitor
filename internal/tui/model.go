@@ -79,6 +79,7 @@ var pulseFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧
 
 const (
 	frameRightGutter = 1
+	viewportClipText = "... output clipped to terminal height ..."
 )
 
 func NewModel(opts Options) Model {
@@ -857,8 +858,12 @@ func clipToViewport(s string, width, height int) string {
 		return ""
 	}
 	lines := strings.Split(s, "\n")
+	clipped := len(lines) > height
 	if len(lines) > height {
 		lines = lines[:height]
+	}
+	if clipped && len(lines) > 0 {
+		lines[len(lines)-1] = truncateRunes(viewportClipText, width)
 	}
 	for i := range lines {
 		lines[i] = truncateRunes(lines[i], width)

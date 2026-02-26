@@ -204,6 +204,7 @@ Enforcement:
 - Node/user row rendering applies terminal-aware upper bounds.
 - Section titles include hidden-row metadata when clipping occurs.
 - Node summary always retains alert + `TOTAL` lines.
+- If final viewport clipping still occurs, last visible row is replaced with `... output clipped to terminal height ...`.
 - Tests cover capped node/user labels and stable frame width behavior.
 References:
 `internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`.
