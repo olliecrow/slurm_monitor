@@ -74,6 +74,18 @@ func TestHeaderContainsLiveClock(t *testing.T) {
 	}
 }
 
+func TestHeaderDoesNotIncludeNodeAlert(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.snapshot.Nodes[0].State = "MIXED+DRAIN"
+	m.snapshot.Nodes[1].State = "IDLE+DOWN"
+
+	h := m.renderHeader(m.now)
+	if strings.Contains(h, "node alert:") {
+		t.Fatalf("expected header to omit node alert, got: %q", h)
+	}
+}
+
 func TestQueueSummaryRendersWithoutBars(t *testing.T) {
 	m := seededModel()
 	out := m.renderQueuePanel(4, true)
@@ -94,6 +106,29 @@ func TestCompactViewIncludesPendingDemandColumnsWhenWidthAllows(t *testing.T) {
 	out := m.View()
 	if !strings.Contains(out, "pendingCPUJobs") || !strings.Contains(out, "pendingGPUJobs") {
 		t.Fatalf("expected compact view to include pending demand columns, got: %q", out)
+	}
+}
+
+func TestNodeTableShowsNodeAlert(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.snapshot.Nodes[0].State = "MIXED+DRAIN"
+
+	out := m.renderNodeTable(10)
+	if !strings.Contains(out, "node alert: drain=1") {
+		t.Fatalf("expected node table to include drain alert, got: %q", out)
+	}
+}
+
+func TestWideNodeTableShowsUntruncatedDrainState(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.width = 180
+	m.snapshot.Nodes[0].State = "MIXED+DRAIN"
+
+	out := m.renderNodeTable(10)
+	if !strings.Contains(out, "MIXED+DRAIN") {
+		t.Fatalf("expected wide table to show full drain state, got: %q", out)
 	}
 }
 
@@ -213,12 +248,12 @@ func sampleSnapshot() slurm.Snapshot {
 				PendingGPU:   8,
 			},
 		},
-			Users: []slurm.UserSummary{
-				{User: "alice", Running: 17, Pending: 3, PendingCPUJobs: 1, PendingGPUJobs: 2, PendingCPU: 96, PendingMemMB: 220000, PendingGPU: 8},
-				{User: "bob", Running: 9, Pending: 1, PendingCPUJobs: 1, PendingGPUJobs: 0, PendingCPU: 32, PendingMemMB: 64000, PendingGPU: 0},
-				{User: "carol", Running: 6, Pending: 1, PendingCPUJobs: 0, PendingGPUJobs: 1, PendingCPU: 16, PendingMemMB: 32000, PendingGPU: 1},
-			},
-		}
+		Users: []slurm.UserSummary{
+			{User: "alice", Running: 17, Pending: 3, PendingCPUJobs: 1, PendingGPUJobs: 2, PendingCPU: 96, PendingMemMB: 220000, PendingGPU: 8},
+			{User: "bob", Running: 9, Pending: 1, PendingCPUJobs: 1, PendingGPUJobs: 0, PendingCPU: 32, PendingMemMB: 64000, PendingGPU: 0},
+			{User: "carol", Running: 6, Pending: 1, PendingCPUJobs: 0, PendingGPUJobs: 1, PendingCPU: 16, PendingMemMB: 32000, PendingGPU: 1},
+		},
+	}
 }
 
 func assertViewportBounds(t *testing.T, s string, width int, height int) {

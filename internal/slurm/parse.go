@@ -226,9 +226,8 @@ func cleanNodeState(v string) string {
 	if v == "" {
 		return ""
 	}
-	v = strings.Split(v, "+")[0]
-	v = strings.Split(v, "*")[0]
-	return strings.ToUpper(strings.TrimSpace(v))
+	v = strings.ToUpper(strings.TrimSpace(v))
+	return strings.ReplaceAll(v, "*", "")
 }
 
 func parseInt(v string) int {

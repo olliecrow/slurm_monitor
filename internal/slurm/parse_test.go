@@ -157,3 +157,19 @@ func TestParseMemUtil(t *testing.T) {
 		t.Fatalf("expected N/A FreeMem to be unavailable, got pct=%.2f ok=%v", pct, ok)
 	}
 }
+
+func TestCleanNodeStatePreservesDrainAndDownFlags(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{in: "mixed+drain", want: "MIXED+DRAIN"},
+		{in: "idle+down*", want: "IDLE+DOWN"},
+		{in: "alloc*", want: "ALLOC"},
+	}
+	for _, tt := range tests {
+		if got := cleanNodeState(tt.in); got != tt.want {
+			t.Fatalf("cleanNodeState(%q)=%q want=%q", tt.in, got, tt.want)
+		}
+	}
+}
