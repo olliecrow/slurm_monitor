@@ -98,6 +98,8 @@ Behavior:
 ## Capability detection
 - startup probe checks required commands in selected context
 - startup probe retries transient transport failures with backoff; missing-command failures remain fatal.
+- `doctor` runs a single non-mutating probe pass and reports pass/fail without entering the monitor loop.
+- `dry-run` prints planned stages and executes no transport commands.
 - optional capability map can track optional metrics availability (for utilization fields)
 
 ## Data collection strategy

@@ -153,3 +153,16 @@ Enforcement:
 Argument parser exposes a dedicated help path; main handles help with zero-exit output; parse errors include a direct `--help` hint.
 References:
 `internal/config/config.go`, `internal/config/config_test.go`, `cmd/slurm-monitor/main.go`, `docs/spec.md` (CLI Contract).
+
+Decision:
+Add explicit `doctor` and `dry-run` commands alongside monitor mode.
+Context:
+Operators need a fast way to validate setup and understand execution flow before starting a long live monitor session.
+Rationale:
+Dedicated helper commands keep onboarding simple, improve troubleshooting, and avoid accidental long-running sessions when users only need validation or preview.
+Trade-offs:
+CLI surface area is slightly larger and requires docs/tests to stay aligned.
+Enforcement:
+Argument parsing supports `doctor` and `dry-run`; `doctor` reports pass/fail from non-mutating preflight checks; `dry-run` prints planned stages and executes no transport commands.
+References:
+`internal/config/config.go`, `internal/app/preflight.go`, `internal/app/preflight_test.go`, `docs/spec.md` (Helper Command Behavior).

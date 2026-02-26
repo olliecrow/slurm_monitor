@@ -16,7 +16,16 @@ const (
 	ModeRemote Mode = "remote"
 )
 
+type Command string
+
+const (
+	CommandMonitor Command = "monitor"
+	CommandDoctor  Command = "doctor"
+	CommandDryRun  Command = "dry-run"
+)
+
 type Config struct {
+	Command        Command
 	Mode           Mode
 	Target         string
 	Refresh        time.Duration
@@ -35,6 +44,7 @@ var ErrHelpRequested = errors.New("help requested")
 
 func defaultConfig() Config {
 	return Config{
+		Command:        CommandMonitor,
 		Refresh:        2 * time.Second,
 		ConnectTimeout: 10 * time.Second,
 		CommandTimeout: 15 * time.Second,
@@ -66,14 +76,21 @@ func HelpText() string {
 	var b strings.Builder
 	b.WriteString("slurm-monitor: resilient, read-only Slurm queue/node monitor\n\n")
 	b.WriteString("Usage:\n")
-	b.WriteString("  slurm-monitor [flags] [ssh-target]\n\n")
+	b.WriteString("  slurm-monitor [flags] [ssh-target]\n")
+	b.WriteString("  slurm-monitor doctor [flags] [ssh-target]\n")
+	b.WriteString("  slurm-monitor dry-run [flags] [ssh-target]\n\n")
+	b.WriteString("Commands:\n")
+	b.WriteString("  monitor  Start live monitoring (default when no command is given).\n")
+	b.WriteString("  doctor   Run non-mutating preflight checks and exit.\n")
+	b.WriteString("  dry-run  Print planned execution order and exit.\n\n")
 	b.WriteString("Positional target:\n")
 	b.WriteString("  ssh-target is optional.\n")
 	b.WriteString("  - omitted: run locally (requires local sinfo/squeue/scontrol)\n")
 	b.WriteString("  - provided: run remotely through OpenSSH using alias or user@host\n\n")
 	b.WriteString("Behavior:\n")
 	b.WriteString("  - monitor is read-only and never mutates Slurm state\n")
-	b.WriteString("  - transient SSH/network failures retry automatically with backoff\n")
+	b.WriteString("  - doctor and dry-run are non-mutating helpers for setup and validation\n")
+	b.WriteString("  - transient SSH/network failures retry automatically with backoff in monitor mode\n")
 	b.WriteString("  - retries are infinite by default; set --duration to time-box a run\n")
 	b.WriteString("  - missing Slurm commands are treated as non-recoverable errors\n\n")
 	b.WriteString("Authentication:\n")
@@ -89,12 +106,32 @@ func HelpText() string {
 	b.WriteString("  slurm-monitor user@cluster.example.org --refresh 1s\n")
 	b.WriteString("  slurm-monitor --once cluster_alias\n")
 	b.WriteString("  slurm-monitor --duration 30m cluster_alias\n")
+	b.WriteString("  slurm-monitor doctor cluster_alias\n")
+	b.WriteString("  slurm-monitor dry-run --once cluster_alias\n")
 
 	return b.String()
 }
 
+func splitCommand(args []string) (Command, []string) {
+	if len(args) == 0 {
+		return CommandMonitor, args
+	}
+
+	switch strings.TrimSpace(args[0]) {
+	case string(CommandDoctor):
+		return CommandDoctor, args[1:]
+	case string(CommandDryRun):
+		return CommandDryRun, args[1:]
+	case string(CommandMonitor):
+		return CommandMonitor, args[1:]
+	default:
+		return CommandMonitor, args
+	}
+}
+
 func ParseArgs(args []string) (Config, error) {
 	cfg := defaultConfig()
+	cfg.Command, args = splitCommand(args)
 	fs := newFlagSet(&cfg)
 
 	if err := fs.Parse(args); err != nil {

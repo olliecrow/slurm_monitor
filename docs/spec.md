@@ -33,6 +33,10 @@ The tool should run for long periods with minimal operator interaction and provi
   - local mode; requires Slurm CLI available locally.
 - `slurm-monitor <ssh-target>`
   - remote mode; `<ssh-target>` supports SSH config alias or `user@host`.
+- `slurm-monitor doctor [<ssh-target>]`
+  - runs non-mutating preflight checks and exits with pass/fail status.
+- `slurm-monitor dry-run [<ssh-target>]`
+  - prints planned execution order and exits without running commands.
 - `slurm-monitor --help` (or `-h`)
   - prints a self-contained usage guide with mode behavior, retry semantics, auth model, flags, and examples.
 
@@ -73,6 +77,19 @@ The tool should run for long periods with minimal operator interaction and provi
 - Transient startup failures (SSH/network/timeouts) are retried automatically with backoff.
 - Retry behavior is unbounded by default and continues until operator quit; when `--duration` is set, retries stop at the configured deadline.
 - Runtime poll failures are non-fatal unless operator chooses to quit; stale data remains visible with staleness and connectivity markers.
+
+## Helper Command Behavior
+
+### `doctor`
+- Runs one preflight pass and exits.
+- Never enters the TUI loop.
+- Checks required local tooling and selected-mode Slurm capability.
+- Exits non-zero when any check fails.
+
+### `dry-run`
+- Prints resolved mode, target, runtime options, and planned stage order.
+- Does not execute local or remote Slurm commands.
+- Always remains read-only and exits after printing the plan.
 
 ## Runtime Data Contract
 

@@ -31,6 +31,20 @@ Show help.
 go run ./cmd/slurm-monitor --help
 ```
 
+Run doctor preflight checks.
+
+```bash
+go run ./cmd/slurm-monitor doctor
+go run ./cmd/slurm-monitor doctor cluster_alias
+```
+
+Preview the execution plan without running commands.
+
+```bash
+go run ./cmd/slurm-monitor dry-run
+go run ./cmd/slurm-monitor dry-run --once cluster_alias
+```
+
 Run local mode.
 
 ```bash
@@ -48,6 +62,42 @@ Run one-shot collection.
 
 ```bash
 go run ./cmd/slurm-monitor --once cluster_alias
+```
+
+## Doctor output example
+
+```text
+slurm-monitor doctor
+mode: remote
+target: cluster_alias
+
+[ok] local tool ssh: /usr/bin/ssh
+[ok] slurm preflight: required Slurm commands are reachable on ssh:cluster_alias
+
+doctor result: PASS
+```
+
+## Dry-run output example
+
+```text
+slurm-monitor dry-run
+mode: remote
+target: cluster_alias
+refresh: 2s
+connect-timeout: 10s
+command-timeout: 15s
+duration: unbounded
+once: false
+compact: false
+no-color: false
+
+planned sequence:
+1. Parse flags and build the configured transport.
+2. Connect over OpenSSH to the target and validate sinfo, squeue, and scontrol remotely.
+3. Start the polling loop and render the live TUI until interrupted or duration is reached.
+4. Exit without mutating any Slurm queue or cluster state.
+
+dry-run only: no local or remote commands were executed.
 ```
 
 ## Helpful options

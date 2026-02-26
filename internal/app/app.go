@@ -30,6 +30,17 @@ func (e *missingSlurmCommandsError) Error() string {
 }
 
 func Run(cfg config.Config) error {
+	switch cfg.Command {
+	case config.CommandDoctor:
+		return RunDoctor(cfg, os.Stdout)
+	case config.CommandDryRun:
+		return RunDryRun(cfg, os.Stdout)
+	case config.CommandMonitor:
+		// Continue into monitor execution.
+	default:
+		return fmt.Errorf("unsupported command: %s", cfg.Command)
+	}
+
 	tr, err := buildTransport(cfg)
 	if err != nil {
 		return err
