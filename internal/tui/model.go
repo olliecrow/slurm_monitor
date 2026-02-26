@@ -200,7 +200,7 @@ func (m Model) View() string {
 	}
 
 	header := m.renderHeader(now)
-	footer := m.styles.dim.Render("non-interactive monitor • Ctrl+C to stop")
+	footer := m.styles.dim.Render("Ctrl+C to exit")
 	headerLines := lineCount(header)
 	footerLines := lineCount(footer)
 	gapLines := 2
