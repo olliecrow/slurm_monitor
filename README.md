@@ -15,6 +15,7 @@ Give you a clear live view of cluster health and queue state without running any
 2. See a live TUI with node summary and queue views.
 3. Track queue counts, user pending counts, and array task counts.
 4. Keep monitoring through transient SSH or network failures, with automatic retries.
+5. On very large clusters, tables show a capped top slice with explicit `+N hidden` indicators to stay terminal-stable.
 
 ## Quick start
 

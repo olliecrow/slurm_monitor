@@ -120,6 +120,19 @@ func TestNodeTableShowsNodeAlert(t *testing.T) {
 	}
 }
 
+func TestNodeTableShowsHiddenCountAndTotalWhenCapped(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	out := m.renderNodeTable(1)
+
+	if !strings.Contains(out, "node summary (top 1/3, +2 hidden)") {
+		t.Fatalf("expected capped node summary label, got: %q", out)
+	}
+	if !strings.Contains(out, "TOTAL") {
+		t.Fatalf("expected TOTAL row to remain visible when node rows are capped, got: %q", out)
+	}
+}
+
 func TestWideNodeTableShowsUntruncatedDrainState(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
@@ -129,6 +142,33 @@ func TestWideNodeTableShowsUntruncatedDrainState(t *testing.T) {
 	out := m.renderNodeTable(10)
 	if !strings.Contains(out, "MIXED+DRAIN") {
 		t.Fatalf("expected wide table to show full drain state, got: %q", out)
+	}
+}
+
+func TestUserViewShowsHiddenCountWhenCapped(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	lines := m.renderUserLines(1, true)
+	out := strings.Join(lines, "\n")
+
+	if !strings.Contains(out, "user view (top 1/3, +2 hidden)") {
+		t.Fatalf("expected capped user view label, got: %q", out)
+	}
+	if strings.Count(out, "alice") != 1 {
+		t.Fatalf("expected only top user to render when capped, got: %q", out)
+	}
+}
+
+func TestViewUsesStabilizedFrameWidth(t *testing.T) {
+	m := seededModel()
+	m.width = 90
+	m.height = 24
+	out := m.View()
+	lines := strings.Split(out, "\n")
+	for i, line := range lines {
+		if lipgloss.Width(line) > 89 {
+			t.Fatalf("expected line %d width <= 89 after right-gutter stabilization, got %d", i+1, lipgloss.Width(line))
+		}
 	}
 }
 
