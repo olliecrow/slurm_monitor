@@ -3,7 +3,7 @@
 `slurm_monitor` is a terminal-first monitor for Slurm clusters.
 It supports local mode and remote mode over SSH, and it stays read only.
 
-<img width="1209" height="594" alt="image" src="https://github.com/user-attachments/assets/2f6d5570-69dd-4715-92e2-2a2833102c72" />
+<img width="554" height="616" alt="Screenshot 2026-02-25 at 22 59 00" src="https://github.com/user-attachments/assets/e84cf757-695c-44d2-830a-1ac95f3eb383" />
 
 ## What this project is trying to achieve
 
