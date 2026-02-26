@@ -219,6 +219,7 @@ Very small terminals may show zero per-node rows while still showing section tit
 Enforcement:
 - Node panel computes mandatory-line budget (`title`, optional `node alert`, `TOTAL`) before allocating per-node rows.
 - Queue panel computes remaining line budget for user rows and always shows hidden-count metadata when rows are dropped.
+- When panel budget allows zero visible rows, user-view header uses hidden-only labeling (for example `+N hidden`) instead of `top 0/N`.
 - Generated table lines are width-fitted to panel content width to prevent wrap-driven vertical drift.
 - Tests cover tight-height behavior for node alert + `TOTAL` preservation and hidden-user indicators.
 References:
