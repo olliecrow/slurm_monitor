@@ -1,10 +1,9 @@
 # slurm_monitor
 
-<img width="555" height="616" alt="image" src="https://github.com/user-attachments/assets/c7137a9a-b790-43fa-8986-070dde76ca2d" />
-
-
 `slurm_monitor` is a terminal-first monitor for Slurm clusters.
 It supports local mode and remote mode over SSH, and it stays read only.
+
+<img width="555" height="616" alt="image" src="https://github.com/user-attachments/assets/c7137a9a-b790-43fa-8986-070dde76ca2d" />
 
 ## What this project is trying to achieve
 
