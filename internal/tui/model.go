@@ -376,6 +376,10 @@ func (m Model) renderNodeTable(limit int) string {
 	if m.snapshot == nil {
 		return "node summary\n(no data)"
 	}
+	const (
+		compactRowFmt = "%-14s %-9s %-10s %-9s %-13s %-13s"
+		wideRowFmt    = "%-12s %-14s %-14s %-10s %-6s %-13s %-6s %-10s %-6s"
+	)
 
 	nodes := m.snapshot.Nodes
 	if len(nodes) > limit {
@@ -389,10 +393,10 @@ func (m Model) renderNodeTable(limit int) string {
 		lines = append(lines, m.styles.bad.Render(alert))
 	}
 	if compact {
-		lines = append(lines, fmt.Sprintf("%-14s %-9s %-10s %-9s %-13s %-13s", "node", "part", "state", "cpu", "mem", "gpu"))
+		lines = append(lines, fmt.Sprintf(compactRowFmt, "node", "part", "state", "cpu", "mem", "gpu"))
 		for _, n := range nodes {
 			lines = append(lines, fmt.Sprintf(
-				"%-14s %-9s %-10s %-9s %-13s %-13s",
+				compactRowFmt,
 				truncateRunes(n.Name, 14),
 				truncateRunes(n.Partition, 9),
 				truncateRunes(n.State, 10),
@@ -402,7 +406,7 @@ func (m Model) renderNodeTable(limit int) string {
 			))
 		}
 		totalLine := fmt.Sprintf(
-			"%-14s %-9s %-10s %-9s %-13s %-13s",
+			compactRowFmt,
 			"TOTAL",
 			"",
 			"",
@@ -415,12 +419,12 @@ func (m Model) renderNodeTable(limit int) string {
 	}
 
 	lines = append(lines, fmt.Sprintf(
-		"%-12s %-14s %-14s %-10s %-6s %-13s %-6s %-10s %-6s",
+		wideRowFmt,
 		"node", "partition", "state", "cpu", "cpu%", "mem", "mem%", "gpu", "gpu%",
 	))
 	for _, n := range nodes {
 		lines = append(lines, fmt.Sprintf(
-			"%-12s %-14s %-14s %-10s %-6s %-13s %-6s %-10s %-6s",
+			wideRowFmt,
 			truncateRunes(n.Name, 12),
 			truncateRunes(n.Partition, 14),
 			truncateRunes(n.State, 14),
@@ -451,7 +455,7 @@ func (m Model) renderNodeTable(limit int) string {
 	}
 
 	totalLine := fmt.Sprintf(
-		"%-12s %-14s %-14s %-10s %-6s %-13s %-6s %-10s %-6s",
+		wideRowFmt,
 		"TOTAL",
 		"",
 		"",
