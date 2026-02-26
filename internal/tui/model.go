@@ -395,7 +395,11 @@ func (m Model) renderUserLines(limit int, showDemand bool) []string {
 	hiddenUsers := totalUsers - len(users)
 	title := "user view"
 	if hiddenUsers > 0 {
-		title = fmt.Sprintf("user view (top %d/%d, +%d hidden)", len(users), totalUsers, hiddenUsers)
+		if len(users) == 0 {
+			title = fmt.Sprintf("user view (+%d hidden)", hiddenUsers)
+		} else {
+			title = fmt.Sprintf("user view (top %d/%d, +%d hidden)", len(users), totalUsers, hiddenUsers)
+		}
 	}
 
 	lines := []string{m.sectionTitle(title)}
@@ -433,21 +437,39 @@ func (m Model) renderUserLinesWithBudget(maxRows, rowBudget int, showDemand bool
 		maxRows = 0
 	}
 	visibleRows := 0
-	if rowBudget >= 2 {
-		visibleRows = min(maxRows, rowBudget-2)
-		if visibleRows > totalUsers {
-			visibleRows = totalUsers
+	switch {
+	case rowBudget <= 1:
+		visibleRows = 0
+	case rowBudget == 2:
+		if totalUsers > 0 {
+			visibleRows = min(maxRows, 1)
 		}
+	default:
+		visibleRows = min(maxRows, rowBudget-2)
+	}
+	if visibleRows > totalUsers {
+		visibleRows = totalUsers
 	}
 	visibleUsers := users[:visibleRows]
 	hiddenUsers := totalUsers - len(visibleUsers)
 
 	title := "user view"
 	if hiddenUsers > 0 {
-		title = fmt.Sprintf("user view (top %d/%d, +%d hidden)", len(visibleUsers), totalUsers, hiddenUsers)
+		if len(visibleUsers) == 0 {
+			title = fmt.Sprintf("user view (+%d hidden)", hiddenUsers)
+		} else {
+			title = fmt.Sprintf("user view (top %d/%d, +%d hidden)", len(visibleUsers), totalUsers, hiddenUsers)
+		}
 	}
 	lines := []string{m.sectionTitle(title)}
 	if rowBudget == 1 {
+		return fitLinesToWidth(lines, contentWidth)
+	}
+	if rowBudget == 2 {
+		if len(visibleUsers) == 1 {
+			u := visibleUsers[0]
+			lines = append(lines, fmt.Sprintf("%-18s %8d %8d", truncateRunes(u.User, 18), u.Running, u.Pending))
+		}
 		return fitLinesToWidth(lines, contentWidth)
 	}
 
