@@ -191,3 +191,19 @@ No action controls from the TUI.
 Enforcement:
 - TUI does not expose mutating commands.
 - Bottom status line shows `Ctrl+C to exit` as the only interaction hint.
+
+Decision:
+Constrain TUI row density and frame width to terminal-aware bounds, and surface explicit hidden-row indicators for large node/user tables.
+Context:
+Large clusters (many nodes/users) can produce oversized tables that risk terminal wrapping/scroll artifacts and unstable rendering in full-screen TUIs.
+Rationale:
+Deterministic row caps plus explicit `top X/Y, +N hidden` labels keep the display stable across different cluster sizes and terminal dimensions while preserving operator context.
+Trade-offs:
+Not all rows are shown at once in constrained terminals; operators must widen/resize terminal to view more rows.
+Enforcement:
+- Node/user row rendering applies terminal-aware upper bounds.
+- Section titles include hidden-row metadata when clipping occurs.
+- Node summary always retains alert + `TOTAL` lines.
+- Tests cover capped node/user labels and stable frame width behavior.
+References:
+`internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`.

@@ -77,6 +77,10 @@ type channelClosedMsg struct{}
 
 var pulseFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
+const (
+	frameRightGutter = 1
+)
+
 func NewModel(opts Options) Model {
 	return Model{
 		source:      opts.Source,
@@ -190,9 +194,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	if m.width <= 0 || m.height <= 0 {
+	viewWidth := stabilizedFrameWidth(m.width)
+	if viewWidth <= 0 || m.height <= 0 {
 		return "initializing..."
 	}
+	m.width = viewWidth
 
 	now := m.now
 	if now.IsZero() {
@@ -227,7 +233,7 @@ func (m Model) View() string {
 		parts = append(parts, body, "", footer)
 	}
 	joined := lipgloss.JoinVertical(lipgloss.Left, parts...)
-	return clipToViewport(joined, m.width, m.height)
+	return clipToViewport(joined, viewWidth, m.height)
 }
 
 func (m Model) renderHeader(now time.Time) string {
@@ -295,6 +301,7 @@ func (m Model) renderMain(maxHeight int) string {
 	showDemandCols := m.width >= 70
 	queueBodyHeight := max(1, queueTarget-2)
 	userRows := max(1, queueBodyHeight-8)
+	userRows = min(userRows, maxUserRowsForHeight(maxHeight, compactLayout))
 	queueBody := m.renderQueuePanel(userRows, showDemandCols)
 	queueBody = clipToHeight(queueBody, queueBodyHeight)
 	queuePanel := m.styles.panel.Width(inner).Render(queueBody)
@@ -303,6 +310,7 @@ func (m Model) renderMain(maxHeight int) string {
 	if compactLayout && maxHeight <= 28 && nodeLimit > 6 {
 		nodeLimit = 6
 	}
+	nodeLimit = min(nodeLimit, maxNodeRowsForHeight(maxHeight, compactLayout))
 	nodePanel := m.styles.panel.Width(inner).Render(m.renderNodeTable(nodeLimit))
 	nodePanel = clipToHeight(nodePanel, nodeTarget)
 
@@ -345,11 +353,17 @@ func (m Model) renderUserLines(limit int, showDemand bool) []string {
 			limit = 6
 		}
 	}
+	totalUsers := len(users)
 	if len(users) > limit {
 		users = users[:limit]
 	}
+	hiddenUsers := totalUsers - len(users)
+	title := "user view"
+	if hiddenUsers > 0 {
+		title = fmt.Sprintf("user view (top %d/%d, +%d hidden)", len(users), totalUsers, hiddenUsers)
+	}
 
-	lines := []string{m.sectionTitle("user view")}
+	lines := []string{m.sectionTitle(title)}
 	if showDemand {
 		lines = append(lines, fmt.Sprintf("%-12s %7s %7s %14s %14s", "user", "running", "pending", "pendingCPUJobs", "pendingGPUJobs"))
 		for _, u := range users {
@@ -382,13 +396,19 @@ func (m Model) renderNodeTable(limit int) string {
 	)
 
 	nodes := m.snapshot.Nodes
+	totalNodes := len(nodes)
 	if len(nodes) > limit {
 		nodes = nodes[:limit]
 	}
+	hiddenNodes := totalNodes - len(nodes)
 	t := m.snapshot.Totals()
 
 	compact := m.compact || m.width < 122
-	lines := []string{m.sectionTitle("node summary")}
+	title := "node summary"
+	if hiddenNodes > 0 {
+		title = fmt.Sprintf("node summary (top %d/%d, +%d hidden)", len(nodes), totalNodes, hiddenNodes)
+	}
+	lines := []string{m.sectionTitle(title)}
 	if alert, ok := nodeStateAlert(m.snapshot); ok {
 		lines = append(lines, m.styles.bad.Render(alert))
 	}
@@ -502,15 +522,57 @@ func (m Model) queueStatusLine(label string, value int) string {
 
 func (m Model) sectionTitle(label string) string {
 	icon := "•"
-	switch label {
-	case "node summary":
+	switch {
+	case strings.HasPrefix(label, "node summary"):
 		icon = "◌"
-	case "queue summary":
+	case strings.HasPrefix(label, "queue summary"):
 		icon = "◍"
-	case "user view":
+	case strings.HasPrefix(label, "user view"):
 		icon = "◒"
 	}
 	return m.styles.tableHdr.Render(icon + " " + label)
+}
+
+func maxUserRowsForHeight(maxHeight int, compact bool) int {
+	limit := 14
+	if compact {
+		limit = 10
+	}
+	switch {
+	case maxHeight <= 18:
+		limit = min(limit, 6)
+	case maxHeight <= 24:
+		limit = min(limit, 8)
+	case maxHeight <= 32:
+		limit = min(limit, 10)
+	}
+	return max(1, limit)
+}
+
+func maxNodeRowsForHeight(maxHeight int, compact bool) int {
+	limit := 16
+	if compact {
+		limit = 10
+	}
+	switch {
+	case maxHeight <= 18:
+		limit = min(limit, 4)
+	case maxHeight <= 24:
+		limit = min(limit, 6)
+	case maxHeight <= 32:
+		limit = min(limit, 8)
+	}
+	return max(1, limit)
+}
+
+func stabilizedFrameWidth(width int) int {
+	if width <= 0 {
+		return 0
+	}
+	if width <= frameRightGutter {
+		return width
+	}
+	return width - frameRightGutter
 }
 
 func humanDuration(d time.Duration) string {
@@ -587,6 +649,13 @@ func lineCount(s string) int {
 
 func max(a, b int) int {
 	if a > b {
+		return a
+	}
+	return b
+}
+
+func min(a, b int) int {
+	if a < b {
 		return a
 	}
 	return b
