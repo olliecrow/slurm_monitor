@@ -21,7 +21,14 @@ jobs:
       - name: Install gitleaks
         run: |
           set -euo pipefail
-          curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/v8.30.0/install.sh | sh -s -- -b "$RUNNER_TEMP" v8.30.0
+          version="8.30.0"
+          archive="gitleaks_${version}_linux_x64.tar.gz"
+          base_url="https://github.com/gitleaks/gitleaks/releases/download/v${version}"
+          curl -sSfL -o "${archive}" "${base_url}/${archive}"
+          curl -sSfL -o checksums.txt "${base_url}/gitleaks_${version}_checksums.txt"
+          grep "${archive}" checksums.txt | sha256sum -c -
+          tar -xzf "${archive}"
+          install -m 0755 gitleaks "$RUNNER_TEMP/gitleaks"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
       - name: Scan git history with gitleaks
