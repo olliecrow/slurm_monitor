@@ -132,7 +132,7 @@ Per-user fields:
 - Dynamic resize handling for width/height changes.
 - Live updates without requiring restart.
 - Non-interactive display: no in-app controls or navigation; monitor-only rendering.
-- Header includes a heartbeat clock, last-update age, and refresh cadence.
+- Header includes a heartbeat clock and refresh age.
 - Header includes a status spinner so refresh/liveness is visible even when metrics are stable.
 - Header intentionally omits node-health alert badges; `DOWN`/`DRAIN` alerts are shown directly in the node summary panel.
 - Body renders two vertically stacked panels in fixed order:
@@ -146,6 +146,7 @@ Per-user fields:
 - Node summary must always include node-alert line (when applicable) and `TOTAL` aggregate row, even when per-node rows are clipped.
 - In worst-case global viewport clipping, the final visible row must show `... output clipped to terminal height ...`.
 - Connectivity indicator states:
+  - loading
   - connected
   - reconnecting
   - disconnected (recovering)
