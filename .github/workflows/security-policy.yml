@@ -1,0 +1,60 @@
+name: Security Policy Checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  security-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/v8.30.0/install.sh | sh -s -- -b "$RUNNER_TEMP" v8.30.0
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Scan git history with gitleaks
+        run: |
+          set -euo pipefail
+          gitleaks git --redact --verbose --config .gitleaks.toml --log-opts="--all"
+
+      - name: Check commit messages for policy violations
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            range="${PR_BASE_SHA}..${PR_HEAD_SHA}"
+          elif [[ "${PUSH_BEFORE_SHA}" == "0000000000000000000000000000000000000000" ]]; then
+            range="${GITHUB_SHA}^!"
+          else
+            range="${PUSH_BEFORE_SHA}..${GITHUB_SHA}"
+          fi
+
+          temp_file="$(mktemp)"
+          git log --format='%H%n%s%n%b%n' "${range}" > "${temp_file}"
+          bash scripts/security/check-sensitive-text.sh --context=commit-message "${temp_file}"
+
+      - name: Check pull request title/body for policy violations
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          temp_file="$(mktemp)"
+          printf '%s\n\n%s\n' "${PR_TITLE}" "${PR_BODY}" > "${temp_file}"
+          bash scripts/security/check-sensitive-text.sh --context=pr-metadata "${temp_file}"

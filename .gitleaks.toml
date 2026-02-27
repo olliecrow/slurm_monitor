@@ -1,0 +1,17 @@
+title = "slurm_monitor gitleaks policy"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "local-system-paths"
+description = "Do not commit local absolute system paths in this public-ready repository."
+regex = '''(/Users/[A-Za-z0-9._-]+|/home/[A-Za-z0-9._-]+|[A-Za-z]:\\+Users\\+[A-Za-z0-9._-]+)'''
+tags = ["policy", "privacy"]
+
+[[rules.allowlists]]
+description = "Allow explicit placeholder examples used in policy/docs."
+regexTarget = "line"
+regexes = [
+  '''(/Users/(YOU|USER|username)|/home/(user|USER|username)|[A-Za-z]:\\+Users\\+(YOU|USER|USERNAME|username))'''
+]
