@@ -225,3 +225,18 @@ Enforcement:
 - Tests cover tight-height behavior for node alert + `TOTAL` preservation and hidden-user indicators.
 References:
 `internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`.
+
+Decision:
+Add a top-level completion command and include it in canonical help text.
+Context:
+Operators repeatedly run `slurm-monitor` in shells where tab completion and direct in-command guidance reduce setup friction.
+Rationale:
+`slurm-monitor completion [bash|zsh]` provides practical tab-completion installation without changing monitor/doctor/dry-run behavior.
+Trade-offs:
+Completion scripts are static and require updates if command/flag surfaces change.
+Enforcement:
+- `cmd/slurm-monitor/main.go` intercepts `completion` and prints shell script output or completion help.
+- `internal/config.HelpText()` documents completion usage and examples.
+- Tests cover completion script generation and help-text inclusion.
+References:
+`cmd/slurm-monitor/main.go`, `cmd/slurm-monitor/main_test.go`, `internal/config/config.go`, `internal/config/config_test.go`, `README.md`

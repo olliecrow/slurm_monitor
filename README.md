@@ -12,7 +12,7 @@ Give you a clear live view of cluster health and queue state without running any
 ## What you experience as a user
 
 1. Run the tool locally on a cluster node, or remotely over SSH.
-2. See a live TUI with node summary and queue views.
+2. See a live terminal user interface (TUI) with node summary and queue views.
 3. Track queue counts, user pending counts, and array task counts.
 4. Keep monitoring through transient SSH or network failures, with automatic retries.
 5. On very large clusters, tables show a capped top slice with explicit `+N hidden` indicators to stay terminal-stable.
@@ -29,6 +29,17 @@ Show help.
 
 ```bash
 go run ./cmd/slurm-monitor --help
+```
+
+Install shell tab completion.
+
+```bash
+# bash
+go run ./cmd/slurm-monitor completion bash > ~/.local/share/bash-completion/completions/slurm-monitor
+
+# zsh
+mkdir -p ~/.zsh/completions
+go run ./cmd/slurm-monitor completion zsh > ~/.zsh/completions/_slurm-monitor
 ```
 
 Run doctor preflight checks.
@@ -112,6 +123,17 @@ dry-run only: no local or remote commands were executed.
 - `--no-color`
 - `--once`
 - `--duration <duration>`
+
+## Known limitations
+
+- Read-only monitor only; it does not support queue mutation actions.
+- Remote mode requires working OpenSSH access and remote Slurm command availability.
+- Very large clusters are intentionally summarized in capped top slices per panel.
+
+## Completion command
+
+- `slurm-monitor completion [bash|zsh]`
+- `slurm-monitor completion --help`
 
 ## Optional shell alias
 

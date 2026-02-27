@@ -105,14 +105,17 @@ func TestHelpTextIncludesUsageAndExamples(t *testing.T) {
 		"slurm-monitor [flags] [ssh-target]",
 		"slurm-monitor doctor [flags] [ssh-target]",
 		"slurm-monitor dry-run [flags] [ssh-target]",
+		"slurm-monitor completion [bash|zsh]",
 		"Commands:",
 		"doctor   Run non-mutating preflight checks and exit.",
+		"completion Print shell completion script output and exit.",
 		"Behavior:",
 		"Authentication:",
 		"Examples:",
 		"--refresh",
 		"--duration",
 		"slurm-monitor doctor cluster_alias",
+		"slurm-monitor completion bash",
 	}
 	for _, item := range required {
 		if !strings.Contains(text, item) {
