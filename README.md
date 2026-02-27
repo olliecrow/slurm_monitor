@@ -31,13 +31,14 @@ Give you a clear live view of cluster health and queue state without running any
 
 - `gitleaks` runs in local pre-commit hooks and in GitHub Actions.
 - Commit messages are blocked if they include local absolute paths or credential-like values.
+- Outbound pushes are blocked locally when new commit messages or patches contain sensitive patterns.
 - Pull request titles/descriptions are checked in CI for the same policy.
 
 Set up hooks locally.
 
 ```bash
 python3 -m pip install --user pre-commit
-pre-commit install --hook-type pre-commit --hook-type commit-msg
+pre-commit install --hook-type pre-commit --hook-type commit-msg --hook-type pre-push
 ```
 
 Run checks manually.
