@@ -24,6 +24,10 @@
 - Do not hardcode hostnames, users, ports, keys, or tokens in committed code.
 - Keep local test targets in ignored files or local shell environment.
 - Review diffs for accidental secret leakage before commit.
+- Repo-enforced checks:
+  - `.pre-commit-config.yaml` runs `gitleaks` before commits.
+  - `commit-msg` hook blocks local absolute system paths and credential-like values in commit messages.
+  - `.github/workflows/security-policy.yml` re-checks git history, commit messages, and PR title/body in CI.
 
 ## Runtime safety posture
 - Monitor is strictly read-only.

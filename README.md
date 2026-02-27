@@ -27,6 +27,25 @@ Give you a clear live view of cluster health and queue state without running any
 - Slurm CLI tools available on target environment (`sinfo`, `squeue`, `scontrol`)
 - OpenSSH `ssh` available for remote mode
 
+## Security guardrails for public/open-source readiness
+
+- `gitleaks` runs in local pre-commit hooks and in GitHub Actions.
+- Commit messages are blocked if they include local absolute paths or credential-like values.
+- Pull request titles/descriptions are checked in CI for the same policy.
+
+Set up hooks locally.
+
+```bash
+python3 -m pip install --user pre-commit
+pre-commit install --hook-type pre-commit --hook-type commit-msg
+```
+
+Run checks manually.
+
+```bash
+pre-commit run --all-files
+```
+
 ## Quick start
 
 Build the binary.
