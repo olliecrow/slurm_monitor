@@ -5,6 +5,10 @@ It supports local mode and remote mode over SSH, and it stays read only.
 
 <img width="554" height="616" alt="Screenshot 2026-02-25 at 22 59 00" src="https://github.com/user-attachments/assets/e84cf757-695c-44d2-830a-1ac95f3eb383" />
 
+## Current status
+
+This project is actively maintained for read-only cluster monitoring workflows.
+
 ## What this project is trying to achieve
 
 Give you a clear live view of cluster health and queue state without running any mutating Slurm commands.
@@ -16,6 +20,12 @@ Give you a clear live view of cluster health and queue state without running any
 3. Track queue counts, user pending counts, and array task counts.
 4. Keep monitoring through transient SSH or network failures, with automatic retries.
 5. On very large clusters, tables show a capped top slice with explicit `+N hidden` indicators to stay terminal-stable.
+
+## Requirements
+
+- Go `1.24+`
+- Slurm CLI tools available on target environment (`sinfo`, `squeue`, `scontrol`)
+- OpenSSH `ssh` available for remote mode
 
 ## Quick start
 
