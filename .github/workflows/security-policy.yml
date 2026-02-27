@@ -31,10 +31,21 @@ jobs:
           install -m 0755 gitleaks "$RUNNER_TEMP/gitleaks"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
-      - name: Scan git history with gitleaks
+      - name: Scan pushed/PR commit range with gitleaks
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          gitleaks git --redact --verbose --config .gitleaks.toml --log-opts="--all"
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            range="${PR_BASE_SHA}..${PR_HEAD_SHA}"
+          elif [[ "${PUSH_BEFORE_SHA}" == "0000000000000000000000000000000000000000" ]]; then
+            range="${GITHUB_SHA}^!"
+          else
+            range="${PUSH_BEFORE_SHA}..${GITHUB_SHA}"
+          fi
+          gitleaks git --redact --verbose --config .gitleaks.toml --log-opts="${range}"
 
       - name: Self-test sensitive text policy patterns
         run: |
