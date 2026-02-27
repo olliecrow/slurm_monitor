@@ -29,6 +29,7 @@
   - `commit-msg` hook blocks local absolute system paths and credential-like values in commit messages.
   - `pre-push` hook scans outbound commit messages and outbound diffs for the same sensitive patterns.
   - `.github/workflows/security-policy.yml` re-checks git history, commit messages, and PR title/body in CI.
+  - Sensitive-text checks support both `rg` and `grep` so local/CI environments without `rg` still enforce policy.
 
 ## Runtime safety posture
 - Monitor is strictly read-only.
