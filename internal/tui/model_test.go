@@ -70,11 +70,11 @@ func TestHeaderContainsLiveClock(t *testing.T) {
 	if !strings.Contains(h2, "clock: 10:00:01") {
 		t.Fatalf("expected header to include second clock value")
 	}
-	if !strings.Contains(h1, "refresh 2s") {
-		t.Fatalf("expected header to include refresh cadence")
+	if !strings.Contains(h1, "refresh: <1s ago") {
+		t.Fatalf("expected header to include refresh age wording")
 	}
-	if !strings.Contains(h1, "utc 2026-02-25 10:00:00") {
-		t.Fatalf("expected header to include utc timestamp")
+	if strings.Contains(h1, "utc 2026-02-25 10:00:00") {
+		t.Fatalf("did not expect utc timestamp in header")
 	}
 	if h1 == h2 {
 		t.Fatalf("expected header to change between ticks")
@@ -88,14 +88,33 @@ func TestHeaderKeepsStatusVisibleAtNarrowWidth(t *testing.T) {
 
 	h := m.renderHeader(m.now)
 	lines := strings.Split(h, "\n")
-	if len(lines) != 2 {
-		t.Fatalf("expected two-line header, got %d lines", len(lines))
+	if len(lines) != 1 {
+		t.Fatalf("expected single-line header without errors, got %d lines", len(lines))
 	}
 	if !strings.Contains(lines[0], "connected") {
 		t.Fatalf("expected status to remain visible in narrow header, got: %q", lines[0])
 	}
 	if lipgloss.Width(lines[0]) > m.width {
 		t.Fatalf("expected narrow header line to fit width %d, got %d", m.width, lipgloss.Width(lines[0]))
+	}
+}
+
+func TestHeaderShowsLoadingBeforeFirstSnapshot(t *testing.T) {
+	m := NewModel(Options{
+		Source:  "ssh:test",
+		Refresh: 2 * time.Second,
+		Updates: make(chan monitor.Update),
+		NoColor: true,
+	})
+	m.width = 80
+	m.height = 20
+
+	h := m.renderHeader(time.Date(2026, 2, 25, 10, 0, 0, 0, time.UTC))
+	if !strings.Contains(h, "loading") {
+		t.Fatalf("expected startup header status to show loading, got: %q", h)
+	}
+	if strings.Contains(h, "reconnecting") {
+		t.Fatalf("did not expect reconnecting during clean startup, got: %q", h)
 	}
 }
 
@@ -124,8 +143,8 @@ func TestHeaderErrorLineShowsErrorAndRespectsWidth(t *testing.T) {
 	if !strings.Contains(lines[1], "error:") {
 		t.Fatalf("expected second line to include error label, got: %q", lines[1])
 	}
-	if !strings.Contains(lines[1], "utc 2026-02-25 10:00:00") {
-		t.Fatalf("expected second line to retain utc timestamp with error, got: %q", lines[1])
+	if strings.Contains(lines[1], "utc 2026-02-25 10:00:00") {
+		t.Fatalf("did not expect utc timestamp on error line, got: %q", lines[1])
 	}
 	if lipgloss.Width(lines[1]) > m.width {
 		t.Fatalf("expected error line to fit width %d, got %d", m.width, lipgloss.Width(lines[1]))
@@ -145,8 +164,8 @@ func TestHeaderErrorLineLongMessageStillFitsWidth(t *testing.T) {
 	if !strings.Contains(lines[1], "error:") {
 		t.Fatalf("expected second line to include error label, got: %q", lines[1])
 	}
-	if !strings.Contains(lines[1], "utc 2026-02-25 10:00:00") {
-		t.Fatalf("expected long-error line to retain utc timestamp, got: %q", lines[1])
+	if strings.Contains(lines[1], "utc 2026-02-25 10:00:00") {
+		t.Fatalf("did not expect utc timestamp on long-error line, got: %q", lines[1])
 	}
 	if lipgloss.Width(lines[1]) > m.width {
 		t.Fatalf("expected long-error line to fit width %d, got %d", m.width, lipgloss.Width(lines[1]))
@@ -211,6 +230,54 @@ func TestCompactViewIncludesPendingDemandColumnsWhenWidthAllows(t *testing.T) {
 	out := m.View()
 	if !strings.Contains(out, "pendingCPUJobs") || !strings.Contains(out, "pendingGPUJobs") {
 		t.Fatalf("expected compact view to include pending demand columns, got: %q", out)
+	}
+}
+
+func TestCompactNodePanelUsesAvailableHeightBeforeHidingRows(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.width = 96
+	base := m.snapshot.Nodes[0]
+	nodes := make([]slurm.Node, 0, 14)
+	for i := 0; i < 14; i++ {
+		n := base
+		n.Name = fmt.Sprintf("node-%02d", i)
+		n.State = "ALLOCATED"
+		nodes = append(nodes, n)
+	}
+	m.snapshot.Nodes = nodes
+
+	out := m.renderNodeTableWithBudget(22, 60, true, 88)
+	if strings.Contains(out, "hidden)") {
+		t.Fatalf("did not expect hidden-node indicator when compact panel has enough height, got: %q", out)
+	}
+	if !strings.Contains(out, "node-13") {
+		t.Fatalf("expected lower-priority rows to be visible when height allows, got: %q", out)
+	}
+}
+
+func TestCompactQueuePanelUsesAvailableHeightBeforeHidingUsers(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.width = 96
+	users := make([]slurm.UserSummary, 0, 15)
+	for i := 0; i < 15; i++ {
+		users = append(users, slurm.UserSummary{
+			User:           fmt.Sprintf("user%02d", i),
+			Running:        1,
+			Pending:        30 - i,
+			PendingCPUJobs: 30 - i,
+			PendingGPUJobs: 0,
+		})
+	}
+	m.snapshot.Users = users
+
+	out := m.renderQueuePanelWithBudget(24, 60, true, true, 88)
+	if strings.Contains(out, "hidden)") {
+		t.Fatalf("did not expect hidden-user indicator when compact panel has enough height, got: %q", out)
+	}
+	if !strings.Contains(out, "user14") {
+		t.Fatalf("expected lower-priority users to remain visible when height allows, got: %q", out)
 	}
 }
 
@@ -329,6 +396,20 @@ func TestViewUsesStabilizedFrameWidth(t *testing.T) {
 		if lipgloss.Width(line) > 89 {
 			t.Fatalf("expected line %d width <= 89 after right-gutter stabilization, got %d", i+1, lipgloss.Width(line))
 		}
+	}
+}
+
+func TestViewPinsExitHintToBottomRow(t *testing.T) {
+	m := seededModel()
+	m.width = 100
+	m.height = 26
+	out := m.View()
+	lines := strings.Split(out, "\n")
+	if len(lines) != m.height {
+		t.Fatalf("expected %d lines, got %d", m.height, len(lines))
+	}
+	if !strings.Contains(lines[len(lines)-1], "Ctrl+C to exit") {
+		t.Fatalf("expected exit hint on bottom row, got: %q", lines[len(lines)-1])
 	}
 }
 

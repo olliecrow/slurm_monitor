@@ -240,3 +240,46 @@ Enforcement:
 - Tests cover completion script generation and help-text inclusion.
 References:
 `cmd/slurm-monitor/main.go`, `cmd/slurm-monitor/main_test.go`, `internal/config/config.go`, `internal/config/config_test.go`, `README.md`
+
+Decision:
+Use explicit startup `loading` status in the TUI header before first snapshot.
+Context:
+Initial polling previously surfaced as `reconnecting`, which conflated clean startup with transport recovery.
+Rationale:
+Operators should distinguish normal warmup from retry/recovery conditions.
+Trade-offs:
+Slightly broader status vocabulary in the header.
+Enforcement:
+- Header status renders `loading` when no snapshot exists and no fetch error is present.
+- Retry and recovery states remain `reconnecting` / `disconnected, recovering`.
+References:
+`internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`
+
+Decision:
+Use panel-budget row capacity directly instead of static per-height row caps.
+Context:
+Static node/user row caps could hide rows early on roomy terminals despite available panel height.
+Rationale:
+Row visibility should be constrained by actual rendered panel budget, not coarse global caps.
+Trade-offs:
+Tall terminals can show more rows, increasing visual density.
+Enforcement:
+- Queue/user and node tables derive visible rows from per-panel content budget and mandatory-line rules.
+- Hidden-row indicators appear only when panel-budget clipping is truly required.
+References:
+`internal/tui/model.go`, `internal/tui/model_test.go`
+
+Decision:
+Keep header status compact by placing clock and refresh-age chips on the top line and removing UTC/refresh-cadence duplicates.
+Context:
+Header previously consumed extra vertical space and duplicated timing context (`clock`, `refresh cadence`, and right-side UTC wall time).
+Rationale:
+A single compact status row preserves key liveness context while freeing vertical rows for node/queue panels.
+Trade-offs:
+Absolute UTC wall-clock text is no longer shown in the header.
+Enforcement:
+- Top header row renders `source`, `clock`, and `refresh` age chips before right-aligned connectivity status.
+- Header omits `refresh <interval>` and UTC timestamp text.
+- Error details render on a second line only when an error is present.
+References:
+`internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`

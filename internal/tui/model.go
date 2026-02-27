@@ -210,13 +210,13 @@ func (m Model) View() string {
 	footer := m.styles.dim.Render("Ctrl+C to exit")
 	headerLines := lineCount(header)
 	footerLines := lineCount(footer)
-	gapLines := 2
-	if m.height <= 24 {
-		gapLines = 1
+	separatorLines := 1
+	if m.height <= headerLines+footerLines+4 {
+		separatorLines = 0
 	}
-	bodyHeight := m.height - headerLines - footerLines - gapLines
-	if bodyHeight < 3 {
-		bodyHeight = 3
+	bodyHeight := m.height - headerLines - footerLines - separatorLines
+	if bodyHeight < 1 {
+		bodyHeight = 1
 	}
 
 	var body string
@@ -228,12 +228,12 @@ func (m Model) View() string {
 	}
 
 	parts := []string{header}
-	if m.height > 24 {
-		parts = append(parts, "", body, "", footer)
-	} else {
-		parts = append(parts, body, "", footer)
+	if separatorLines > 0 {
+		parts = append(parts, "")
 	}
-	joined := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	parts = append(parts, body)
+	top := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	joined := pinFooterToBottom(top, footer, m.height)
 	return clipToViewport(joined, viewWidth, m.height)
 }
 
@@ -241,32 +241,29 @@ func (m Model) renderHeader(now time.Time) string {
 	statusText, _, statusChip := m.renderStatusText(now)
 	pulse := pulseFrames[m.pulseIndex%len(pulseFrames)]
 	statusText = pulse + " " + statusText
-	ageText := "last update: never"
+	ageText := "refresh: never"
 	if !m.lastSuccess.IsZero() {
-		ageText = "last update: " + humanDuration(now.Sub(m.lastSuccess)) + " ago"
+		ageText = "refresh: " + humanDuration(now.Sub(m.lastSuccess)) + " ago"
 	}
 
-	left := m.styles.title.Render(" SLURM MONITOR ") + "  " + m.styles.label.Render("source: ") + m.styles.value.Render(m.source)
+	left := m.styles.title.Render(" SLURM MONITOR ") + "  " +
+		m.styles.label.Render("source: ") + m.styles.value.Render(m.source) + "  " +
+		m.styles.chip.Render("clock: "+now.Format("15:04:05")) + " " +
+		m.styles.chip.Render(ageText)
 	right := statusChip.Render(statusText)
 	line1 := joinWithPaddingKeepRight(left, right, m.width)
-
-	clockChip := m.styles.chip.Render("clock: " + now.Format("15:04:05"))
-	ageChip := m.styles.chip.Render(ageText)
-	line2Left := clockChip + " " + ageChip
-	line2Right := m.styles.dim.Render("utc " + now.Format("2006-01-02 15:04:05"))
-	if m.refresh > 0 {
-		line2Right = m.styles.chip.Render("refresh "+m.refresh.String()) + " " + line2Right
+	if m.lastError == "" {
+		return line1
 	}
-	line2LeftWithError := line2Left
-	if m.lastError != "" {
-		// Keep error label near the start so it survives truncation at narrow widths.
-		line2LeftWithError = clockChip + "  " + m.styles.errorLabel.Render("error: "+m.lastError) + "  " + ageChip
-	}
-	line2 := joinWithPaddingKeepRight(line2LeftWithError, line2Right, m.width)
+	line2 := truncateRunes(m.styles.errorLabel.Render("error: "+m.lastError), m.width)
 	return line1 + "\n" + line2
 }
 
 func (m Model) renderStatusText(now time.Time) (string, lipgloss.Style, lipgloss.Style) {
+	if m.snapshot == nil && strings.TrimSpace(m.lastError) == "" {
+		return "loading", m.styles.warn, m.styles.chipWarn
+	}
+
 	switch m.state {
 	case monitor.StateConnected:
 		return "connected", m.styles.ok, m.styles.chipOK
@@ -294,14 +291,14 @@ func (m Model) renderMain(maxHeight int) string {
 	compactLayout := m.compact || m.width < 118 || maxHeight < 18
 
 	queueTarget := max(9, maxHeight/2)
-	nodeTarget := maxHeight - queueTarget - 1
+	nodeTarget := maxHeight - queueTarget
 	if nodeTarget < 6 {
 		nodeTarget = 6
-		queueTarget = maxHeight - nodeTarget - 1
+		queueTarget = maxHeight - nodeTarget
 	}
 	if queueTarget < 6 {
 		queueTarget = 6
-		nodeTarget = max(3, maxHeight-queueTarget-1)
+		nodeTarget = max(3, maxHeight-queueTarget)
 	}
 
 	showDemandCols := contentWidth >= 62
@@ -313,7 +310,7 @@ func (m Model) renderMain(maxHeight int) string {
 	nodeBody := m.renderNodeTableWithBudget(nodeBodyHeight, maxHeight, compactLayout, contentWidth)
 	nodePanel := m.styles.panel.Width(inner).Render(nodeBody)
 
-	body := lipgloss.JoinVertical(lipgloss.Left, nodePanel, "", queuePanel)
+	body := lipgloss.JoinVertical(lipgloss.Left, nodePanel, queuePanel)
 	return clipToHeight(body, maxHeight)
 }
 
@@ -363,13 +360,11 @@ func (m Model) renderQueuePanelWithBudget(contentHeight, maxHeight int, compactL
 	}
 
 	if available > 0 {
-		maxUserRows := maxUserRowsForHeight(maxHeight, compactLayout)
 		userRowBudget := available
 		userRows := 0
 		if userRowBudget > 2 {
 			userRows = userRowBudget - 2
 		}
-		userRows = min(userRows, maxUserRows)
 		lines = append(lines, m.renderUserLinesWithBudget(userRows, userRowBudget, showDemand, contentWidth)...)
 	}
 
@@ -622,7 +617,6 @@ func (m Model) renderNodeTableWithBudget(contentHeight, maxHeight int, compactLa
 	if compactLayout && m.width < 132 {
 		compact = true
 	}
-	maxRows := maxNodeRowsForHeight(maxHeight, compactLayout)
 	nodes := m.snapshot.Nodes
 	totalNodes := len(nodes)
 
@@ -635,7 +629,7 @@ func (m Model) renderNodeTableWithBudget(contentHeight, maxHeight int, compactLa
 	showHeader := remainingAfterMandatory > 0
 	visibleRows := 0
 	if showHeader {
-		visibleRows = min(totalNodes, min(maxRows, remainingAfterMandatory-1))
+		visibleRows = min(totalNodes, remainingAfterMandatory-1)
 	}
 	hiddenNodes := totalNodes - visibleRows
 
@@ -781,38 +775,6 @@ func (m Model) sectionTitle(label string) string {
 	return m.styles.tableHdr.Render(icon + " " + label)
 }
 
-func maxUserRowsForHeight(maxHeight int, compact bool) int {
-	limit := 14
-	if compact {
-		limit = 10
-	}
-	switch {
-	case maxHeight <= 18:
-		limit = min(limit, 6)
-	case maxHeight <= 24:
-		limit = min(limit, 8)
-	case maxHeight <= 32:
-		limit = min(limit, 10)
-	}
-	return max(1, limit)
-}
-
-func maxNodeRowsForHeight(maxHeight int, compact bool) int {
-	limit := 16
-	if compact {
-		limit = 10
-	}
-	switch {
-	case maxHeight <= 18:
-		limit = min(limit, 4)
-	case maxHeight <= 24:
-		limit = min(limit, 6)
-	case maxHeight <= 32:
-		limit = min(limit, 8)
-	}
-	return max(1, limit)
-}
-
 func stabilizedFrameWidth(width int) int {
 	if width <= 0 {
 		return 0
@@ -901,6 +863,37 @@ func clipToHeight(s string, maxLines int) string {
 		return s
 	}
 	return strings.Join(lines[:maxLines], "\n")
+}
+
+func pinFooterToBottom(top, footer string, height int) string {
+	if height <= 0 {
+		return ""
+	}
+	footerLines := []string{}
+	if footer != "" {
+		footerLines = strings.Split(footer, "\n")
+	}
+	topLines := []string{}
+	if top != "" {
+		topLines = strings.Split(top, "\n")
+	}
+
+	maxTopLines := height - len(footerLines)
+	if maxTopLines < 0 {
+		maxTopLines = 0
+	}
+	if len(topLines) > maxTopLines {
+		topLines = topLines[:maxTopLines]
+	}
+	for len(topLines) < maxTopLines {
+		topLines = append(topLines, "")
+	}
+
+	all := append(topLines, footerLines...)
+	if len(all) == 0 {
+		return ""
+	}
+	return strings.Join(all, "\n")
 }
 
 func lineCount(s string) int {
