@@ -36,6 +36,19 @@ jobs:
           set -euo pipefail
           gitleaks git --redact --verbose --config .gitleaks.toml --log-opts="--all"
 
+      - name: Self-test sensitive text policy patterns
+        run: |
+          set -euo pipefail
+          tmp_ok="$(mktemp)"
+          tmp_bad="$(mktemp)"
+          printf 'docs: keep /Users/YOU as placeholder only\n' > "${tmp_ok}"
+          printf 'fix: %s=%s\n' "token" "abc123456789XYZ" > "${tmp_bad}"
+          bash scripts/security/check-sensitive-text.sh --context=policy-selftest "${tmp_ok}"
+          if bash scripts/security/check-sensitive-text.sh --context=policy-selftest "${tmp_bad}"; then
+            echo "expected policy self-test failure did not occur" >&2
+            exit 1
+          fi
+
       - name: Check commit messages for policy violations
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}

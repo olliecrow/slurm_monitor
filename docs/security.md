@@ -27,6 +27,7 @@
 - Repo-enforced checks:
   - `.pre-commit-config.yaml` runs `gitleaks` before commits.
   - `commit-msg` hook blocks local absolute system paths and credential-like values in commit messages.
+  - `pre-push` hook scans outbound commit messages and outbound diffs for the same sensitive patterns.
   - `.github/workflows/security-policy.yml` re-checks git history, commit messages, and PR title/body in CI.
 
 ## Runtime safety posture
