@@ -78,11 +78,13 @@ func HelpText() string {
 	b.WriteString("Usage:\n")
 	b.WriteString("  slurm-monitor [flags] [ssh-target]\n")
 	b.WriteString("  slurm-monitor doctor [flags] [ssh-target]\n")
-	b.WriteString("  slurm-monitor dry-run [flags] [ssh-target]\n\n")
+	b.WriteString("  slurm-monitor dry-run [flags] [ssh-target]\n")
+	b.WriteString("  slurm-monitor completion [bash|zsh]\n\n")
 	b.WriteString("Commands:\n")
 	b.WriteString("  monitor  Start live monitoring (default when no command is given).\n")
 	b.WriteString("  doctor   Run non-mutating preflight checks and exit.\n")
-	b.WriteString("  dry-run  Print planned execution order and exit.\n\n")
+	b.WriteString("  dry-run  Print planned execution order and exit.\n")
+	b.WriteString("  completion Print shell completion script output and exit.\n\n")
 	b.WriteString("Positional target:\n")
 	b.WriteString("  ssh-target is optional.\n")
 	b.WriteString("  - omitted: run locally (requires local sinfo/squeue/scontrol)\n")
@@ -108,6 +110,7 @@ func HelpText() string {
 	b.WriteString("  slurm-monitor --duration 30m cluster_alias\n")
 	b.WriteString("  slurm-monitor doctor cluster_alias\n")
 	b.WriteString("  slurm-monitor dry-run --once cluster_alias\n")
+	b.WriteString("  slurm-monitor completion bash\n")
 
 	return b.String()
 }
