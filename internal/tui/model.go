@@ -248,17 +248,21 @@ func (m Model) renderHeader(now time.Time) string {
 
 	left := m.styles.title.Render(" SLURM MONITOR ") + "  " + m.styles.label.Render("source: ") + m.styles.value.Render(m.source)
 	right := statusChip.Render(statusText)
-	line1 := joinWithPadding(left, right, m.width)
+	line1 := joinWithPaddingKeepRight(left, right, m.width)
 
-	line2 := m.styles.chip.Render("clock: " + now.Format("15:04:05"))
-	line2 += " " + m.styles.chip.Render(ageText)
+	clockChip := m.styles.chip.Render("clock: " + now.Format("15:04:05"))
+	ageChip := m.styles.chip.Render(ageText)
+	line2Left := clockChip + " " + ageChip
+	line2Right := m.styles.dim.Render("utc " + now.Format("2006-01-02 15:04:05"))
 	if m.refresh > 0 {
-		line2 += " " + m.styles.chip.Render("refresh "+m.refresh.String())
+		line2Right = m.styles.chip.Render("refresh "+m.refresh.String()) + " " + line2Right
 	}
+	line2LeftWithError := line2Left
 	if m.lastError != "" {
-		line2 += "  " + m.styles.errorLabel.Render("error: "+m.lastError)
+		// Keep error label near the start so it survives truncation at narrow widths.
+		line2LeftWithError = clockChip + "  " + m.styles.errorLabel.Render("error: "+m.lastError) + "  " + ageChip
 	}
-	line2 = truncateRunes(line2, m.width)
+	line2 := joinWithPaddingKeepRight(line2LeftWithError, line2Right, m.width)
 	return line1 + "\n" + line2
 }
 
@@ -849,6 +853,27 @@ func joinWithPadding(left, right string, width int) string {
 	padding := width - leftWidth - rightWidth
 	if padding < 1 {
 		return truncateRunes(left+" "+right, width)
+	}
+	return left + strings.Repeat(" ", padding) + right
+}
+
+func joinWithPaddingKeepRight(left, right string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	rightWidth := lipgloss.Width(right)
+	if rightWidth >= width {
+		return truncateRunes(right, width)
+	}
+	maxLeftWidth := width - rightWidth - 1
+	if maxLeftWidth < 0 {
+		maxLeftWidth = 0
+	}
+	left = truncateRunes(left, maxLeftWidth)
+	leftWidth := lipgloss.Width(left)
+	padding := width - leftWidth - rightWidth
+	if padding < 1 {
+		padding = 1
 	}
 	return left + strings.Repeat(" ", padding) + right
 }

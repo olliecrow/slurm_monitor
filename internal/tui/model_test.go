@@ -70,8 +70,32 @@ func TestHeaderContainsLiveClock(t *testing.T) {
 	if !strings.Contains(h2, "clock: 10:00:01") {
 		t.Fatalf("expected header to include second clock value")
 	}
+	if !strings.Contains(h1, "refresh 2s") {
+		t.Fatalf("expected header to include refresh cadence")
+	}
+	if !strings.Contains(h1, "utc 2026-02-25 10:00:00") {
+		t.Fatalf("expected header to include utc timestamp")
+	}
 	if h1 == h2 {
 		t.Fatalf("expected header to change between ticks")
+	}
+}
+
+func TestHeaderKeepsStatusVisibleAtNarrowWidth(t *testing.T) {
+	m := seededModel()
+	m.width = 56
+	m.source = strings.Repeat("cluster-source-", 6)
+
+	h := m.renderHeader(m.now)
+	lines := strings.Split(h, "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected two-line header, got %d lines", len(lines))
+	}
+	if !strings.Contains(lines[0], "connected") {
+		t.Fatalf("expected status to remain visible in narrow header, got: %q", lines[0])
+	}
+	if lipgloss.Width(lines[0]) > m.width {
+		t.Fatalf("expected narrow header line to fit width %d, got %d", m.width, lipgloss.Width(lines[0]))
 	}
 }
 
@@ -84,6 +108,48 @@ func TestHeaderDoesNotIncludeNodeAlert(t *testing.T) {
 	h := m.renderHeader(m.now)
 	if strings.Contains(h, "node alert:") {
 		t.Fatalf("expected header to omit node alert, got: %q", h)
+	}
+}
+
+func TestHeaderErrorLineShowsErrorAndRespectsWidth(t *testing.T) {
+	m := seededModel()
+	m.width = 120
+	m.lastError = "transport timeout"
+
+	h := m.renderHeader(m.now)
+	lines := strings.Split(h, "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected two-line header, got %d lines", len(lines))
+	}
+	if !strings.Contains(lines[1], "error:") {
+		t.Fatalf("expected second line to include error label, got: %q", lines[1])
+	}
+	if !strings.Contains(lines[1], "utc 2026-02-25 10:00:00") {
+		t.Fatalf("expected second line to retain utc timestamp with error, got: %q", lines[1])
+	}
+	if lipgloss.Width(lines[1]) > m.width {
+		t.Fatalf("expected error line to fit width %d, got %d", m.width, lipgloss.Width(lines[1]))
+	}
+}
+
+func TestHeaderErrorLineLongMessageStillFitsWidth(t *testing.T) {
+	m := seededModel()
+	m.width = 80
+	m.lastError = "transport timeout while fetching snapshot from remote cluster host"
+
+	h := m.renderHeader(m.now)
+	lines := strings.Split(h, "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected two-line header, got %d lines", len(lines))
+	}
+	if !strings.Contains(lines[1], "error:") {
+		t.Fatalf("expected second line to include error label, got: %q", lines[1])
+	}
+	if !strings.Contains(lines[1], "utc 2026-02-25 10:00:00") {
+		t.Fatalf("expected long-error line to retain utc timestamp, got: %q", lines[1])
+	}
+	if lipgloss.Width(lines[1]) > m.width {
+		t.Fatalf("expected long-error line to fit width %d, got %d", m.width, lipgloss.Width(lines[1]))
 	}
 }
 
