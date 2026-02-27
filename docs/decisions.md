@@ -256,18 +256,19 @@ References:
 `internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`
 
 Decision:
-Use layered secret/public-path policy enforcement across local hooks, CI, and protected `main` branch settings.
+Use layered secret/public-path policy enforcement across local hooks, CI, and lightweight protected `main` settings that still allow direct personal pushes.
 Context:
-The repository is treated as open-source-ready and must block obvious leakage in code, commit metadata, and PR metadata before merge to `main`.
+The repository is treated as open-source-ready and must block obvious leakage in code, commit metadata, and PR metadata while preserving a direct-to-`main` personal workflow.
 Rationale:
-No single guardrail is sufficient. Combining local hooks, CI checks, and GitHub branch protection minimizes accidental leaks while keeping tooling lightweight for a personal repository.
+No single guardrail is sufficient. Combining local hooks, CI checks, secret scanning push protection, and branch-protection safeguards around force-push/delete minimizes accidental leaks while keeping tooling lightweight for a personal repository.
 Trade-offs:
-Feature branches can still contain bad content temporarily if local hooks are bypassed; enforcement is strongest at merge to protected `main`.
+Without required PR/status-check merge gates, enforcement for direct `main` pushes depends on local hooks and GitHub secret scanning/push-protection rather than non-bypassable required checks.
 Enforcement:
 - `pre-commit` hooks run `gitleaks` on staged content.
 - `commit-msg` and `pre-push` hooks scan commit metadata and outbound diffs/messages for sensitive patterns.
-- GitHub Actions job `security-policy` re-checks history, commit messages, and PR title/body.
-- `main` branch protection requires `security-policy`, enforces PR flow, and disallows force-push/deletion.
+- GitHub Actions job `security-policy` re-checks history, commit messages, and PR title/body on pushes and PRs.
+- GitHub secret scanning and push protection are enabled.
+- `main` branch protection disallows force-push/deletion while allowing direct pushes.
 References:
 `.pre-commit-config.yaml`, `.gitleaks.toml`, `scripts/security/check-sensitive-text.sh`, `scripts/security/check-push-range.sh`, `.github/workflows/security-policy.yml`, `docs/security.md`.
 

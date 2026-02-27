@@ -30,6 +30,8 @@
   - `pre-push` hook scans outbound commit messages and outbound diffs for the same sensitive patterns.
   - `.github/workflows/security-policy.yml` re-checks git history, commit messages, and PR title/body in CI.
   - Sensitive-text checks support both `rg` and `grep` so local/CI environments without `rg` still enforce policy.
+  - Branch protection blocks force-push and branch deletion on `main`; direct personal pushes to `main` are allowed by project preference.
+  - GitHub Secret Scanning and Push Protection are enabled for server-side secret detection.
 
 ## Runtime safety posture
 - Monitor is strictly read-only.
