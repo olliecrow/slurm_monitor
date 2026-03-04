@@ -200,3 +200,10 @@ source ~/.zshrc
 - [docs/open-questions.md](docs/open-questions.md): implementation clarifications and resolved defaults
 - [docs/security.md](docs/security.md): secrets, auth, and logging policy
 - [docs/project-preferences.md](docs/project-preferences.md): durable project maintenance preferences
+
+<!-- third-party-policy:start -->
+## Third-Party Code Policy
+This repository allows external-code snapshots for static analysis only. External clones must stay in ephemeral `plan/` locations, be sanitized immediately (`rm -rf .git`, or remove all remotes first if `.git` is temporarily retained), and must never be executed.
+
+See `docs/untrusted-third-party-repos.md`.
+<!-- third-party-policy:end -->
