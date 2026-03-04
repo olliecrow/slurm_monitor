@@ -49,3 +49,12 @@
 - Avoid low-trust, obscure, or weakly maintained dependencies when a stronger alternative exists.
 - Pin versions and keep lockfiles current for reproducibility and supply-chain safety.
 - If trust signals are unclear, do not adopt the dependency until explicitly approved.
+
+<!-- third-party-policy:start -->
+## Third-Party Repository Handling
+- External repositories may be cloned for static analysis only.
+- Clone them only into ephemeral `plan/` locations such as `plan/scratch/upstream/` or `plan/artifacts/external/`.
+- Immediately sanitize clone metadata: prefer `rm -rf .git`; if `.git` is temporarily needed, remove all remotes first and then remove `.git`.
+- Never execute third-party code (no scripts, tests, builds, package installs, binaries, or containers).
+- Persistent remotes in this repo must reference only `github.com/olliecrow/*`.
+<!-- third-party-policy:end -->
