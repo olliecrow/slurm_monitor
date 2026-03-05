@@ -1,6 +1,6 @@
 # Docs Directory
 
-This directory holds long-term, agent-focused documentation for this repo. It is not intended for human readers and is committed to git.
+This directory holds long-term, high-signal documentation for this repo. It is primarily written for maintainers and automation agents and is committed to git.
 
 ## Index
 - [`spec.md`](spec.md): canonical product and runtime behavior contract.
@@ -11,7 +11,7 @@ This directory holds long-term, agent-focused documentation for this repo. It is
 - [`open-questions.md`](open-questions.md): implementation clarifications and chosen defaults.
 - [`decisions.md`](decisions.md): durable rationale and decision records.
 - [`workflows.md`](workflows.md): note routing and operating workflow conventions.
-- [`project-preferences.md`](project-preferences.md): durable maintenance preferences and collaboration defaults.
+- [`project-preferences.md`](project-preferences.md): durable maintenance and collaboration preferences.
 - [`untrusted-third-party-repos.md`](untrusted-third-party-repos.md): policy for static-only handling of external repositories.
 
 Principles:
