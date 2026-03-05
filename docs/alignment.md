@@ -40,7 +40,7 @@ This file maps stated requirements to planned behavior/docs and later test cover
 - Planned enforcement:
   - node collector + aggregator + table renderer
 - References:
-  - `docs/spec.md` (Runtime Data Contract, Node monitoring class)
+  - `docs/spec.md` (Runtime Data Contract, Node summary view)
   - `docs/implementation-plan.md` (Phases 3-4)
 
 ### R5: Three data views in fixed layout
