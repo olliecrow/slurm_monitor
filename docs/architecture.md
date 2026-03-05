@@ -48,7 +48,7 @@ Collectors produce typed snapshots:
 - `UserQueueSnapshot`
 
 Design principles:
-- minimal round trips per poll tick (single combined remote command per poll for node + queue collection)
+- minimal round trips per poll tick (single combined command for node + queue collection, plus cached per-root `scontrol show job` probes when pending GPU request details are missing from `squeue` output)
 - clear parsers with defensive handling for missing optional metrics
 - deterministic parse errors with useful context
 - preserve scheduler-critical composite node state qualifiers (`+DRAIN`, `+DOWN`) during parsing; only cosmetic state markers are stripped

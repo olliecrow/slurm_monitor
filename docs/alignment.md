@@ -80,6 +80,19 @@ This file maps stated requirements to planned behavior/docs and later test cover
   - `internal/app/preflight.go`
   - `internal/app/preflight_test.go`
 
+### R15: Shell completion bootstrap is available from the CLI
+- Requirement:
+  - `completion` command prints shell completion scripts for supported shells and exits without entering monitor mode.
+- Planned enforcement:
+  - top-level command handler routes `completion` before monitor startup.
+  - help text documents completion usage for `bash` and `zsh`.
+- References:
+  - `docs/spec.md` (CLI Contract, Helper Command Behavior)
+  - `cmd/slurm-monitor/main.go`
+  - `cmd/slurm-monitor/main_test.go`
+  - `internal/config/config.go`
+  - `internal/config/config_test.go`
+
 ### R11: Queue types and requested-resource visibility
 - Requirement:
   - monitor not only job counts, but also job-state mix and requested resources by workload.

@@ -11,6 +11,8 @@ This directory holds long-term, agent-focused documentation for this repo. It is
 - [`open-questions.md`](open-questions.md): implementation clarifications and chosen defaults.
 - [`decisions.md`](decisions.md): durable rationale and decision records.
 - [`workflows.md`](workflows.md): note routing and operating workflow conventions.
+- [`project-preferences.md`](project-preferences.md): durable maintenance preferences and collaboration defaults.
+- [`untrusted-third-party-repos.md`](untrusted-third-party-repos.md): policy for static-only handling of external repositories.
 
 Principles:
 - Keep content evergreen and aligned with the codebase.
