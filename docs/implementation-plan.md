@@ -13,12 +13,14 @@ Goal:
 Tasks:
 1. Initialize Go module and package layout:
    - `cmd/slurm-monitor/`
-   - `internal/cli/`
+   - `internal/app/`
+   - `internal/config/`
+   - `internal/monitor/`
+   - `internal/slurm/`
    - `internal/transport/`
-   - `internal/collectors/`
-   - `internal/model/`
    - `internal/tui/`
-2. Add minimal CLI entrypoint with version/help.
+   - `internal/uifmt/`
+2. Add minimal CLI entrypoint with help and command routing.
 3. Add lint/test task stubs and CI-ready local commands.
 
 Acceptance checks:
