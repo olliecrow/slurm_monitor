@@ -37,6 +37,8 @@ The tool should run for long periods with minimal operator interaction and provi
   - runs non-mutating preflight checks and exits with pass/fail status.
 - `slurm-monitor dry-run [<ssh-target>]`
   - prints planned execution order and exits without running commands.
+- `slurm-monitor completion [bash|zsh]`
+  - prints shell completion script output and exits.
 - `slurm-monitor --help` (or `-h`)
   - prints a self-contained usage guide with mode behavior, retry semantics, auth model, flags, and examples.
 
@@ -90,6 +92,11 @@ The tool should run for long periods with minimal operator interaction and provi
 - Prints resolved mode, target, runtime options, and planned stage order.
 - Does not execute local or remote Slurm commands.
 - Always remains read-only and exits after printing the plan.
+
+### `completion`
+- Prints shell completion script text for `bash` or `zsh`.
+- Does not execute local or remote Slurm commands.
+- Exits non-zero on unsupported shells or invalid argument counts.
 
 ## Runtime Data Contract
 
