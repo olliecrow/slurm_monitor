@@ -23,7 +23,7 @@ Give you a clear live view of cluster health and queue state without running any
 
 ## Requirements
 
-- Go `1.24+`
+- Go `1.22+`
 - Slurm CLI tools available on target environment (`sinfo`, `squeue`, `scontrol`)
 - OpenSSH `ssh` available for remote mode
 

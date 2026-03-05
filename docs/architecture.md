@@ -42,10 +42,10 @@ Implementations:
 - uses OpenSSH keepalive/retry options (`ServerAlive*`, `TCPKeepAlive`, `ConnectionAttempts`) for better behavior on flaky networks.
 
 ## 3) Collector pipeline
-Collectors produce typed snapshots:
-- `NodeSnapshot`
-- `QueueSummarySnapshot`
-- `UserQueueSnapshot`
+Collectors produce typed data for a `Snapshot`:
+- `[]Node`
+- `QueueSummary`
+- `[]UserSummary`
 
 Design principles:
 - minimal round trips per poll tick (single combined remote command per poll for node + queue collection)
