@@ -8,7 +8,7 @@ This directory holds long-term, high-signal documentation for this repo. It is p
 - [`implementation-plan.md`](implementation-plan.md): phased implementation with verification and battle testing.
 - [`alignment.md`](alignment.md): requirement traceability from user requirements to implementation/testing.
 - [`security.md`](security.md): secret handling and authentication policy.
-- [`open-questions.md`](open-questions.md): implementation clarifications and chosen defaults.
+- [`open-questions.md`](open-questions.md): compact index of resolved defaults and canonical pointers.
 - [`decisions.md`](decisions.md): durable rationale and decision records.
 - [`workflows.md`](workflows.md): note routing and operating workflow conventions.
 - [`project-preferences.md`](project-preferences.md): durable maintenance and collaboration preferences.
