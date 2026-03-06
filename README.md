@@ -197,7 +197,7 @@ source ~/.zshrc
 - [docs/spec.md](docs/spec.md): product and runtime behavior
 - [docs/architecture.md](docs/architecture.md): system design and resilience model
 - [docs/implementation-plan.md](docs/implementation-plan.md): phased build and verification plan
-- [docs/open-questions.md](docs/open-questions.md): implementation clarifications and resolved defaults
+- [docs/open-questions.md](docs/open-questions.md): compact index of resolved defaults and canonical pointers
 - [docs/security.md](docs/security.md): secrets, auth, and logging policy
 - [docs/project-preferences.md](docs/project-preferences.md): durable project maintenance preferences
 
