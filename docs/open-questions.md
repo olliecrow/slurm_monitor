@@ -1,6 +1,7 @@
 # Implementation Clarifications
 
 This file is a compact index of resolved defaults from requirement discussions.
+Despite the filename, it intentionally tracks resolved defaults only; unresolved investigation items belong in `plan/current/notes.md` until they are resolved and promoted.
 
 Canonical behavior lives in:
 - [`spec.md`](spec.md) for runtime/CLI contracts
