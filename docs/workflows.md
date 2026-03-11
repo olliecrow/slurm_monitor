@@ -1,6 +1,7 @@
 # Operating Workflow
 
 This document defines how work is tracked so progress compounds without context bloat.
+Use [`../README.md`](../README.md) as the durable project entrypoint and [`docs/README.md`](README.md) as the durable docs entrypoint; keep workflow-specific rationale in [`decisions.md`](decisions.md).
 
 ## Core mode
 - Keep active, disposable notes in `/plan/current/`.

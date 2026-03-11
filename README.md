@@ -194,11 +194,15 @@ source ~/.zshrc
 
 ## Canonical docs
 
+- [docs/README.md](docs/README.md): entrypoint index for repository-maintainer docs
 - [docs/spec.md](docs/spec.md): product and runtime behavior
 - [docs/architecture.md](docs/architecture.md): system design and resilience model
 - [docs/implementation-plan.md](docs/implementation-plan.md): phased build and verification plan
+- [docs/alignment.md](docs/alignment.md): requirement-to-implementation traceability map
+- [docs/decisions.md](docs/decisions.md): durable rationale and decision records
 - [docs/open-questions.md](docs/open-questions.md): compact index of resolved defaults and canonical pointers
 - [docs/security.md](docs/security.md): secrets, auth, and logging policy
+- [docs/workflows.md](docs/workflows.md): note routing and execution workflow conventions
 - [docs/project-preferences.md](docs/project-preferences.md): durable project maintenance preferences
 
 <!-- third-party-policy:start -->
