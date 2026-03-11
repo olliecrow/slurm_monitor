@@ -3,6 +3,9 @@
 This directory holds long-term, high-signal documentation for this repo. It is primarily written for maintainers and automation agents and is committed to git.
 
 ## Index
+- [`../README.md`](../README.md): user-facing quickstart and CLI usage.
+- [`../AGENTS.md`](../AGENTS.md): automation-facing operating rules and constraints for this repository.
+- [`../SECURITY.md`](../SECURITY.md): vulnerability disclosure policy.
 - [`spec.md`](spec.md): canonical product and runtime behavior contract.
 - [`architecture.md`](architecture.md): component boundaries, transport model, and resilience design.
 - [`implementation-plan.md`](implementation-plan.md): phased implementation with verification and battle testing.
