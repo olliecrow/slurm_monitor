@@ -179,6 +179,7 @@ Per-user fields:
 ## Platform Support
 - Primary: macOS.
 - Secondary: Linux.
+- Unsupported: Windows.
 - Shell assumptions should remain POSIX-compatible where possible.
 
 ## Security Constraints
