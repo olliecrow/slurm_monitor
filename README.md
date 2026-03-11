@@ -26,6 +26,7 @@ Give you a clear live view of cluster health and queue state without running any
 - Go `1.22+`
 - Slurm CLI tools available on target environment (`sinfo`, `squeue`, `scontrol`)
 - OpenSSH `ssh` available for remote mode
+- supported operator platforms: macOS and Linux only
 
 ## Security guardrails for public/open-source readiness
 

@@ -148,9 +148,9 @@ This file maps stated requirements to planned behavior/docs and later test cover
 
 ### R9: macOS primary, Linux support
 - Requirement:
-  - works on macOS and Linux
+  - works on macOS and Linux only
 - Planned enforcement:
-  - Go implementation and cross-platform command/path assumptions
+  - Go implementation and POSIX-oriented command/path assumptions only
 - References:
   - `docs/spec.md` (Platform Support)
   - `docs/implementation-plan.md` (Phase 0 acceptance checks + Phase 7 matrix)

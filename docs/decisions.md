@@ -40,11 +40,11 @@ References:
 Decision:
 Use Go as the implementation language.
 Context:
-The project needs a fast cross-platform terminal app (macOS primary, Linux support), stable static binaries, and robust process/SSH orchestration.
+The project needs a fast terminal app for macOS and Linux only, stable static binaries, and robust process/SSH orchestration.
 Rationale:
 Go offers a strong CLI/TUI ecosystem (`cobra`, `bubbletea`), good operational ergonomics, and straightforward subprocess/network concurrency.
 Trade-offs:
-Less strict type-level guarantees than Rust; parser/data modeling discipline must come from tests and code review.
+Less strict type-level guarantees than Rust; parser/data modeling discipline must come from tests and code review. Windows is intentionally unsupported.
 Enforcement:
 Initialize Go module and keep implementation in Go packages.
 References:
