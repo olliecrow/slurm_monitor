@@ -36,7 +36,7 @@ This file maps stated requirements to planned behavior/docs and later test cover
 
 ### R4: Node-level metrics with aggregate totals
 - Requirement:
-  - node name/state/cpu/mem/gpu allocation+utilization/partition and totals row
+  - node name/state/cpu/mem/gpu allocation plus available utilization/allocation percentages/partition and totals row
 - Planned enforcement:
   - node collector + aggregator + table renderer
 - References:

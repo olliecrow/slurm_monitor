@@ -14,9 +14,11 @@ Canonical behavior lives in:
   - Canonical: [`spec.md` (CLI Contract, Remote Resilience Contract)](spec.md)
 - Slurm availability checks: missing commands are fail-fast; transient transport failures retry with backoff.
   - Canonical: [`spec.md` (Startup Behavior)](spec.md)
+- Shell contract: command execution uses POSIX `sh` locally and remotely.
+  - Canonical: [`spec.md` (Startup Behavior)](spec.md)
 - UI views/layout: node summary plus combined queue panel (queue summary + per-user section).
   - Canonical: [`spec.md` (Runtime Data Contract, TUI Behavior)](spec.md)
 - Safety scope: monitor remains strictly read-only.
   - Canonical: [`spec.md` (Safety Constraint)](spec.md)
-- Operational defaults: refresh interval, utilization fallbacks, array task counting, and CLI help behavior.
+- Operational defaults: refresh interval, GPU allocation-percentage labeling, array task counting, and CLI help behavior.
   - Canonical: [`spec.md` (Core flags, Runtime Data Contract, CLI Contract)](spec.md)

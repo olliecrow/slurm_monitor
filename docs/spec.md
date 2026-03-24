@@ -66,19 +66,23 @@ The tool should run for long periods with minimal operator interaction and provi
 
 ### Capability checks (must pass before entering TUI loop)
 - Required commands: `sinfo`, `squeue`, `scontrol`.
+- Command execution uses POSIX `sh -lc` in both local and remote modes.
 - Local mode:
-  - if required commands are missing locally, exit with a clear error.
+  - if `sh` or required Slurm commands are missing locally, exit with a clear error.
 - Remote mode:
-  - run capability check remotely via SSH.
-  - if required commands are missing on remote, exit with a clear error.
+  - run capability check remotely via SSH through `sh -lc`.
+  - if the remote shell contract or required Slurm commands are missing, exit with a clear error.
 
 ### Failure semantics
 - Non-recoverable startup failures are fatal:
   - missing required Slurm commands in selected context
   - invalid CLI argument combinations
+  - permanent SSH/auth/configuration/shell-contract failures
 - Transient startup failures (SSH/network/timeouts) are retried automatically with backoff.
 - Retry behavior is unbounded by default and continues until operator quit; when `--duration` is set, retries stop at the configured deadline.
-- Runtime poll failures are non-fatal unless operator chooses to quit; stale data remains visible with staleness and connectivity markers.
+- Runtime poll failures keep the last good snapshot visible.
+  - transient transport failures continue retrying with staleness and retry markers.
+  - permanent transport/parser-contract failures stop retrying and leave the UI disconnected until operator quit.
 
 ## Helper Command Behavior
 
@@ -109,7 +113,7 @@ Per-node fields:
 - memory allocation (`allocated/total`)
 - memory utilization (if available; else `n/a`)
 - GPU allocation (`allocated/total`)
-- GPU utilization (if available; else `n/a`)
+- GPU allocation percentage (`gpu alloc%`) derived from `GPUAlloc/GPUTotal`
 - partition(s)
 - explicit node-health alert line in the node summary panel when any node is `DOWN` or `DRAIN`
 
@@ -156,10 +160,11 @@ Per-user fields:
   - loading
   - connected
   - reconnecting
+  - disconnected
   - disconnected (recovering)
 - Connectivity panel also shows:
   - age of last successful update
-  - next retry countdown when reconnecting
+  - next retry countdown when reconnecting or recovering
 - Graceful quit with standard terminal restoration.
 
 ## Remote Resilience Contract
