@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -60,11 +61,33 @@ func TestBuildSSHArgsIncludesResilienceOptions(t *testing.T) {
 		"-i /tmp/id",
 		"-p 2222",
 		"user@host",
-		"bash -lc 'echo hello'",
+		"sh -lc 'echo hello'",
 	}
 	for _, token := range required {
 		if !strings.Contains(joined, token) {
 			t.Fatalf("expected token %q in args: %s", token, joined)
 		}
+	}
+}
+
+func TestIsRetryableRecognizesTransientSSHFailures(t *testing.T) {
+	err := &RunError{
+		Stderr:   "Connection timed out",
+		ExitCode: 255,
+		Err:      errors.New("exit status 255"),
+	}
+	if !IsRetryable(err) {
+		t.Fatalf("expected transient ssh timeout to be retryable")
+	}
+}
+
+func TestIsRetryableRejectsPermanentSSHFailures(t *testing.T) {
+	err := &RunError{
+		Stderr:   "Permission denied (publickey)",
+		ExitCode: 255,
+		Err:      errors.New("exit status 255"),
+	}
+	if IsRetryable(err) {
+		t.Fatalf("expected auth failure to be non-retryable")
 	}
 }

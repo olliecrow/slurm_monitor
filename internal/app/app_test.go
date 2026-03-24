@@ -75,8 +75,8 @@ func TestCheckSlurmAvailabilityPasses(t *testing.T) {
 func TestAwaitSlurmAvailabilityRetriesThenPasses(t *testing.T) {
 	tr := &scriptedTransport{
 		responses: []transportResponse{
-			{err: errors.New("temporary ssh failure")},
-			{err: errors.New("temporary ssh failure")},
+			{err: &transport.RunError{Stderr: "Connection timed out", ExitCode: 255, Err: errors.New("exit status 255")}},
+			{err: &transport.RunError{Stderr: "Connection timed out", ExitCode: 255, Err: errors.New("exit status 255")}},
 			{},
 		},
 	}
@@ -132,7 +132,7 @@ func TestIsMissingSlurmCommandError(t *testing.T) {
 func TestAwaitSlurmAvailabilityHonorsContextCancellation(t *testing.T) {
 	tr := &scriptedTransport{
 		responses: []transportResponse{
-			{err: errors.New("temporary ssh failure")},
+			{err: &transport.RunError{Stderr: "Connection timed out", ExitCode: 255, Err: errors.New("exit status 255")}},
 		},
 	}
 
@@ -148,5 +148,25 @@ func TestAwaitSlurmAvailabilityHonorsContextCancellation(t *testing.T) {
 	}
 	if tr.calls < 2 {
 		t.Fatalf("expected retries before context cancellation, got %d calls", tr.calls)
+	}
+}
+
+func TestAwaitSlurmAvailabilityStopsOnPermanentTransportFailure(t *testing.T) {
+	tr := &scriptedTransport{
+		responses: []transportResponse{
+			{err: &transport.RunError{Stderr: "Permission denied (publickey)", ExitCode: 255, Err: errors.New("exit status 255")}},
+			{},
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	err := awaitSlurmAvailabilityWithBackoff(ctx, tr, 50*time.Millisecond, 5*time.Millisecond, 10*time.Millisecond)
+	if err == nil {
+		t.Fatalf("expected permanent failure")
+	}
+	if tr.calls != 1 {
+		t.Fatalf("expected no retries for permanent failure, got %d calls", tr.calls)
 	}
 }

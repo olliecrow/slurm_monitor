@@ -68,7 +68,9 @@ func (c *Collector) runWithTimeout(ctx context.Context, command string) (string,
 
 func (c *Collector) fillPendingGPURequestCache(ctx context.Context, queueRaw string) {
 	roots := extractPendingJobRoots(queueRaw)
+	active := make(map[string]struct{}, len(roots))
 	for _, root := range roots {
+		active[root] = struct{}{}
 		if _, ok := c.pendingGPUByJobRoot[root]; ok {
 			continue
 		}
@@ -77,6 +79,11 @@ func (c *Collector) fillPendingGPURequestCache(ctx context.Context, queueRaw str
 			continue
 		}
 		c.pendingGPUByJobRoot[root] = hasGPU
+	}
+	for root := range c.pendingGPUByJobRoot {
+		if _, ok := active[root]; !ok {
+			delete(c.pendingGPUByJobRoot, root)
+		}
 	}
 }
 

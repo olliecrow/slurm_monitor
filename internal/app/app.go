@@ -116,7 +116,7 @@ func checkSlurmAvailability(ctx context.Context, tr transport.Transport, timeout
 		}
 		var runErr *transport.RunError
 		if errors.As(err, &runErr) && runErr.Timeout {
-			return fmt.Errorf("Slurm capability check timed out on %s; consider increasing --command-timeout", tr.Describe())
+			return fmt.Errorf("Slurm capability check timed out on %s; consider increasing --command-timeout: %w", tr.Describe(), err)
 		}
 		return fmt.Errorf("failed Slurm capability check on %s: %w", tr.Describe(), err)
 	}
@@ -152,6 +152,9 @@ func awaitSlurmAvailabilityWithBackoff(
 		}
 		if ctx.Err() != nil {
 			return ctx.Err()
+		}
+		if !transport.IsRetryable(err) {
+			return err
 		}
 
 		fmt.Fprintf(

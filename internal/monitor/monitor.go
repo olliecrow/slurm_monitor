@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"slurm_monitor/internal/slurm"
+	"slurm_monitor/internal/transport"
 )
 
 type State string
 
 const (
+	StateDisconnected           State = "disconnected"
 	StateConnected              State = "connected"
 	StateReconnecting           State = "reconnecting"
 	StateDisconnectedRecovering State = "disconnected-recovering"
@@ -76,6 +78,16 @@ func (l *Loop) Run(ctx context.Context, updates chan<- Update) {
 		}
 
 		failures++
+		if !transport.IsRetryable(err) {
+			sendUpdate(ctx, updates, Update{
+				State:       StateDisconnected,
+				LastError:   err.Error(),
+				LastSuccess: lastSuccess,
+			})
+			<-ctx.Done()
+			return
+		}
+
 		state := StateReconnecting
 		if failures >= l.FailureThreshold {
 			state = StateDisconnectedRecovering

@@ -94,7 +94,7 @@ func HelpText() string {
 	b.WriteString("  - doctor and dry-run are non-mutating helpers for setup and validation\n")
 	b.WriteString("  - transient SSH/network failures retry automatically with backoff in monitor mode\n")
 	b.WriteString("  - retries are infinite by default; set --duration to time-box a run\n")
-	b.WriteString("  - missing Slurm commands are treated as non-recoverable errors\n\n")
+	b.WriteString("  - missing Slurm commands and permanent SSH/auth/configuration failures are treated as non-recoverable errors\n\n")
 	b.WriteString("Authentication:\n")
 	b.WriteString("  - uses standard OpenSSH auth flows (ssh-agent, keys, config)\n")
 	b.WriteString("  - supports SSH config aliases and bastion/proxy jumps\n")

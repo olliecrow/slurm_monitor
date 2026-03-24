@@ -18,7 +18,7 @@ func (t *LocalTransport) Describe() string {
 }
 
 func (t *LocalTransport) Run(ctx context.Context, command string) (RunResult, error) {
-	cmd := exec.CommandContext(ctx, "bash", "-lc", command)
+	cmd := exec.CommandContext(ctx, "sh", "-lc", command)
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
