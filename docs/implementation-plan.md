@@ -75,7 +75,7 @@ Acceptance checks:
 - snapshots are produced on healthy cluster.
 - queue and per-user counts match `squeue -r` verification for array-heavy workloads.
 - missing optional metrics produce `n/a`, not crashes.
-- parser failures are surfaced and loop continues.
+- parser-contract failures are surfaced clearly, preserve the last good snapshot, and stop retrying until operator intervention.
 
 ## Phase 4: Domain model and aggregation
 Goal:
