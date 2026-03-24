@@ -183,6 +183,16 @@ func TestQueueSummaryRendersWithoutBars(t *testing.T) {
 	}
 }
 
+func TestWideNodeTableUsesGPUAllocLabel(t *testing.T) {
+	m := seededModel()
+	m.width = 150
+
+	out := m.renderNodeTableWithBudget(12, 24, false, 140)
+	if !strings.Contains(out, "gpu alloc%") {
+		t.Fatalf("expected wide node table to label GPU percentage as allocation, got: %q", out)
+	}
+}
+
 func TestQueuePanelBudgetKeepsUserTitleWhenOnlyOneLineRemains(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)

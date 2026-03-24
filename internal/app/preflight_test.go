@@ -40,6 +40,7 @@ func TestRunDoctorWithDepsLocalPass(t *testing.T) {
 	text := out.String()
 	required := []string{
 		"slurm-monitor doctor",
+		"[ok] local tool sh",
 		"[ok] local tool sinfo",
 		"[ok] local tool squeue",
 		"[ok] local tool scontrol",
@@ -111,7 +112,7 @@ func TestRunDryRunLocal(t *testing.T) {
 	required := []string{
 		"slurm-monitor dry-run",
 		"mode: local",
-		"Run a local preflight check",
+		"Run a local preflight check for sh, sinfo, squeue, and scontrol.",
 		"dry-run only: no local or remote commands were executed.",
 	}
 	for _, item := range required {

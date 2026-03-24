@@ -108,7 +108,7 @@ func (t *SSHTransport) buildSSHArgs(command string) []string {
 		args = append(args, "-p", strconv.Itoa(t.opts.Port))
 	}
 
-	remoteCommand := "bash -lc " + shellQuote(command)
+	remoteCommand := "sh -lc " + shellQuote(command)
 	args = append(args, t.opts.Target, remoteCommand)
 	return args
 }

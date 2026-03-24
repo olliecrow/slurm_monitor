@@ -63,11 +63,24 @@ func IsRetryable(err error) bool {
 		if runErr.Timeout {
 			return true
 		}
-		if runErr.ExitCode == 255 {
-			return true
-		}
 
 		stderr := strings.ToLower(runErr.Stderr)
+		permanentSignals := []string{
+			"permission denied",
+			"host key verification failed",
+			"remote host identification has changed",
+			"no such identity file",
+			"bad configuration option",
+			"could not resolve hostname",
+			"sh: not found",
+			"sh: command not found",
+		}
+		for _, signal := range permanentSignals {
+			if strings.Contains(stderr, signal) {
+				return false
+			}
+		}
+
 		retrySignals := []string{
 			"connection reset",
 			"broken pipe",
@@ -84,6 +97,9 @@ func IsRetryable(err error) bool {
 			if strings.Contains(stderr, signal) {
 				return true
 			}
+		}
+		if runErr.ExitCode == 255 {
+			return true
 		}
 	}
 

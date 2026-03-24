@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"slurm_monitor/internal/slurm"
+	"slurm_monitor/internal/transport"
 )
 
 func TestBackoffDelayBounds(t *testing.T) {
@@ -84,9 +85,9 @@ func TestLoopEmitsConnectedThenRecovering(t *testing.T) {
 			{CollectedAt: time.Now()},
 		},
 		errors: []error{
-			errors.New("timeout one"),
-			errors.New("timeout two"),
-			errors.New("timeout three"),
+			&transport.RunError{Stderr: "Connection timed out", ExitCode: 255, Err: errors.New("exit status 255")},
+			&transport.RunError{Stderr: "Connection timed out", ExitCode: 255, Err: errors.New("exit status 255")},
+			&transport.RunError{Stderr: "Connection timed out", ExitCode: 255, Err: errors.New("exit status 255")},
 		},
 	}
 
@@ -136,8 +137,8 @@ func TestLoopRecoversAfterTransientFailures(t *testing.T) {
 	sc := &scriptedCollector{
 		steps: []collectStep{
 			{snapshot: slurm.Snapshot{CollectedAt: now}},
-			{err: errors.New("temporary timeout")},
-			{err: errors.New("temporary timeout")},
+			{err: &transport.RunError{Stderr: "Connection timed out", ExitCode: 255, Err: errors.New("exit status 255")}},
+			{err: &transport.RunError{Stderr: "Connection timed out", ExitCode: 255, Err: errors.New("exit status 255")}},
 			{snapshot: slurm.Snapshot{CollectedAt: now.Add(2 * time.Second)}},
 		},
 	}
@@ -179,5 +180,52 @@ func TestLoopRecoversAfterTransientFailures(t *testing.T) {
 	}
 	if states[3] != StateConnected {
 		t.Fatalf("expected recovery to return connected, got %s", states[3])
+	}
+}
+
+func TestLoopStopsRetryingAfterPermanentFailure(t *testing.T) {
+	now := time.Now()
+	sc := &scriptedCollector{
+		steps: []collectStep{
+			{snapshot: slurm.Snapshot{CollectedAt: now}},
+			{err: errors.New("parse nodes: unexpected collector output format: split marker missing")},
+			{snapshot: slurm.Snapshot{CollectedAt: now.Add(2 * time.Second)}},
+		},
+	}
+
+	loop := &Loop{
+		Collector:        sc,
+		Refresh:          5 * time.Millisecond,
+		BaseBackoff:      5 * time.Millisecond,
+		MaxBackoff:       10 * time.Millisecond,
+		FailureThreshold: 2,
+		Rand:             rand.New(rand.NewSource(1)),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	updates := make(chan Update, 16)
+	go loop.Run(ctx, updates)
+
+	var states []State
+	for update := range updates {
+		states = append(states, update.State)
+		if len(states) == 2 {
+			cancel()
+		}
+	}
+
+	if len(states) != 2 {
+		t.Fatalf("expected two updates, got %v", states)
+	}
+	if states[0] != StateConnected {
+		t.Fatalf("expected initial connected state, got %s", states[0])
+	}
+	if states[1] != StateDisconnected {
+		t.Fatalf("expected permanent failure to emit disconnected, got %s", states[1])
+	}
+	if sc.position != 2 {
+		t.Fatalf("expected collector to stop after permanent failure, got %d calls", sc.position)
 	}
 }

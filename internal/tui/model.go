@@ -267,6 +267,8 @@ func (m Model) renderStatusText(now time.Time) (string, lipgloss.Style, lipgloss
 	switch m.state {
 	case monitor.StateConnected:
 		return "connected", m.styles.ok, m.styles.chipOK
+	case monitor.StateDisconnected:
+		return "disconnected", m.styles.bad, m.styles.chipBad
 	case monitor.StateDisconnectedRecovering:
 		next := ""
 		if !m.nextRetry.IsZero() && m.nextRetry.After(now) {
@@ -553,7 +555,7 @@ func (m Model) renderNodeTable(limit int) string {
 
 	lines = append(lines, fmt.Sprintf(
 		wideRowFmt,
-		"node", "partition", "state", "cpu", "cpu%", "mem", "mem%", "gpu", "gpu%",
+		"node", "partition", "state", "cpu", "cpu%", "mem", "mem%", "gpu", "gpu alloc%",
 	))
 	for _, n := range nodes {
 		lines = append(lines, fmt.Sprintf(
@@ -678,7 +680,7 @@ func (m Model) renderNodeTableWithBudget(contentHeight, maxHeight int, compactLa
 	if showHeader {
 		lines = append(lines, fmt.Sprintf(
 			wideRowFmt,
-			"node", "partition", "state", "cpu", "cpu%", "mem", "mem%", "gpu", "gpu%",
+			"node", "partition", "state", "cpu", "cpu%", "mem", "mem%", "gpu", "gpu alloc%",
 		))
 	}
 	for i := 0; i < visibleRows; i++ {

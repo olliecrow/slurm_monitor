@@ -1,6 +1,7 @@
 package slurm
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -22,5 +23,27 @@ func TestSplitCombinedOutput(t *testing.T) {
 	}
 	if queue != "1001|PENDING|alice|1|4G|N/A|gpu|job|Priority" {
 		t.Fatalf("unexpected queue payload: %q", queue)
+	}
+}
+
+func TestFillPendingGPURequestCachePrunesStaleRoots(t *testing.T) {
+	c := &Collector{
+		pendingGPUByJobRoot: map[string]bool{
+			"1001": true,
+			"2002": false,
+		},
+	}
+
+	queueRaw := "2002_1|PENDING|alice|1|4G|N/A|gpu|job|Priority"
+	c.fillPendingGPURequestCache(context.Background(), queueRaw)
+
+	if len(c.pendingGPUByJobRoot) != 1 {
+		t.Fatalf("expected exactly one cached root after prune, got %d", len(c.pendingGPUByJobRoot))
+	}
+	if _, ok := c.pendingGPUByJobRoot["2002"]; !ok {
+		t.Fatalf("expected active root to remain cached")
+	}
+	if _, ok := c.pendingGPUByJobRoot["1001"]; ok {
+		t.Fatalf("expected stale root to be pruned")
 	}
 }
