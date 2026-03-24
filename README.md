@@ -24,6 +24,7 @@ Give you a clear live view of cluster health and queue state without running any
 ## Requirements
 
 - Go `1.22+`
+- POSIX `sh` available on the operator host and remote target environment
 - Slurm CLI tools available on target environment (`sinfo`, `squeue`, `scontrol`)
 - OpenSSH `ssh` available for remote mode
 - supported operator platforms: macOS and Linux only
@@ -110,11 +111,14 @@ go run ./cmd/slurm-monitor --once cluster_alias
 
 ```text
 slurm-monitor doctor
-mode: remote
-target: cluster_alias
+mode: local
+target: local
 
-[ok] local tool ssh: /usr/bin/ssh
-[ok] slurm preflight: required Slurm commands are reachable on ssh:cluster_alias
+[ok] local tool sh: /bin/sh
+[ok] local tool sinfo: /usr/bin/sinfo
+[ok] local tool squeue: /usr/bin/squeue
+[ok] local tool scontrol: /usr/bin/scontrol
+[ok] slurm preflight: required Slurm commands are reachable on local
 
 doctor result: PASS
 ```
@@ -123,8 +127,8 @@ doctor result: PASS
 
 ```text
 slurm-monitor dry-run
-mode: remote
-target: cluster_alias
+mode: local
+target: local
 refresh: 2s
 connect-timeout: 10s
 command-timeout: 15s
@@ -135,7 +139,7 @@ no-color: false
 
 planned sequence:
 1. Parse flags and build the configured transport.
-2. Connect over OpenSSH to the target and validate sinfo, squeue, and scontrol remotely.
+2. Run a local preflight check for sh, sinfo, squeue, and scontrol.
 3. Start the polling loop and render the live TUI until interrupted or duration is reached.
 4. Exit without mutating any Slurm queue or cluster state.
 

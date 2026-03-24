@@ -68,11 +68,11 @@ Startup is fail-fast only for non-recoverable capability/argument failures; tran
 Context:
 User wants explicit errors for wrong host selection (or local mode without Slurm) rather than silent degraded behavior.
 Rationale:
-Fail-fast for missing Slurm tools reduces false confidence and avoids rendering stale/empty data as if monitoring were active. Retrying transient transport failures improves resilience on unreliable networks.
+Fail-fast for missing Slurm tools and permanent SSH/auth/configuration errors reduces false confidence and avoids rendering stale/empty data as if monitoring were active. Retrying transient transport failures improves resilience on unreliable networks.
 Trade-offs:
 Partially configured hosts still fail immediately; transient startup transport failures can delay startup for a long time unless operator quits or sets `--duration`.
 Enforcement:
-Startup capability checks for required commands; immediate process exit for missing-command/argument failures; retry loop for transient startup transport failures.
+Startup capability checks for required commands via `sh -lc`; immediate process exit for missing-command, permanent SSH/auth/configuration, and argument failures; retry loop for transient startup transport failures.
 References:
 `docs/spec.md` (startup checks), `docs/implementation-plan.md` (phase 1 acceptance checks).
 
@@ -140,6 +140,45 @@ Enforcement:
 UI refresh indicators (heartbeat clock, last-update age, status spinner) show liveness independently of metric movement; node utilization comes directly from parsed Slurm node fields.
 References:
 `internal/slurm/parse.go`, `internal/tui/model.go`, `docs/architecture.md` (Optional metrics), `docs/spec.md` (TUI Behavior).
+
+Decision:
+Use POSIX `sh` for local and remote command execution instead of assuming `bash`.
+Context:
+The monitor executes simple shell command strings locally and remotely, and the supported platforms are macOS and Linux where POSIX `sh` is standard.
+Rationale:
+Using `sh -lc` removes an unnecessary undeclared Bash dependency while preserving the existing command contract.
+Trade-offs:
+Shell snippets must remain POSIX-compatible; Bash-specific features are intentionally out of scope.
+Enforcement:
+Local and SSH transports invoke `sh -lc`; doctor and dry-run wording reference `sh`.
+References:
+`internal/transport/local.go`, `internal/transport/ssh.go`, `internal/app/preflight.go`, `README.md`, `docs/spec.md`.
+
+Decision:
+Treat displayed GPU percentage as allocation percentage, not live device utilization.
+Context:
+The collector derives the GPU percentage from `GPUAlloc/GPUTotal`, which reflects allocation saturation rather than runtime activity on the device.
+Rationale:
+Explicit labeling prevents operators from reading scheduler allocation as hardware utilization.
+Trade-offs:
+The UI is more precise but slightly more verbose.
+Enforcement:
+Wide node-table header labels the column as `gpu alloc%`; docs describe the percentage as allocation-derived.
+References:
+`internal/slurm/parse.go`, `internal/tui/model.go`, `docs/spec.md`, `docs/architecture.md`.
+
+Decision:
+Stop infinite retries on permanent startup/runtime failures and keep the last good snapshot visible.
+Context:
+Long-running monitoring sessions need automatic recovery from flaky transport failures, but auth/configuration/parser-contract failures are not helped by retrying forever.
+Rationale:
+Separating retryable from permanent failures preserves resilience while making real operator-action items obvious.
+Trade-offs:
+Retry classification depends on known transport signals and may need occasional extension if SSH surfaces new message variants.
+Enforcement:
+Startup preflight uses retry classification before backoff; runtime loop enters a disconnected state and stops scheduling retries after non-retryable failures.
+References:
+`internal/transport/transport.go`, `internal/app/app.go`, `internal/monitor/monitor.go`, `docs/spec.md`, `docs/architecture.md`.
 
 Decision:
 CLI help is first-class and self-contained.

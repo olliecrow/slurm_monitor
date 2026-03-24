@@ -40,6 +40,7 @@ Implementations:
 - classifies failures into retryable vs fatal
 - uses OpenSSH connection multiplexing (`ControlMaster`/`ControlPersist`) to reduce poll latency and improve live-update cadence.
 - uses OpenSSH keepalive/retry options (`ServerAlive*`, `TCPKeepAlive`, `ConnectionAttempts`) for better behavior on flaky networks.
+- uses POSIX `sh -lc` on the target rather than assuming `bash`.
 
 ## 3) Collector pipeline
 Collectors produce typed data for a `Snapshot`:
@@ -76,11 +77,13 @@ Recommended stack:
 ## Connection state machine
 States:
 - `Connected`
+- `Disconnected`
 - `Reconnecting`
 - `DisconnectedRecovering`
 
 Transitions:
 - poll success -> `Connected`
+- non-retryable failure -> `Disconnected`
 - retryable transport failure -> `Reconnecting`
 - repeated failure above threshold -> `DisconnectedRecovering`
 - next success from recovery states -> `Connected`
@@ -88,7 +91,8 @@ Transitions:
 Behavior:
 - keep last known snapshot visible during non-connected states
 - show error + age since last successful update
-- continue retry loop until quit
+- continue retry loop only for retryable failures
+- stop retrying after permanent configuration/auth/parser-contract failures and leave the UI disconnected until quit
 
 ## Retry policy
 - bounded exponential backoff with jitter
@@ -98,7 +102,8 @@ Behavior:
 
 ## Capability detection
 - startup probe checks required commands in selected context
-- startup probe retries transient transport failures with backoff; missing-command failures remain fatal.
+- startup probe uses `sh -lc` in both local and remote modes.
+- startup probe retries transient transport failures with backoff; missing-command and permanent SSH/config/shell failures remain fatal.
 - `doctor` runs a single non-mutating probe pass and reports pass/fail without entering the monitor loop.
 - `dry-run` prints planned stages and executes no transport commands.
 - optional capability map can track optional metrics availability (for utilization fields)
@@ -113,8 +118,8 @@ Use read-only Slurm commands with stable parse contracts:
 Optional metrics:
 - CPU/memory/GPU utilization depends on cluster/slurm configuration.
 - CPU/memory utilization values come from Slurm node fields (`CPULoad`, `FreeMem`) and may refresh slowly depending on cluster update cadence.
-- GPU utilization is represented as allocation ratio (`GPUAlloc/GPUTotal`) when direct GPU activity metrics are unavailable, so it changes only when allocations change.
-- if not available via standard commands, keep column but show `n/a`.
+- GPU percentage shown in the TUI is allocation ratio (`GPUAlloc/GPUTotal`), labeled explicitly as allocation percentage because true device activity is not available from the current collector contract.
+- if GPU totals are unavailable, keep the column but show `n/a`.
 
 ## Rendering layout plan
 
@@ -132,13 +137,14 @@ Compact terminals:
 - fatal startup errors:
   - missing Slurm commands in target context
   - invalid CLI argument combinations
+  - permanent SSH/auth/configuration/shell-contract failures
 - non-fatal startup errors:
   - transient SSH/network/timeout failures during capability probe (retry loop continues)
 - non-fatal runtime errors:
   - SSH timeout/drop
   - transient command failures
 - parser errors:
-  - surfaced in status panel; poll loop continues
+  - surfaced in status panel and treated as non-retryable so the operator sees a disconnected terminal instead of an infinite retry loop
 
 ## Security model
 - no credential persistence
