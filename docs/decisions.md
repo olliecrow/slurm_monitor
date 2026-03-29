@@ -353,3 +353,10 @@ Rationale: Public repositories have an external audience and external blast radi
 Trade-offs: Day-to-day maintenance carries more process overhead than it would in a private-only repo.
 Enforcement: Keep public-surface safety, security, privacy, and publication checks active for normal maintenance work in this repository.
 References: `AGENTS.md`, `docs/workflows.md`, `README.md`
+
+Decision: This personal repository uses only official, reputable, and well-supported third-party dependencies and services by default.
+Context: The user explicitly does not want dodgy or non-reputable third-party services, APIs, MCPs, packages, frameworks, libraries, modules, or similar tooling introduced here, regardless of whether the repository is public or private.
+Rationale: Favoring official vendor offerings and reputable, popular, well-supported dependencies reduces supply-chain, maintenance, abandonment, and trust risk while keeping the repository easier to maintain.
+Trade-offs: Some niche or experimental tools will be skipped unless they later earn a stronger trust/support profile or the user explicitly approves them.
+Enforcement: Prefer official APIs, official MCPs, official SDKs, and reputable well-maintained third-party services, packages, frameworks, libraries, and modules. Do not add obscure, weakly maintained, questionable, or low-trust dependencies or integrations without explicit user approval.
+References: `docs/decisions.md`
