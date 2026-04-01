@@ -360,3 +360,15 @@ Rationale: Favoring official vendor offerings and reputable, popular, well-suppo
 Trade-offs: Some niche or experimental tools will be skipped unless they later earn a stronger trust/support profile or the user explicitly approves them.
 Enforcement: Prefer official APIs, official MCPs, official SDKs, and reputable well-maintained third-party services, packages, frameworks, libraries, and modules. Do not add obscure, weakly maintained, questionable, or low-trust dependencies or integrations without explicit user approval.
 References: `docs/decisions.md`
+
+Decision: Plain English and clear naming are the default for this repository.
+Context:
+The owner wants this repository to stay easy to understand in future chat sessions, docs work, code review, and day-to-day code changes.
+Rationale:
+Plain English cuts down confusion and makes work faster to read. Clear names in code reduce guessing and make the code easier to change safely later.
+Trade-offs:
+Some technical ideas need a short extra explanation, and some older names may stay in place until the code around them is touched safely.
+Enforcement:
+`AGENTS.md` requires plain English in chat and written project material. When touching code, prefer clear descriptive names for files, folders, flags, config keys, functions, classes, types, variables, tests, and examples, and rename confusing names when the change is safe and worth it.
+References:
+`AGENTS.md`
