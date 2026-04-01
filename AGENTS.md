@@ -6,6 +6,11 @@
 - Secondary use case is local monitoring on hosts that already have Slurm CLI tooling.
 - Monitoring is strictly read-only; queue mutation actions are out of scope.
 
+## Repository Ownership
+- This repository belongs under the personal GitHub account `olliecrow`.
+- Do not move it to a GitHub organization or a different personal account unless Ollie explicitly asks for that change.
+- When docs, remotes, automation, releases, or publishing steps need the owning GitHub account, use `olliecrow`.
+
 ## Open-Source Transition Posture
 - Treat this repository as open-source-ready now, even while private.
 - Never commit secrets, credentials, tokens, private keys, passwords, or confidential internal details.
