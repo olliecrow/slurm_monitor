@@ -31,3 +31,11 @@ These preferences define how `slurm_monitor` should be maintained as an open-sou
 - Preserve accurate author/committer attribution for each contributor.
 - Prefer commit author identities tied to genuine human GitHub accounts, not fabricated bot names/emails.
 - Avoid destructive history rewrites unless required for secret/confidentiality remediation.
+
+## Language and Naming
+
+- Use plain English in chat, docs, notes, comments, reports, commit messages, issue text, and review text.
+- Prefer short words, short sentences, and direct statements.
+- If a technical term is needed, explain it in simple words the first time.
+- In code, prefer clear descriptive names over clever or vague names.
+- Rename confusing names when the change is low risk and clearly improves readability.
