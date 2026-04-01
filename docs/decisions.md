@@ -372,3 +372,16 @@ Enforcement:
 `AGENTS.md` requires plain English in chat and written project material. When touching code, prefer clear descriptive names for files, folders, flags, config keys, functions, classes, types, variables, tests, and examples, and rename confusing names when the change is safe and worth it.
 References:
 `AGENTS.md`
+
+Decision:
+Treat this repository as belonging under the personal GitHub account `olliecrow`.
+Context:
+Work in this workspace can span personal GitHub accounts and organization-owned repositories. A repo-level ownership note keeps docs, remotes, automation, releases, and publishing steps pointed at the right account.
+Rationale:
+A clear owner account rule cuts down avoidable confusion and keeps future repo work tied to the right GitHub home.
+Trade-offs:
+If this repository ever moves to a different owner, this note must be updated in the same change.
+Enforcement:
+`AGENTS.md` and any repo docs, remotes, automation, release, or publishing steps that need the owning GitHub account should point to `olliecrow` unless Ollie explicitly changes that ownership decision.
+References:
+`AGENTS.md`
