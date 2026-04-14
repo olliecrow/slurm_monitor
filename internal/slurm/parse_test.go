@@ -35,6 +35,12 @@ func TestParseQueueLines(t *testing.T) {
 	if queue.Running != 2 || queue.Pending != 2 {
 		t.Fatalf("unexpected queue counts: running=%d pending=%d", queue.Running, queue.Pending)
 	}
+	if queue.RunningCPUJobs != 0 || queue.RunningGPUJobs != 2 {
+		t.Fatalf("unexpected queue running cpu/gpu job split: %d/%d", queue.RunningCPUJobs, queue.RunningGPUJobs)
+	}
+	if queue.PendingCPUJobs != 2 || queue.PendingGPUJobs != 0 {
+		t.Fatalf("unexpected queue pending cpu/gpu job split: %d/%d", queue.PendingCPUJobs, queue.PendingGPUJobs)
+	}
 	if len(users) != 3 {
 		t.Fatalf("expected 3 users, got %d", len(users))
 	}
@@ -48,6 +54,9 @@ func TestParseQueueLines(t *testing.T) {
 	}
 	if alice.PendingCPU != 4 || alice.PendingMemMB != 10240 || alice.PendingGPU != 0 {
 		t.Fatalf("unexpected alice pending demand cpu/mem/gpu: %d/%d/%d", alice.PendingCPU, alice.PendingMemMB, alice.PendingGPU)
+	}
+	if alice.RunningCPUJobs != 0 || alice.RunningGPUJobs != 1 {
+		t.Fatalf("unexpected alice running cpu/gpu job split: %d/%d", alice.RunningCPUJobs, alice.RunningGPUJobs)
 	}
 	if alice.PendingCPUJobs != 1 || alice.PendingGPUJobs != 0 {
 		t.Fatalf("unexpected alice pending cpu/gpu job split: %d/%d", alice.PendingCPUJobs, alice.PendingGPUJobs)
@@ -63,9 +72,18 @@ func TestParseQueueLines(t *testing.T) {
 		t.Fatalf("unexpected carol pending cpu/gpu job split: %d/%d", carol.PendingCPUJobs, carol.PendingGPUJobs)
 	}
 	for _, u := range users {
+		if u.RunningCPUJobs+u.RunningGPUJobs != u.Running {
+			t.Fatalf("running cpu/gpu jobs must sum to running for %s: cpu=%d gpu=%d running=%d", u.User, u.RunningCPUJobs, u.RunningGPUJobs, u.Running)
+		}
 		if u.PendingCPUJobs+u.PendingGPUJobs != u.Pending {
 			t.Fatalf("pending cpu/gpu jobs must sum to pending for %s: cpu=%d gpu=%d pending=%d", u.User, u.PendingCPUJobs, u.PendingGPUJobs, u.Pending)
 		}
+	}
+	if queue.RunningCPUJobs+queue.RunningGPUJobs != queue.Running {
+		t.Fatalf("queue running cpu/gpu jobs must sum to running: cpu=%d gpu=%d running=%d", queue.RunningCPUJobs, queue.RunningGPUJobs, queue.Running)
+	}
+	if queue.PendingCPUJobs+queue.PendingGPUJobs != queue.Pending {
+		t.Fatalf("queue pending cpu/gpu jobs must sum to pending: cpu=%d gpu=%d pending=%d", queue.PendingCPUJobs, queue.PendingGPUJobs, queue.Pending)
 	}
 	if queue.ResourceLoad.RunningGPU != 3 {
 		t.Fatalf("unexpected running gpu total: %d", queue.ResourceLoad.RunningGPU)
@@ -119,6 +137,9 @@ func TestPendingGPUJobsClassifiedByGPURequest(t *testing.T) {
 	u := users[0]
 	if u.Pending != 2 {
 		t.Fatalf("expected 2 pending, got %d", u.Pending)
+	}
+	if u.RunningCPUJobs != 0 || u.RunningGPUJobs != 0 {
+		t.Fatalf("expected no running jobs, got cpu/gpu %d/%d", u.RunningCPUJobs, u.RunningGPUJobs)
 	}
 	if u.PendingCPUJobs != 1 || u.PendingGPUJobs != 1 {
 		t.Fatalf("expected cpu/gpu pending split 1/1, got %d/%d", u.PendingCPUJobs, u.PendingGPUJobs)

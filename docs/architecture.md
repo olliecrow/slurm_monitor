@@ -59,7 +59,7 @@ Responsibilities:
 - compute totals and derived percentages
 - preserve raw values + display values (`n/a` where unavailable)
 - track freshness timestamps
-- aggregate user queue pressure with pending CPU-job and GPU-job counts for triage-focused views
+- aggregate queue and user job splits for CPU jobs and GPU jobs in running and pending states
 
 ## 5) TUI runtime
 Responsibilities:

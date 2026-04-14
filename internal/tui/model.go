@@ -325,8 +325,10 @@ func (m Model) renderQueuePanel(userLimit int, showDemand bool) string {
 
 	lines := []string{
 		m.sectionTitle("queue summary"),
-		m.queueStatusLine("running", q.Running),
-		m.queueStatusLine("pending", q.Pending),
+		m.queueStatusLine("running cpu", q.RunningCPUJobs),
+		m.queueStatusLine("running gpu", q.RunningGPUJobs),
+		m.queueStatusLine("pending cpu", q.PendingCPUJobs),
+		m.queueStatusLine("pending gpu", q.PendingGPUJobs),
 		m.queueStatusLine("other", q.Other),
 		m.queueStatusLine("total", total),
 	}
@@ -349,14 +351,24 @@ func (m Model) renderQueuePanelWithBudget(contentHeight, maxHeight int, compactL
 	total := q.Running + q.Pending + q.Other
 	lines := []string{
 		m.sectionTitle("queue summary"),
-		m.queueStatusLine("running", q.Running),
-		m.queueStatusLine("pending", q.Pending),
+		m.queueStatusLine("running cpu", q.RunningCPUJobs),
+		m.queueStatusLine("running gpu", q.RunningGPUJobs),
+		m.queueStatusLine("pending cpu", q.PendingCPUJobs),
+		m.queueStatusLine("pending gpu", q.PendingGPUJobs),
 		m.queueStatusLine("other", q.Other),
 		m.queueStatusLine("total", total),
 	}
+	userCount := len(m.snapshot.Users)
+	if userCount > 0 && contentHeight >= 2 && len(lines) >= contentHeight {
+		queueBudget := max(1, contentHeight-1)
+		lines = clipLines(lines, queueBudget)
+		lines = append(lines, m.renderUserLinesWithBudget(0, 1, showDemand, contentWidth)...)
+		lines = fitLinesToWidth(lines, contentWidth)
+		return strings.Join(lines, "\n")
+	}
 
 	available := contentHeight - len(lines)
-	if available > 1 {
+	if available > 1 && (userCount == 0 || available-1 >= userCount+2) {
 		lines = append(lines, "")
 		available--
 	}
@@ -406,13 +418,13 @@ func (m Model) renderUserLines(limit int, showDemand bool) []string {
 
 	lines := []string{m.sectionTitle(title)}
 	if showDemand {
-		lines = append(lines, fmt.Sprintf("%-12s %7s %7s %14s %14s", "user", "running", "pending", "pendingCPUJobs", "pendingGPUJobs"))
+		lines = append(lines, fmt.Sprintf("%-12s %10s %10s %10s %10s", "user", "runningCPU", "runningGPU", "pendingCPU", "pendingGPU"))
 		for _, u := range users {
 			lines = append(lines, fmt.Sprintf(
-				"%-12s %7d %7d %14d %14d",
+				"%-12s %10d %10d %10d %10d",
 				truncateRunes(u.User, 12),
-				u.Running,
-				u.Pending,
+				u.RunningCPUJobs,
+				u.RunningGPUJobs,
 				u.PendingCPUJobs,
 				u.PendingGPUJobs,
 			))
@@ -420,9 +432,16 @@ func (m Model) renderUserLines(limit int, showDemand bool) []string {
 		return lines
 	}
 
-	lines = append(lines, fmt.Sprintf("%-18s %8s %8s", "user", "running", "pending"))
+	lines = append(lines, fmt.Sprintf("%-10s %5s %5s %5s %5s", "user", "runC", "runG", "penC", "penG"))
 	for _, u := range users {
-		lines = append(lines, fmt.Sprintf("%-18s %8d %8d", truncateRunes(u.User, 18), u.Running, u.Pending))
+		lines = append(lines, fmt.Sprintf(
+			"%-10s %5d %5d %5d %5d",
+			truncateRunes(u.User, 10),
+			u.RunningCPUJobs,
+			u.RunningGPUJobs,
+			u.PendingCPUJobs,
+			u.PendingGPUJobs,
+		))
 	}
 	return fitLinesToWidth(lines, panelContentWidth(max(20, m.width-6)))
 }
@@ -470,19 +489,26 @@ func (m Model) renderUserLinesWithBudget(maxRows, rowBudget int, showDemand bool
 	if rowBudget == 2 {
 		if len(visibleUsers) == 1 {
 			u := visibleUsers[0]
-			lines = append(lines, fmt.Sprintf("%-18s %8d %8d", truncateRunes(u.User, 18), u.Running, u.Pending))
+			lines = append(lines, fmt.Sprintf(
+				"%-10s %5d %5d %5d %5d",
+				truncateRunes(u.User, 10),
+				u.RunningCPUJobs,
+				u.RunningGPUJobs,
+				u.PendingCPUJobs,
+				u.PendingGPUJobs,
+			))
 		}
 		return fitLinesToWidth(lines, contentWidth)
 	}
 
 	if showDemand {
-		lines = append(lines, fmt.Sprintf("%-12s %7s %7s %14s %14s", "user", "running", "pending", "pendingCPUJobs", "pendingGPUJobs"))
+		lines = append(lines, fmt.Sprintf("%-12s %10s %10s %10s %10s", "user", "runningCPU", "runningGPU", "pendingCPU", "pendingGPU"))
 		for _, u := range visibleUsers {
 			lines = append(lines, fmt.Sprintf(
-				"%-12s %7d %7d %14d %14d",
+				"%-12s %10d %10d %10d %10d",
 				truncateRunes(u.User, 12),
-				u.Running,
-				u.Pending,
+				u.RunningCPUJobs,
+				u.RunningGPUJobs,
 				u.PendingCPUJobs,
 				u.PendingGPUJobs,
 			))
@@ -491,9 +517,16 @@ func (m Model) renderUserLinesWithBudget(maxRows, rowBudget int, showDemand bool
 		return fitLinesToWidth(lines, contentWidth)
 	}
 
-	lines = append(lines, fmt.Sprintf("%-18s %8s %8s", "user", "running", "pending"))
+	lines = append(lines, fmt.Sprintf("%-10s %5s %5s %5s %5s", "user", "runC", "runG", "penC", "penG"))
 	for _, u := range visibleUsers {
-		lines = append(lines, fmt.Sprintf("%-18s %8d %8d", truncateRunes(u.User, 18), u.Running, u.Pending))
+		lines = append(lines, fmt.Sprintf(
+			"%-10s %5d %5d %5d %5d",
+			truncateRunes(u.User, 10),
+			u.RunningCPUJobs,
+			u.RunningGPUJobs,
+			u.PendingCPUJobs,
+			u.PendingGPUJobs,
+		))
 	}
 	lines = clipLines(lines, rowBudget)
 	return fitLinesToWidth(lines, contentWidth)
@@ -761,7 +794,7 @@ func nodeStateAlert(snap *slurm.Snapshot) (string, bool) {
 }
 
 func (m Model) queueStatusLine(label string, value int) string {
-	return m.styles.label.Render(fmt.Sprintf("%-8s", label)) + "  " + m.styles.value.Render(fmt.Sprintf("%5d", value))
+	return m.styles.label.Render(fmt.Sprintf("%-11s", label)) + "  " + m.styles.value.Render(fmt.Sprintf("%5d", value))
 }
 
 func (m Model) sectionTitle(label string) string {

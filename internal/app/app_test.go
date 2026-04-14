@@ -3,9 +3,13 @@ package app
 import (
 	"context"
 	"errors"
+	"io"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"slurm_monitor/internal/slurm"
 	"slurm_monitor/internal/transport"
 )
 
@@ -169,4 +173,56 @@ func TestAwaitSlurmAvailabilityStopsOnPermanentTransportFailure(t *testing.T) {
 	if tr.calls != 1 {
 		t.Fatalf("expected no retries for permanent failure, got %d calls", tr.calls)
 	}
+}
+
+func TestRunOncePrintsQueueAndUserCPUAndGPUSplit(t *testing.T) {
+	raw := strings.Join([]string{
+		"NodeName=node001 State=IDLE CPUTot=64 CPUAlloc=32 CPULoad=16.00 RealMemory=256000 AllocMem=128000 FreeMem=96000 Partitions=main CfgTRES=cpu=64,mem=256000M,billing=64,gres/gpu=4 AllocTRES=cpu=32,mem=128000M,billing=32,gres/gpu=2",
+		"__SLURM_MONITOR_SPLIT__",
+		"1001|RUNNING|alice|8|20G|gres/gpu:1|train|jobA|None",
+		"1002|PENDING|alice|4|10G|N/A|train|jobB|Priority",
+	}, "\n")
+	collector := slurm.NewCollector(fakeTransport{
+		result: transport.RunResult{Stdout: raw},
+	}, 2*time.Second)
+
+	out := captureStdout(t, func() {
+		if err := runOnce(context.Background(), collector, "fake"); err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "queue: running_cpu=0 running_gpu=1 pending_cpu=1 pending_gpu=0 other=0 total=2") {
+		t.Fatalf("expected queue cpu/gpu split in output, got: %q", out)
+	}
+	if !strings.Contains(out, "alice running_cpu_jobs=0 running_gpu_jobs=1 pending_cpu_jobs=1 pending_gpu_jobs=0") {
+		t.Fatalf("expected user cpu/gpu split in output, got: %q", out)
+	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	orig := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	os.Stdout = w
+	defer func() {
+		os.Stdout = orig
+	}()
+
+	fn()
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("close write pipe: %v", err)
+	}
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read pipe: %v", err)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatalf("close read pipe: %v", err)
+	}
+	return string(out)
 }

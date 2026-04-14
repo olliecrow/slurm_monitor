@@ -200,7 +200,16 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 	fmt.Fprintf(os.Stdout, "source: %s\n", source)
 	fmt.Fprintf(os.Stdout, "collected_at: %s\n", snapshot.CollectedAt.Format(time.RFC3339))
 	fmt.Fprintf(os.Stdout, "nodes: %d\n", len(snapshot.Nodes))
-	fmt.Fprintf(os.Stdout, "queue: running=%d pending=%d\n", snapshot.Queue.Running, snapshot.Queue.Pending)
+	fmt.Fprintf(
+		os.Stdout,
+		"queue: running_cpu=%d running_gpu=%d pending_cpu=%d pending_gpu=%d other=%d total=%d\n",
+		snapshot.Queue.RunningCPUJobs,
+		snapshot.Queue.RunningGPUJobs,
+		snapshot.Queue.PendingCPUJobs,
+		snapshot.Queue.PendingGPUJobs,
+		snapshot.Queue.Other,
+		snapshot.Queue.Running+snapshot.Queue.Pending+snapshot.Queue.Other,
+	)
 
 	totals := snapshot.Totals()
 	fmt.Fprintf(
@@ -220,13 +229,13 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 	for _, user := range users {
 		fmt.Fprintf(
 			os.Stdout,
-			"  - %s running=%d pending=%d pending_cpu_jobs=%d pending_mem=%s pending_gpu_jobs=%d\n",
+			"  - %s running_cpu_jobs=%d running_gpu_jobs=%d pending_cpu_jobs=%d pending_gpu_jobs=%d pending_mem=%s\n",
 			user.User,
-			user.Running,
-			user.Pending,
+			user.RunningCPUJobs,
+			user.RunningGPUJobs,
 			user.PendingCPUJobs,
-			uifmt.MemMB(user.PendingMemMB),
 			user.PendingGPUJobs,
+			uifmt.MemMB(user.PendingMemMB),
 		)
 	}
 

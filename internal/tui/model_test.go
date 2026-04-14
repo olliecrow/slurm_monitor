@@ -178,7 +178,7 @@ func TestQueueSummaryRendersWithoutBars(t *testing.T) {
 	if strings.Contains(out, "█") || strings.Contains(out, "░") {
 		t.Fatalf("expected queue summary without bar glyphs, got: %q", out)
 	}
-	if !strings.Contains(out, "running") || !strings.Contains(out, "pending") || !strings.Contains(out, "other") || !strings.Contains(out, "total") {
+	if !strings.Contains(out, "running cpu") || !strings.Contains(out, "running gpu") || !strings.Contains(out, "pending cpu") || !strings.Contains(out, "pending gpu") || !strings.Contains(out, "other") || !strings.Contains(out, "total") {
 		t.Fatalf("expected queue summary labels in output, got: %q", out)
 	}
 }
@@ -238,8 +238,8 @@ func TestCompactViewIncludesPendingDemandColumnsWhenWidthAllows(t *testing.T) {
 	m.height = 36
 
 	out := m.View()
-	if !strings.Contains(out, "pendingCPUJobs") || !strings.Contains(out, "pendingGPUJobs") {
-		t.Fatalf("expected compact view to include pending demand columns, got: %q", out)
+	if !strings.Contains(out, "runningCPU") || !strings.Contains(out, "runningGPU") || !strings.Contains(out, "pendingCPU") || !strings.Contains(out, "pendingGPU") {
+		t.Fatalf("expected compact view to include running/pending cpu-gpu split columns, got: %q", out)
 	}
 }
 
@@ -276,6 +276,8 @@ func TestCompactQueuePanelUsesAvailableHeightBeforeHidingUsers(t *testing.T) {
 			User:           fmt.Sprintf("user%02d", i),
 			Running:        1,
 			Pending:        30 - i,
+			RunningCPUJobs: 1,
+			RunningGPUJobs: 0,
 			PendingCPUJobs: 30 - i,
 			PendingGPUJobs: 0,
 		})
@@ -363,9 +365,11 @@ func TestViewShowsHiddenUserIndicatorInTightLayout(t *testing.T) {
 	m.styles = defaultStyles(true)
 	for i := 0; i < 20; i++ {
 		m.snapshot.Users = append(m.snapshot.Users, slurm.UserSummary{
-			User:    fmt.Sprintf("user-%02d", i),
-			Running: 1,
-			Pending: 1,
+			User:           fmt.Sprintf("user-%02d", i),
+			Running:        1,
+			Pending:        1,
+			RunningCPUJobs: 1,
+			PendingCPUJobs: 1,
 		})
 	}
 	m.width = 80
@@ -529,9 +533,13 @@ func sampleSnapshot() slurm.Snapshot {
 			},
 		},
 		Queue: slurm.QueueSummary{
-			Running: 42,
-			Pending: 5,
-			Other:   1,
+			Running:        42,
+			Pending:        5,
+			Other:          1,
+			RunningCPUJobs: 14,
+			RunningGPUJobs: 28,
+			PendingCPUJobs: 2,
+			PendingGPUJobs: 3,
 			ByState: []slurm.StateCount{
 				{State: "RUNNING", Count: 42},
 				{State: "PENDING", Count: 5},
@@ -559,9 +567,9 @@ func sampleSnapshot() slurm.Snapshot {
 			},
 		},
 		Users: []slurm.UserSummary{
-			{User: "alice", Running: 17, Pending: 3, PendingCPUJobs: 1, PendingGPUJobs: 2, PendingCPU: 96, PendingMemMB: 220000, PendingGPU: 8},
-			{User: "bob", Running: 9, Pending: 1, PendingCPUJobs: 1, PendingGPUJobs: 0, PendingCPU: 32, PendingMemMB: 64000, PendingGPU: 0},
-			{User: "carol", Running: 6, Pending: 1, PendingCPUJobs: 0, PendingGPUJobs: 1, PendingCPU: 16, PendingMemMB: 32000, PendingGPU: 1},
+			{User: "alice", Running: 17, Pending: 3, RunningCPUJobs: 5, RunningGPUJobs: 12, PendingCPUJobs: 1, PendingGPUJobs: 2, PendingCPU: 96, PendingMemMB: 220000, PendingGPU: 8},
+			{User: "bob", Running: 9, Pending: 1, RunningCPUJobs: 9, RunningGPUJobs: 0, PendingCPUJobs: 1, PendingGPUJobs: 0, PendingCPU: 32, PendingMemMB: 64000, PendingGPU: 0},
+			{User: "carol", Running: 6, Pending: 1, RunningCPUJobs: 2, RunningGPUJobs: 4, PendingCPUJobs: 0, PendingGPUJobs: 1, PendingCPU: 16, PendingMemMB: 32000, PendingGPU: 1},
 		},
 	}
 }

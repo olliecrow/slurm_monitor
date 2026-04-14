@@ -17,8 +17,8 @@ The tool should run for long periods with minimal operator interaction and provi
 - Recovery behavior for transient SSH/network failures.
 - Three primary data views:
   - node summary view (per-node rows + aggregate totals)
-  - queue summary view (cluster-level running/pending counts)
-  - user view (per-user running/pending counts)
+  - queue summary view (cluster-level CPU-job/GPU-job split for running and pending jobs)
+  - user view (per-user CPU-job/GPU-job split for running and pending jobs)
 - Clear connectivity status indicators in the UI.
 
 ### Out of scope
@@ -122,19 +122,22 @@ Aggregate row:
 
 ### 2) Queue summary view
 Fields:
-- running jobs count
-- pending jobs count
+- running CPU-job count
+- running GPU-job count
+- pending CPU-job count
+- pending GPU-job count
 - other jobs count
-- aligned label/count rows for running/pending/other/total
+- aligned label/count rows for running CPU/running GPU/pending CPU/pending GPU/other/total
 - counts include Slurm job arrays at array-task granularity (each array task counts as one job).
 
 ### 3) User view
 Per-user fields:
 - user
-- running count
-- pending count
+- running CPU-job count
+- running GPU-job count
 - pending CPU-job count
 - pending GPU-job count
+- running CPU-job count + running GPU-job count equals running count for each user.
 - pending CPU-job count + pending GPU-job count equals pending count for each user.
 - job-type counts include Slurm job arrays at array-task granularity.
 
