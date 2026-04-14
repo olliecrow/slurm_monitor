@@ -127,11 +127,19 @@ func parseQueueLines(raw string, pendingGPUByJobRoot map[string]bool) (QueueSumm
 		stateMap[state]++
 		jobNameMap[jobName]++
 		gpuReq := parseGPUReq(gresReq)
+		isGPUJob := gpuReq > 0
 
 		switch stateClass {
 		case "running":
 			queue.Running++
 			users[user].Running++
+			if isGPUJob {
+				queue.RunningGPUJobs++
+				users[user].RunningGPUJobs++
+			} else {
+				queue.RunningCPUJobs++
+				users[user].RunningCPUJobs++
+			}
 			partitionMap[partition].Running++
 			queue.ResourceLoad.RunningCPU += cpuReq
 			queue.ResourceLoad.RunningMemMB += memReqMB
@@ -139,15 +147,16 @@ func parseQueueLines(raw string, pendingGPUByJobRoot map[string]bool) (QueueSumm
 		case "pending":
 			queue.Pending++
 			users[user].Pending++
-			isGPUJob := gpuReq > 0
 			if !isGPUJob {
 				if pendingGPUByJobRoot[rootJobID(jobID)] {
 					isGPUJob = true
 				}
 			}
 			if isGPUJob {
+				queue.PendingGPUJobs++
 				users[user].PendingGPUJobs++
 			} else {
+				queue.PendingCPUJobs++
 				users[user].PendingCPUJobs++
 			}
 			users[user].PendingCPU += cpuReq

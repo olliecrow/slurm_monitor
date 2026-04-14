@@ -28,6 +28,11 @@ type QueueSummary struct {
 	Pending int
 	Other   int
 
+	RunningCPUJobs int
+	RunningGPUJobs int
+	PendingCPUJobs int
+	PendingGPUJobs int
+
 	ByState      []StateCount
 	ByPartition  []PartitionCount
 	ByJobName    []NameCount
@@ -39,6 +44,9 @@ type UserSummary struct {
 	User    string
 	Running int
 	Pending int
+
+	RunningCPUJobs int
+	RunningGPUJobs int
 
 	PendingCPUJobs int
 	PendingGPUJobs int

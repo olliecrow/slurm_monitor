@@ -67,7 +67,7 @@ Goal:
 
 Tasks:
 1. Implement node collector for required fields.
-2. Implement queue summary collector (running/pending/other) with job-array task expansion.
+2. Implement queue summary collector with running/pending CPU-job and GPU-job splits plus other counts, using job-array task expansion.
 3. Implement per-user queue collector.
 4. Implement parser defensive behavior for missing optional utilization fields.
 

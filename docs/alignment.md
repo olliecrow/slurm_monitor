@@ -98,7 +98,7 @@ This file maps stated requirements to planned behavior/docs and later test cover
   - monitor not only job counts, but also job-state mix and requested resources by workload.
 - Planned enforcement:
   - queue collector parses per-job state + requested CPU/memory/GPU with `squeue -r` so job arrays are counted at task granularity.
-  - queue summary + user section expose running/pending/other counts plus per-user pending CPU-job/GPU-job split.
+  - queue summary + user section expose CPU-job/GPU-job splits for running and pending jobs, plus other counts in queue summary.
 - References:
   - `docs/spec.md` (Queue summary view fields)
   - `internal/slurm/parse.go`

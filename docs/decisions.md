@@ -385,3 +385,16 @@ Enforcement:
 `AGENTS.md` and any repo docs, remotes, automation, release, or publishing steps that need the owning GitHub account should point to `olliecrow` unless Ollie explicitly changes that ownership decision.
 References:
 `AGENTS.md`
+
+Decision:
+Queue and user views should show CPU-job and GPU-job splits directly for both running and pending jobs.
+Context:
+The user asked to remove the old aggregate `pending` column and replace the old `running` column with separate CPU and GPU columns. The same split is also useful in the queue summary above the user table.
+Rationale:
+Showing the split directly makes the table more useful without making the user infer job type from a single total. The old aggregate columns can be worked out from the split when needed.
+Trade-offs:
+The queue section uses more rows, so tight layouts need to guard user-section visibility more carefully.
+Enforcement:
+`internal/slurm/parse.go` fills running and pending CPU-job/GPU-job counts for queue and user summaries. `internal/tui/model.go` renders queue summary rows for `running cpu`, `running gpu`, `pending cpu`, and `pending gpu`, and renders matching split columns in the user table. `internal/app/app.go` prints the same split in `--once` output. Tests cover the parser, TUI, and one-shot output.
+References:
+`internal/slurm/parse.go`, `internal/tui/model.go`, `internal/app/app.go`, `internal/slurm/parse_test.go`, `internal/tui/model_test.go`, `internal/app/app_test.go`, `docs/spec.md`
