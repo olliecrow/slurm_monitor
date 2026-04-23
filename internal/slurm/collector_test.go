@@ -10,6 +10,12 @@ func TestCombinedCollectCommandExpandsArrayTasks(t *testing.T) {
 	if !strings.Contains(combinedCollectCommand, "squeue -h -r ") {
 		t.Fatalf("combined collect command must include squeue -r to expand arrays: %q", combinedCollectCommand)
 	}
+	if !strings.Contains(combinedCollectCommand, "tres-alloc") {
+		t.Fatalf("combined collect command must include tres-alloc for documented GPU totals: %q", combinedCollectCommand)
+	}
+	if strings.Contains(combinedCollectCommand, "%b") {
+		t.Fatalf("combined collect command must not rely on %%b for GPU totals: %q", combinedCollectCommand)
+	}
 }
 
 func TestSplitCombinedOutput(t *testing.T) {
@@ -28,22 +34,22 @@ func TestSplitCombinedOutput(t *testing.T) {
 
 func TestFillPendingGPURequestCachePrunesStaleRoots(t *testing.T) {
 	c := &Collector{
-		pendingGPUByJobRoot: map[string]bool{
-			"1001": true,
-			"2002": false,
+		pendingGPUCountByJobRoot: map[string]int{
+			"1001": 2,
+			"2002": 0,
 		},
 	}
 
 	queueRaw := "2002_1|PENDING|alice|1|4G|N/A|gpu|job|Priority"
 	c.fillPendingGPURequestCache(context.Background(), queueRaw)
 
-	if len(c.pendingGPUByJobRoot) != 1 {
-		t.Fatalf("expected exactly one cached root after prune, got %d", len(c.pendingGPUByJobRoot))
+	if len(c.pendingGPUCountByJobRoot) != 1 {
+		t.Fatalf("expected exactly one cached root after prune, got %d", len(c.pendingGPUCountByJobRoot))
 	}
-	if _, ok := c.pendingGPUByJobRoot["2002"]; !ok {
+	if _, ok := c.pendingGPUCountByJobRoot["2002"]; !ok {
 		t.Fatalf("expected active root to remain cached")
 	}
-	if _, ok := c.pendingGPUByJobRoot["1001"]; ok {
+	if _, ok := c.pendingGPUCountByJobRoot["1001"]; ok {
 		t.Fatalf("expected stale root to be pruned")
 	}
 }

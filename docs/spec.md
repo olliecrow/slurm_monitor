@@ -18,7 +18,8 @@ The tool should run for long periods with minimal operator interaction and provi
 - Three primary data views:
   - node summary view (per-node rows + aggregate totals)
   - queue summary view (cluster-level CPU-job/GPU-job split for running and pending jobs)
-  - user view (per-user CPU-job/GPU-job split for running and pending jobs)
+  - user view (per-user held CPU/GPU totals for running jobs plus CPU-job/GPU-job split for running and pending jobs)
+  - queue labels must make it clear these are job or array-task counts, not held CPU or GPU resource totals
 - Clear connectivity status indicators in the UI.
 
 ### Out of scope
@@ -55,7 +56,7 @@ The tool should run for long periods with minimal operator interaction and provi
 - `--port <int>`: optional SSH port override.
 - `--no-color`: disable colored UI output.
 - `--compact`: compact layout for small terminal dimensions.
-- `--once`: collect one snapshot and print text summary.
+- `--once`: collect one snapshot and print a text summary with node totals, queue job counts, queue resource totals, and top user rows.
 - `--duration <duration>`: optional auto-exit timer for TUI runs.
 
 ## Startup Behavior
@@ -133,6 +134,8 @@ Fields:
 ### 3) User view
 Per-user fields:
 - user
+- held CPU total for running jobs
+- held GPU total for running jobs
 - running CPU-job count
 - running GPU-job count
 - pending CPU-job count
@@ -140,6 +143,7 @@ Per-user fields:
 - running CPU-job count + running GPU-job count equals running count for each user.
 - pending CPU-job count + pending GPU-job count equals pending count for each user.
 - job-type counts include Slurm job arrays at array-task granularity.
+- default user ordering should keep the biggest current holders near the top, with pending demand used as a tie-breaker.
 
 ## TUI Behavior
 - Full-screen layout.

@@ -27,9 +27,9 @@ func TestParseNodeLineBasic(t *testing.T) {
 
 func TestParseQueueLines(t *testing.T) {
 	raw := "" +
-		"1001|RUNNING|alice|8|20G|gres/gpu:1|train|jobA|None\n" +
+		"1001|RUNNING|alice|8|20G|cpu=8,mem=20G,gres/gpu=1|train|jobA|None\n" +
 		"1002|PENDING|alice|4|10G|N/A|train|jobB|Priority\n" +
-		"1003|COMPLETING|bob|2|5000M|gres/gpu:2|dev|jobC|None\n" +
+		"1003|COMPLETING|bob|2|5000M|cpu=2,mem=5000M,gres/gpu=2|dev|jobC|None\n" +
 		"1004|PENDING|carol|1|4G|N/A|dev|jobD|Resources\n"
 	queue, users := parseQueueLines(raw, nil)
 	if queue.Running != 2 || queue.Pending != 2 {
@@ -51,6 +51,9 @@ func TestParseQueueLines(t *testing.T) {
 	alice, ok := userMap["alice"]
 	if !ok {
 		t.Fatalf("expected alice user summary")
+	}
+	if alice.RunningCPU != 8 || alice.RunningGPU != 1 {
+		t.Fatalf("unexpected alice running cpu/gpu totals: %d/%d", alice.RunningCPU, alice.RunningGPU)
 	}
 	if alice.PendingCPU != 4 || alice.PendingMemMB != 10240 || alice.PendingGPU != 0 {
 		t.Fatalf("unexpected alice pending demand cpu/mem/gpu: %d/%d/%d", alice.PendingCPU, alice.PendingMemMB, alice.PendingGPU)
@@ -124,11 +127,14 @@ func TestParseGPUReq(t *testing.T) {
 	if got := parseGPUReq("gres/gpu:a100:4,gres/gpu:1"); got != 5 {
 		t.Fatalf("unexpected gpu req composite: %d", got)
 	}
+	if got := parseGPUReq("cpu=8,mem=32G,gres/gpu=2,gres/gpu:a100=4"); got != 6 {
+		t.Fatalf("unexpected gpu req from tres style string: %d", got)
+	}
 }
 
 func TestPendingGPUJobsClassifiedByGPURequest(t *testing.T) {
 	raw := "" +
-		"2001|PENDING|alice|8|20G|gres/gpu:2|train|gpuJob|Resources\n" +
+		"2001|PENDING|alice|8|20G|cpu=8,mem=20G,gres/gpu=2|train|gpuJob|Resources\n" +
 		"2002|PENDING|alice|4|10G|N/A|train|cpuJob|Priority\n"
 	_, users := parseQueueLines(raw, nil)
 	if len(users) != 1 {
@@ -152,7 +158,7 @@ func TestPendingGPUJobsFallbackByRootJobMap(t *testing.T) {
 		"37820_2|PENDING|alice|4|64G|N/A|train|mercantile|Priority\n" +
 		"37821_1|PENDING|alice|4|64G|N/A|train|cpuJob|Priority\n"
 
-	_, users := parseQueueLines(raw, map[string]bool{"37820": true})
+	queue, users := parseQueueLines(raw, map[string]int{"37820": 2})
 	if len(users) != 1 {
 		t.Fatalf("expected one user, got %d", len(users))
 	}
@@ -162,6 +168,12 @@ func TestPendingGPUJobsFallbackByRootJobMap(t *testing.T) {
 	}
 	if u.PendingGPUJobs != 2 || u.PendingCPUJobs != 1 {
 		t.Fatalf("expected pending gpu/cpu jobs 2/1, got %d/%d", u.PendingGPUJobs, u.PendingCPUJobs)
+	}
+	if u.PendingGPU != 4 {
+		t.Fatalf("expected exact pending gpu demand 4, got %d", u.PendingGPU)
+	}
+	if queue.ResourceLoad.PendingGPU != 4 {
+		t.Fatalf("expected queue pending gpu total 4, got %d", queue.ResourceLoad.PendingGPU)
 	}
 }
 

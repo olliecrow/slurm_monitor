@@ -10,7 +10,7 @@ import (
 )
 
 var numPrefixRe = regexp.MustCompile(`^-?\d+`)
-var gpuReqRe = regexp.MustCompile(`gpu(?::[a-zA-Z0-9_-]+)?:([0-9]+)`)
+var gpuReqRe = regexp.MustCompile(`gpu(?::[a-zA-Z0-9_-]+)?[:=]([0-9]+)`)
 
 func parseNodeLines(raw string) ([]Node, error) {
 	lines := strings.Split(raw, "\n")
@@ -79,7 +79,7 @@ func parseNodeLine(line string) (Node, error) {
 	}, nil
 }
 
-func parseQueueLines(raw string, pendingGPUByJobRoot map[string]bool) (QueueSummary, []UserSummary) {
+func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (QueueSummary, []UserSummary) {
 	lines := strings.Split(raw, "\n")
 	users := make(map[string]*UserSummary)
 	partitionMap := make(map[string]*PartitionCount)
@@ -133,6 +133,8 @@ func parseQueueLines(raw string, pendingGPUByJobRoot map[string]bool) (QueueSumm
 		case "running":
 			queue.Running++
 			users[user].Running++
+			users[user].RunningCPU += cpuReq
+			users[user].RunningGPU += gpuReq
 			if isGPUJob {
 				queue.RunningGPUJobs++
 				users[user].RunningGPUJobs++
@@ -148,8 +150,9 @@ func parseQueueLines(raw string, pendingGPUByJobRoot map[string]bool) (QueueSumm
 			queue.Pending++
 			users[user].Pending++
 			if !isGPUJob {
-				if pendingGPUByJobRoot[rootJobID(jobID)] {
+				if fallbackGPUCount := pendingGPUCountByJobRoot[rootJobID(jobID)]; fallbackGPUCount > 0 {
 					isGPUJob = true
+					gpuReq = fallbackGPUCount
 				}
 			}
 			if isGPUJob {
@@ -180,7 +183,7 @@ func parseQueueLines(raw string, pendingGPUByJobRoot map[string]bool) (QueueSumm
 	for _, v := range users {
 		outUsers = append(outUsers, *v)
 	}
-	SortUsersByPendingDemand(outUsers)
+	SortUsersForDisplay(outUsers)
 
 	queue.ByState = mapToStateCounts(stateMap)
 	queue.ByPartition = mapToPartitionCounts(partitionMap)

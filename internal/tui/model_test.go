@@ -178,7 +178,7 @@ func TestQueueSummaryRendersWithoutBars(t *testing.T) {
 	if strings.Contains(out, "█") || strings.Contains(out, "░") {
 		t.Fatalf("expected queue summary without bar glyphs, got: %q", out)
 	}
-	if !strings.Contains(out, "running cpu") || !strings.Contains(out, "running gpu") || !strings.Contains(out, "pending cpu") || !strings.Contains(out, "pending gpu") || !strings.Contains(out, "other") || !strings.Contains(out, "total") {
+	if !strings.Contains(out, "running cpu jobs") || !strings.Contains(out, "running gpu jobs") || !strings.Contains(out, "pending cpu jobs") || !strings.Contains(out, "pending gpu jobs") || !strings.Contains(out, "other") || !strings.Contains(out, "total") {
 		t.Fatalf("expected queue summary labels in output, got: %q", out)
 	}
 }
@@ -215,6 +215,57 @@ func TestUserLinesBudgetTwoRowsShowsOneUser(t *testing.T) {
 	if !strings.Contains(out, "alice") {
 		t.Fatalf("expected top user row in tight two-row budget, got: %q", out)
 	}
+	if !strings.Contains(out, "640") || !strings.Contains(out, "38") {
+		t.Fatalf("expected held cpu/gpu values in tight two-row budget, got: %q", out)
+	}
+}
+
+func TestWideUserColumnsStayAligned(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+
+	lines := m.renderUserLines(3, true)
+	if len(lines) < 3 {
+		t.Fatalf("expected header plus rows, got: %q", strings.Join(lines, "\n"))
+	}
+
+	header := lines[1]
+	row1 := lines[2]
+	row2 := lines[3]
+
+	assertColumnHasValue(t, header, row1, "heldCPU", "heldGPU")
+	assertColumnHasValue(t, header, row1, "heldGPU", "runCJob")
+	assertColumnHasValue(t, header, row1, "runCJob", "runGJob")
+	assertColumnHasValue(t, header, row1, "runGJob", "penCJob")
+	assertColumnHasValue(t, header, row1, "penCJob", "penGJob")
+	assertColumnHasValue(t, header, row1, "penGJob", "")
+
+	assertColumnHasValue(t, header, row2, "heldCPU", "heldGPU")
+	assertColumnHasValue(t, header, row2, "heldGPU", "runCJob")
+	assertColumnHasValue(t, header, row2, "runCJob", "runGJob")
+	assertColumnHasValue(t, header, row2, "runGJob", "penCJob")
+	assertColumnHasValue(t, header, row2, "penCJob", "penGJob")
+	assertColumnHasValue(t, header, row2, "penGJob", "")
+}
+
+func TestCompactUserColumnsStayAligned(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+
+	lines := m.renderUserLines(3, false)
+	if len(lines) < 3 {
+		t.Fatalf("expected compact header plus rows, got: %q", strings.Join(lines, "\n"))
+	}
+
+	header := lines[1]
+	row := lines[2]
+
+	assertColumnHasValue(t, header, row, "hCPU", "hGPU")
+	assertColumnHasValue(t, header, row, "hGPU", "rCJ")
+	assertColumnHasValue(t, header, row, "rCJ", "rGJ")
+	assertColumnHasValue(t, header, row, "rGJ", "pCJ")
+	assertColumnHasValue(t, header, row, "pCJ", "pGJ")
+	assertColumnHasValue(t, header, row, "pGJ", "")
 }
 
 func TestUserLinesBudgetOneRowUsesHiddenOnlyLabel(t *testing.T) {
@@ -238,8 +289,8 @@ func TestCompactViewIncludesPendingDemandColumnsWhenWidthAllows(t *testing.T) {
 	m.height = 36
 
 	out := m.View()
-	if !strings.Contains(out, "runningCPU") || !strings.Contains(out, "runningGPU") || !strings.Contains(out, "pendingCPU") || !strings.Contains(out, "pendingGPU") {
-		t.Fatalf("expected compact view to include running/pending cpu-gpu split columns, got: %q", out)
+	if !strings.Contains(out, "heldCPU") || !strings.Contains(out, "heldGPU") || !strings.Contains(out, "runCJob") || !strings.Contains(out, "runGJob") || !strings.Contains(out, "penCJob") || !strings.Contains(out, "penGJob") {
+		t.Fatalf("expected compact view to include held-resource and running/pending job split columns, got: %q", out)
 	}
 }
 
@@ -567,9 +618,9 @@ func sampleSnapshot() slurm.Snapshot {
 			},
 		},
 		Users: []slurm.UserSummary{
-			{User: "alice", Running: 17, Pending: 3, RunningCPUJobs: 5, RunningGPUJobs: 12, PendingCPUJobs: 1, PendingGPUJobs: 2, PendingCPU: 96, PendingMemMB: 220000, PendingGPU: 8},
-			{User: "bob", Running: 9, Pending: 1, RunningCPUJobs: 9, RunningGPUJobs: 0, PendingCPUJobs: 1, PendingGPUJobs: 0, PendingCPU: 32, PendingMemMB: 64000, PendingGPU: 0},
-			{User: "carol", Running: 6, Pending: 1, RunningCPUJobs: 2, RunningGPUJobs: 4, PendingCPUJobs: 0, PendingGPUJobs: 1, PendingCPU: 16, PendingMemMB: 32000, PendingGPU: 1},
+			{User: "alice", Running: 17, Pending: 3, RunningCPU: 640, RunningGPU: 38, RunningCPUJobs: 5, RunningGPUJobs: 12, PendingCPUJobs: 1, PendingGPUJobs: 2, PendingCPU: 96, PendingMemMB: 220000, PendingGPU: 8},
+			{User: "bob", Running: 9, Pending: 1, RunningCPU: 220, RunningGPU: 0, RunningCPUJobs: 9, RunningGPUJobs: 0, PendingCPUJobs: 1, PendingGPUJobs: 0, PendingCPU: 32, PendingMemMB: 64000, PendingGPU: 0},
+			{User: "carol", Running: 6, Pending: 1, RunningCPU: 180, RunningGPU: 6, RunningCPUJobs: 2, RunningGPUJobs: 4, PendingCPUJobs: 0, PendingGPUJobs: 1, PendingCPU: 16, PendingMemMB: 32000, PendingGPU: 1},
 		},
 	}
 }
@@ -584,5 +635,33 @@ func assertViewportBounds(t *testing.T, s string, width int, height int) {
 		if lipgloss.Width(line) > width {
 			t.Fatalf("line %d exceeded width: got %d, max %d", i+1, lipgloss.Width(line), width)
 		}
+	}
+}
+
+func assertColumnHasValue(t *testing.T, header string, row string, label string, nextLabel string) {
+	t.Helper()
+
+	start := strings.Index(header, label)
+	if start < 0 {
+		t.Fatalf("missing header label %q in %q", label, header)
+	}
+
+	end := len(row)
+	if nextLabel != "" {
+		next := strings.Index(header, nextLabel)
+		if next < 0 {
+			t.Fatalf("missing next header label %q in %q", nextLabel, header)
+		}
+		end = next
+	}
+	if start >= len(row) {
+		t.Fatalf("row too short for label %q: %q", label, row)
+	}
+	if end > len(row) {
+		end = len(row)
+	}
+	segment := strings.TrimSpace(row[start:end])
+	if segment == "" {
+		t.Fatalf("expected value under %q column, row=%q", label, row)
 	}
 }
