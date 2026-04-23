@@ -497,15 +497,13 @@ func (m Model) renderUserLinesWithBudget(maxRows, rowBudget int, showDemand bool
 }
 
 func wideUserHeaderLine() string {
-	return fmt.Sprintf("%-12s %8s %8s %8s %8s %13s %13s", "user", "heldCPU", "heldGPU", "runCJob", "runGJob", "pendingCPUJob", "pendingGPUJob")
+	return fmt.Sprintf("%-12s %10s %10s  %10s  %10s", "user", "runningCPU", "runningGPU", "pendingCPU", "pendingGPU")
 }
 
 func wideUserRowLine(u slurm.UserSummary) string {
 	return fmt.Sprintf(
-		"%-12s %8d %8d %8d %8d %13d %13d",
+		"%-12s %10d %10d  %10d  %10d",
 		truncateRunes(u.User, 12),
-		u.RunningCPU,
-		u.RunningGPU,
 		u.RunningCPUJobs,
 		u.RunningGPUJobs,
 		u.PendingCPUJobs,
@@ -514,15 +512,13 @@ func wideUserRowLine(u slurm.UserSummary) string {
 }
 
 func compactUserHeaderLine() string {
-	return fmt.Sprintf("%-10s %5s %5s %4s %4s %4s %4s", "user", "hCPU", "hGPU", "rCJ", "rGJ", "pCJ", "pGJ")
+	return fmt.Sprintf("%-10s %4s %4s %4s %4s", "user", "rCJ", "rGJ", "pCJ", "pGJ")
 }
 
 func compactUserRowLine(u slurm.UserSummary) string {
 	return fmt.Sprintf(
-		"%-10s %5d %5d %4d %4d %4d %4d",
+		"%-10s %4d %4d %4d %4d",
 		truncateRunes(u.User, 10),
-		u.RunningCPU,
-		u.RunningGPU,
 		u.RunningCPUJobs,
 		u.RunningGPUJobs,
 		u.PendingCPUJobs,
@@ -792,7 +788,7 @@ func nodeStateAlert(snap *slurm.Snapshot) (string, bool) {
 }
 
 func (m Model) queueStatusLine(label string, value int) string {
-	return m.styles.label.Render(fmt.Sprintf("%-11s", label)) + "  " + m.styles.value.Render(fmt.Sprintf("%5d", value))
+	return m.styles.label.Render(fmt.Sprintf("%-16s", label)) + "  " + m.styles.value.Render(fmt.Sprintf("%5d", value))
 }
 
 func (m Model) sectionTitle(label string) string {
