@@ -393,10 +393,11 @@ The user asked to remove the old aggregate `pending` column and replace the old 
 Rationale:
 Showing the split directly makes the table more useful without making the user infer job type from a single total. The old aggregate columns can be worked out from the split when needed.
 The labels must also make clear that these are job counts. Without that, users can read `runningGPU` or `pendingCPU` as resource totals instead of counts of CPU jobs, GPU jobs, or expanded array tasks.
+In the wide user table, spell `pending` in full instead of using `pen...` headers.
 Trade-offs:
 The queue section uses more rows, so tight layouts need to guard user-section visibility more carefully.
 Enforcement:
-`internal/slurm/parse.go` fills running and pending CPU-job/GPU-job counts for queue and user summaries. `internal/tui/model.go` renders queue summary rows and user headers with explicit `... jobs` wording so the split is read as job or array-task counts, not held resource totals. `internal/app/app.go` prints the same split in `--once` output. Tests cover the parser, TUI, and one-shot output.
+`internal/slurm/parse.go` fills running and pending CPU-job/GPU-job counts for queue and user summaries. `internal/tui/model.go` renders queue summary rows and user headers with explicit `... jobs` wording so the split is read as job or array-task counts, not held resource totals. Wide user-table tests assert `pendingCPUJob` and `pendingGPUJob` headers. `internal/app/app.go` prints the same split in `--once` output. Tests cover the parser, TUI, and one-shot output.
 References:
 `internal/slurm/parse.go`, `internal/tui/model.go`, `internal/app/app.go`, `internal/slurm/parse_test.go`, `internal/tui/model_test.go`, `internal/app/app_test.go`, `docs/spec.md`
 
