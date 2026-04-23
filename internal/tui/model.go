@@ -418,34 +418,16 @@ func (m Model) renderUserLines(limit int, showDemand bool) []string {
 
 	lines := []string{m.sectionTitle(title)}
 	if showDemand {
-		lines = append(lines, fmt.Sprintf("%-12s %8s %8s %8s %8s %8s %8s", "user", "heldCPU", "heldGPU", "runCJob", "runGJob", "penCJob", "penGJob"))
+		lines = append(lines, wideUserHeaderLine())
 		for _, u := range users {
-			lines = append(lines, fmt.Sprintf(
-				"%-12s %8d %8d %8d %8d %8d %8d",
-				truncateRunes(u.User, 12),
-				u.RunningCPU,
-				u.RunningGPU,
-				u.RunningCPUJobs,
-				u.RunningGPUJobs,
-				u.PendingCPUJobs,
-				u.PendingGPUJobs,
-			))
+			lines = append(lines, wideUserRowLine(u))
 		}
 		return lines
 	}
 
-	lines = append(lines, fmt.Sprintf("%-10s %5s %5s %4s %4s %4s %4s", "user", "hCPU", "hGPU", "rCJ", "rGJ", "pCJ", "pGJ"))
+	lines = append(lines, compactUserHeaderLine())
 	for _, u := range users {
-		lines = append(lines, fmt.Sprintf(
-			"%-10s %5d %5d %4d %4d %4d %4d",
-			truncateRunes(u.User, 10),
-			u.RunningCPU,
-			u.RunningGPU,
-			u.RunningCPUJobs,
-			u.RunningGPUJobs,
-			u.PendingCPUJobs,
-			u.PendingGPUJobs,
-		))
+		lines = append(lines, compactUserRowLine(u))
 	}
 	return fitLinesToWidth(lines, panelContentWidth(max(20, m.width-6)))
 }
@@ -492,54 +474,60 @@ func (m Model) renderUserLinesWithBudget(maxRows, rowBudget int, showDemand bool
 	}
 	if rowBudget == 2 {
 		if len(visibleUsers) == 1 {
-			u := visibleUsers[0]
-			lines = append(lines, fmt.Sprintf(
-				"%-10s %5d %5d %4d %4d %4d %4d",
-				truncateRunes(u.User, 10),
-				u.RunningCPU,
-				u.RunningGPU,
-				u.RunningCPUJobs,
-				u.RunningGPUJobs,
-				u.PendingCPUJobs,
-				u.PendingGPUJobs,
-			))
+			lines = append(lines, compactUserRowLine(visibleUsers[0]))
 		}
 		return fitLinesToWidth(lines, contentWidth)
 	}
 
 	if showDemand {
-		lines = append(lines, fmt.Sprintf("%-12s %8s %8s %8s %8s %8s %8s", "user", "heldCPU", "heldGPU", "runCJob", "runGJob", "penCJob", "penGJob"))
+		lines = append(lines, wideUserHeaderLine())
 		for _, u := range visibleUsers {
-			lines = append(lines, fmt.Sprintf(
-				"%-12s %8d %8d %8d %8d %8d %8d",
-				truncateRunes(u.User, 12),
-				u.RunningCPU,
-				u.RunningGPU,
-				u.RunningCPUJobs,
-				u.RunningGPUJobs,
-				u.PendingCPUJobs,
-				u.PendingGPUJobs,
-			))
+			lines = append(lines, wideUserRowLine(u))
 		}
 		lines = clipLines(lines, rowBudget)
 		return fitLinesToWidth(lines, contentWidth)
 	}
 
-	lines = append(lines, fmt.Sprintf("%-10s %5s %5s %4s %4s %4s %4s", "user", "hCPU", "hGPU", "rCJ", "rGJ", "pCJ", "pGJ"))
+	lines = append(lines, compactUserHeaderLine())
 	for _, u := range visibleUsers {
-		lines = append(lines, fmt.Sprintf(
-			"%-10s %5d %5d %4d %4d %4d %4d",
-			truncateRunes(u.User, 10),
-			u.RunningCPU,
-			u.RunningGPU,
-			u.RunningCPUJobs,
-			u.RunningGPUJobs,
-			u.PendingCPUJobs,
-			u.PendingGPUJobs,
-		))
+		lines = append(lines, compactUserRowLine(u))
 	}
 	lines = clipLines(lines, rowBudget)
 	return fitLinesToWidth(lines, contentWidth)
+}
+
+func wideUserHeaderLine() string {
+	return fmt.Sprintf("%-12s %8s %8s %8s %8s %13s %13s", "user", "heldCPU", "heldGPU", "runCJob", "runGJob", "pendingCPUJob", "pendingGPUJob")
+}
+
+func wideUserRowLine(u slurm.UserSummary) string {
+	return fmt.Sprintf(
+		"%-12s %8d %8d %8d %8d %13d %13d",
+		truncateRunes(u.User, 12),
+		u.RunningCPU,
+		u.RunningGPU,
+		u.RunningCPUJobs,
+		u.RunningGPUJobs,
+		u.PendingCPUJobs,
+		u.PendingGPUJobs,
+	)
+}
+
+func compactUserHeaderLine() string {
+	return fmt.Sprintf("%-10s %5s %5s %4s %4s %4s %4s", "user", "hCPU", "hGPU", "rCJ", "rGJ", "pCJ", "pGJ")
+}
+
+func compactUserRowLine(u slurm.UserSummary) string {
+	return fmt.Sprintf(
+		"%-10s %5d %5d %4d %4d %4d %4d",
+		truncateRunes(u.User, 10),
+		u.RunningCPU,
+		u.RunningGPU,
+		u.RunningCPUJobs,
+		u.RunningGPUJobs,
+		u.PendingCPUJobs,
+		u.PendingGPUJobs,
+	)
 }
 
 func (m Model) renderNodeTable(limit int) string {

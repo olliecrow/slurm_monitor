@@ -236,16 +236,16 @@ func TestWideUserColumnsStayAligned(t *testing.T) {
 	assertColumnHasValue(t, header, row1, "heldCPU", "heldGPU")
 	assertColumnHasValue(t, header, row1, "heldGPU", "runCJob")
 	assertColumnHasValue(t, header, row1, "runCJob", "runGJob")
-	assertColumnHasValue(t, header, row1, "runGJob", "penCJob")
-	assertColumnHasValue(t, header, row1, "penCJob", "penGJob")
-	assertColumnHasValue(t, header, row1, "penGJob", "")
+	assertColumnHasValue(t, header, row1, "runGJob", "pendingCPUJob")
+	assertColumnHasValue(t, header, row1, "pendingCPUJob", "pendingGPUJob")
+	assertColumnHasValue(t, header, row1, "pendingGPUJob", "")
 
 	assertColumnHasValue(t, header, row2, "heldCPU", "heldGPU")
 	assertColumnHasValue(t, header, row2, "heldGPU", "runCJob")
 	assertColumnHasValue(t, header, row2, "runCJob", "runGJob")
-	assertColumnHasValue(t, header, row2, "runGJob", "penCJob")
-	assertColumnHasValue(t, header, row2, "penCJob", "penGJob")
-	assertColumnHasValue(t, header, row2, "penGJob", "")
+	assertColumnHasValue(t, header, row2, "runGJob", "pendingCPUJob")
+	assertColumnHasValue(t, header, row2, "pendingCPUJob", "pendingGPUJob")
+	assertColumnHasValue(t, header, row2, "pendingGPUJob", "")
 }
 
 func TestCompactUserColumnsStayAligned(t *testing.T) {
@@ -289,7 +289,7 @@ func TestCompactViewIncludesPendingDemandColumnsWhenWidthAllows(t *testing.T) {
 	m.height = 36
 
 	out := m.View()
-	if !strings.Contains(out, "heldCPU") || !strings.Contains(out, "heldGPU") || !strings.Contains(out, "runCJob") || !strings.Contains(out, "runGJob") || !strings.Contains(out, "penCJob") || !strings.Contains(out, "penGJob") {
+	if !strings.Contains(out, "heldCPU") || !strings.Contains(out, "heldGPU") || !strings.Contains(out, "runCJob") || !strings.Contains(out, "runGJob") || !strings.Contains(out, "pendingCPUJob") || !strings.Contains(out, "pendingGPUJob") {
 		t.Fatalf("expected compact view to include held-resource and running/pending job split columns, got: %q", out)
 	}
 }
