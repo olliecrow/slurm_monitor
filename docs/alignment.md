@@ -99,7 +99,7 @@ This file maps stated requirements to planned behavior/docs and later test cover
 - Planned enforcement:
   - queue collector parses per-job state plus requested/allocated CPU/memory/GPU with `squeue -r -O ... tres-alloc ...` so job arrays are counted at task granularity.
   - queue summary exposes CPU-job/GPU-job splits for running and pending jobs, plus other counts.
-  - user section exposes held CPU/GPU totals for running jobs plus CPU-job/GPU-job splits for running and pending jobs.
+  - user section exposes CPU-job/GPU-job splits for running and pending jobs.
 - References:
   - `docs/spec.md` (Queue summary view fields)
   - `internal/slurm/parse.go`
