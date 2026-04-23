@@ -45,6 +45,9 @@ type UserSummary struct {
 	Running int
 	Pending int
 
+	RunningCPU int
+	RunningGPU int
+
 	RunningCPUJobs int
 	RunningGPUJobs int
 

@@ -49,7 +49,7 @@ Collectors produce typed data for a `Snapshot`:
 - `[]UserSummary`
 
 Design principles:
-- minimal round trips per poll tick (single combined command for node + queue collection, plus cached per-root `scontrol show job` probes when pending GPU request details are missing from `squeue` output)
+- minimal round trips per poll tick (single combined command for node + queue collection using `squeue -r` plus `tres-alloc` for requested/allocated job resources, with cached per-root `scontrol show job` probes as a fallback when pending GPU request details are still missing)
 - clear parsers with defensive handling for missing optional metrics
 - deterministic parse errors with useful context
 - preserve scheduler-critical composite node state qualifiers (`+DRAIN`, `+DOWN`) during parsing; only cosmetic state markers are stripped
@@ -113,7 +113,7 @@ Behavior:
 ## Preferred command plan
 Use read-only Slurm commands with stable parse contracts:
 - node and allocation data from `scontrol show node -o`
-- queue and per-user counts from `squeue -h -r` so job arrays are counted at task granularity
+- queue job counts and resource totals from `squeue -h -r -O ... tres-alloc ...` so job arrays are counted at task granularity and CPU/GPU totals come from Slurm's documented TRES data
 
 Optional metrics:
 - CPU/memory/GPU utilization depends on cluster/slurm configuration.

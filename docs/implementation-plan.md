@@ -67,13 +67,14 @@ Goal:
 
 Tasks:
 1. Implement node collector for required fields.
-2. Implement queue summary collector with running/pending CPU-job and GPU-job splits plus other counts, using job-array task expansion.
-3. Implement per-user queue collector.
+2. Implement queue summary collector with running/pending CPU-job and GPU-job splits plus other counts, using job-array task expansion and `tres-alloc` for requested/allocated resources.
+3. Implement per-user queue collector, including held CPU/GPU totals for running jobs.
 4. Implement parser defensive behavior for missing optional utilization fields.
 
 Acceptance checks:
 - snapshots are produced on healthy cluster.
 - queue and per-user counts match `squeue -r` verification for array-heavy workloads.
+- queue resource totals match documented `tres-alloc` values.
 - missing optional metrics produce `n/a`, not crashes.
 - parser-contract failures are surfaced clearly, preserve the last good snapshot, and stop retrying until operator intervention.
 

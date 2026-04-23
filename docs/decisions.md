@@ -392,9 +392,36 @@ Context:
 The user asked to remove the old aggregate `pending` column and replace the old `running` column with separate CPU and GPU columns. The same split is also useful in the queue summary above the user table.
 Rationale:
 Showing the split directly makes the table more useful without making the user infer job type from a single total. The old aggregate columns can be worked out from the split when needed.
+The labels must also make clear that these are job counts. Without that, users can read `runningGPU` or `pendingCPU` as resource totals instead of counts of CPU jobs, GPU jobs, or expanded array tasks.
 Trade-offs:
 The queue section uses more rows, so tight layouts need to guard user-section visibility more carefully.
 Enforcement:
-`internal/slurm/parse.go` fills running and pending CPU-job/GPU-job counts for queue and user summaries. `internal/tui/model.go` renders queue summary rows for `running cpu`, `running gpu`, `pending cpu`, and `pending gpu`, and renders matching split columns in the user table. `internal/app/app.go` prints the same split in `--once` output. Tests cover the parser, TUI, and one-shot output.
+`internal/slurm/parse.go` fills running and pending CPU-job/GPU-job counts for queue and user summaries. `internal/tui/model.go` renders queue summary rows and user headers with explicit `... jobs` wording so the split is read as job or array-task counts, not held resource totals. `internal/app/app.go` prints the same split in `--once` output. Tests cover the parser, TUI, and one-shot output.
 References:
 `internal/slurm/parse.go`, `internal/tui/model.go`, `internal/app/app.go`, `internal/slurm/parse_test.go`, `internal/tui/model_test.go`, `internal/app/app_test.go`, `docs/spec.md`
+
+Decision:
+Per-user rows should also show held CPU and GPU totals, and default ordering should favor current holders over pure pending demand.
+Context:
+For live cluster use, users often want to answer "who is holding capacity right now". Job-count-only rows can be read as resource totals, and pending-heavy users can hide active large holders when the table is clipped.
+Rationale:
+Showing held CPU/GPU totals next to job counts makes the user table line up with node allocation totals and common cluster utilisation summaries. Sorting by current held resources keeps the most important active rows visible first while still using pending demand as a tie-breaker.
+Trade-offs:
+The user table gets wider, so compact headers stay abbreviated.
+Enforcement:
+`internal/slurm/parse.go` records per-user running CPU/GPU totals, `internal/slurm/user_sort.go` orders rows by current held resources first, and `internal/tui/model.go` plus `internal/app/app.go` surface the held totals in the TUI and `--once` output.
+References:
+`internal/slurm/parse.go`, `internal/slurm/user_sort.go`, `internal/tui/model.go`, `internal/app/app.go`, `docs/spec.md`
+
+Decision:
+Use Slurm `tres-alloc` as the main source for queue CPU/GPU resource totals.
+Context:
+The old `%b` field is not a clear or reliable source for the held CPU/GPU totals shown next to node totals. That made queue-side resource math easier to misread and harder to verify.
+Rationale:
+`tres-alloc` is the documented Slurm field for requested or allocated job resources. Using it keeps queue resource totals lined up with node totals and gives a clearer parse contract than `%b`.
+Trade-offs:
+Pending GPU details can still be missing on some rows, so the collector keeps a small `scontrol show job` fallback for those cases.
+Enforcement:
+`internal/slurm/collector.go` requests `tres-alloc`, `internal/slurm/parse.go` parses CPU/GPU totals from it, and tests lock in the command shape and output totals. `--once` prints queue job counts and queue resource totals as separate lines.
+References:
+`internal/slurm/collector.go`, `internal/slurm/collector_test.go`, `internal/slurm/parse.go`, `internal/slurm/parse_test.go`, `internal/app/app.go`, `internal/app/app_test.go`, `docs/spec.md`, `docs/architecture.md`

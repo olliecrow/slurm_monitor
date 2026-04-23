@@ -2,10 +2,25 @@ package slurm
 
 import "sort"
 
-// SortUsersByPendingDemand orders users by pending demand impact first, then by
-// stable identity to keep rendering deterministic.
-func SortUsersByPendingDemand(users []UserSummary) {
+// SortUsersForDisplay keeps the biggest current holders near the top while
+// still using pending demand as a tie-breaker.
+func SortUsersForDisplay(users []UserSummary) {
 	sort.Slice(users, func(i, j int) bool {
+		if users[i].RunningGPU != users[j].RunningGPU {
+			return users[i].RunningGPU > users[j].RunningGPU
+		}
+		if users[i].RunningCPU != users[j].RunningCPU {
+			return users[i].RunningCPU > users[j].RunningCPU
+		}
+		if users[i].Running != users[j].Running {
+			return users[i].Running > users[j].Running
+		}
+		if users[i].PendingGPU != users[j].PendingGPU {
+			return users[i].PendingGPU > users[j].PendingGPU
+		}
+		if users[i].PendingCPU != users[j].PendingCPU {
+			return users[i].PendingCPU > users[j].PendingCPU
+		}
 		if users[i].Pending != users[j].Pending {
 			return users[i].Pending > users[j].Pending
 		}
@@ -17,9 +32,6 @@ func SortUsersByPendingDemand(users []UserSummary) {
 		}
 		if users[i].PendingMemMB != users[j].PendingMemMB {
 			return users[i].PendingMemMB > users[j].PendingMemMB
-		}
-		if users[i].Running != users[j].Running {
-			return users[i].Running > users[j].Running
 		}
 		return users[i].User < users[j].User
 	})

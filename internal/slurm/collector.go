@@ -11,21 +11,23 @@ import (
 
 const (
 	// Use -r so job arrays are expanded one task per line; this keeps queue/user
-	// counts and pending CPU/GPU demand accurate for large arrays.
-	combinedCollectCommand = `scontrol show node -o; echo "__SLURM_MONITOR_SPLIT__"; squeue -h -r -o "%i|%T|%u|%C|%m|%b|%P|%j|%r"`
+	// counts and requested/allocated CPU/GPU demand accurate for large arrays.
+	// Use tres-alloc instead of %b so GPU demand comes from Slurm's documented
+	// TRES view for both running and pending jobs.
+	combinedCollectCommand = `scontrol show node -o; echo "__SLURM_MONITOR_SPLIT__"; squeue -h -r -O "JobID:|,State:|,UserName:|,NumCPUs:|,MinMemory:|,tres-alloc:|,Partition:|,Name:|,Reason"`
 )
 
 type Collector struct {
-	transport           transport.Transport
-	commandTimeout      time.Duration
-	pendingGPUByJobRoot map[string]bool
+	transport                transport.Transport
+	commandTimeout           time.Duration
+	pendingGPUCountByJobRoot map[string]int
 }
 
 func NewCollector(t transport.Transport, commandTimeout time.Duration) *Collector {
 	return &Collector{
-		transport:           t,
-		commandTimeout:      commandTimeout,
-		pendingGPUByJobRoot: make(map[string]bool),
+		transport:                t,
+		commandTimeout:           commandTimeout,
+		pendingGPUCountByJobRoot: make(map[string]int),
 	}
 }
 
@@ -45,7 +47,7 @@ func (c *Collector) Collect(ctx context.Context) (Snapshot, error) {
 		return Snapshot{}, fmt.Errorf("parse nodes: %w", err)
 	}
 	c.fillPendingGPURequestCache(ctx, queueRaw)
-	queue, users := parseQueueLines(queueRaw, c.pendingGPUByJobRoot)
+	queue, users := parseQueueLines(queueRaw, c.pendingGPUCountByJobRoot)
 
 	return Snapshot{
 		Nodes:       nodes,
@@ -71,32 +73,32 @@ func (c *Collector) fillPendingGPURequestCache(ctx context.Context, queueRaw str
 	active := make(map[string]struct{}, len(roots))
 	for _, root := range roots {
 		active[root] = struct{}{}
-		if _, ok := c.pendingGPUByJobRoot[root]; ok {
+		if _, ok := c.pendingGPUCountByJobRoot[root]; ok {
 			continue
 		}
-		hasGPU, err := c.jobRootRequestsGPU(ctx, root)
+		gpuCount, err := c.jobRootRequestsGPU(ctx, root)
 		if err != nil {
 			continue
 		}
-		c.pendingGPUByJobRoot[root] = hasGPU
+		c.pendingGPUCountByJobRoot[root] = gpuCount
 	}
-	for root := range c.pendingGPUByJobRoot {
+	for root := range c.pendingGPUCountByJobRoot {
 		if _, ok := active[root]; !ok {
-			delete(c.pendingGPUByJobRoot, root)
+			delete(c.pendingGPUCountByJobRoot, root)
 		}
 	}
 }
 
-func (c *Collector) jobRootRequestsGPU(ctx context.Context, root string) (bool, error) {
+func (c *Collector) jobRootRequestsGPU(ctx context.Context, root string) (int, error) {
 	if !isNumericJobID(root) {
-		return false, fmt.Errorf("invalid job root id %q", root)
+		return 0, fmt.Errorf("invalid job root id %q", root)
 	}
 	raw, err := c.runWithTimeout(ctx, fmt.Sprintf("scontrol show job -o %s", root))
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 	reqTRES := extractReqTRES(raw)
-	return strings.Contains(strings.ToLower(reqTRES), "gres/gpu"), nil
+	return parseGPUReq(reqTRES), nil
 }
 
 func extractPendingJobRoots(queueRaw string) []string {

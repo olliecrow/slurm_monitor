@@ -202,13 +202,21 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 	fmt.Fprintf(os.Stdout, "nodes: %d\n", len(snapshot.Nodes))
 	fmt.Fprintf(
 		os.Stdout,
-		"queue: running_cpu=%d running_gpu=%d pending_cpu=%d pending_gpu=%d other=%d total=%d\n",
+		"queue_jobs: running_cpu=%d running_gpu=%d pending_cpu=%d pending_gpu=%d other=%d total=%d\n",
 		snapshot.Queue.RunningCPUJobs,
 		snapshot.Queue.RunningGPUJobs,
 		snapshot.Queue.PendingCPUJobs,
 		snapshot.Queue.PendingGPUJobs,
 		snapshot.Queue.Other,
 		snapshot.Queue.Running+snapshot.Queue.Pending+snapshot.Queue.Other,
+	)
+	fmt.Fprintf(
+		os.Stdout,
+		"queue_resources: running_cpu=%d running_gpu=%d pending_cpu=%d pending_gpu=%d\n",
+		snapshot.Queue.ResourceLoad.RunningCPU,
+		snapshot.Queue.ResourceLoad.RunningGPU,
+		snapshot.Queue.ResourceLoad.PendingCPU,
+		snapshot.Queue.ResourceLoad.PendingGPU,
 	)
 
 	totals := snapshot.Totals()
@@ -221,7 +229,7 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 	)
 
 	users := append([]slurm.UserSummary(nil), snapshot.Users...)
-	slurm.SortUsersByPendingDemand(users)
+	slurm.SortUsersForDisplay(users)
 	if len(users) > 10 {
 		users = users[:10]
 	}
@@ -229,12 +237,16 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 	for _, user := range users {
 		fmt.Fprintf(
 			os.Stdout,
-			"  - %s running_cpu_jobs=%d running_gpu_jobs=%d pending_cpu_jobs=%d pending_gpu_jobs=%d pending_mem=%s\n",
+			"  - %s held_cpu=%d held_gpu=%d running_cpu_jobs=%d running_gpu_jobs=%d pending_cpu_jobs=%d pending_gpu_jobs=%d pending_cpu=%d pending_gpu=%d pending_mem=%s\n",
 			user.User,
+			user.RunningCPU,
+			user.RunningGPU,
 			user.RunningCPUJobs,
 			user.RunningGPUJobs,
 			user.PendingCPUJobs,
 			user.PendingGPUJobs,
+			user.PendingCPU,
+			user.PendingGPU,
 			uifmt.MemMB(user.PendingMemMB),
 		)
 	}

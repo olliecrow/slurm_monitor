@@ -179,7 +179,7 @@ func TestRunOncePrintsQueueAndUserCPUAndGPUSplit(t *testing.T) {
 	raw := strings.Join([]string{
 		"NodeName=node001 State=IDLE CPUTot=64 CPUAlloc=32 CPULoad=16.00 RealMemory=256000 AllocMem=128000 FreeMem=96000 Partitions=main CfgTRES=cpu=64,mem=256000M,billing=64,gres/gpu=4 AllocTRES=cpu=32,mem=128000M,billing=32,gres/gpu=2",
 		"__SLURM_MONITOR_SPLIT__",
-		"1001|RUNNING|alice|8|20G|gres/gpu:1|train|jobA|None",
+		"1001|RUNNING|alice|8|20G|cpu=8,mem=20G,gres/gpu=1|train|jobA|None",
 		"1002|PENDING|alice|4|10G|N/A|train|jobB|Priority",
 	}, "\n")
 	collector := slurm.NewCollector(fakeTransport{
@@ -192,11 +192,14 @@ func TestRunOncePrintsQueueAndUserCPUAndGPUSplit(t *testing.T) {
 		}
 	})
 
-	if !strings.Contains(out, "queue: running_cpu=0 running_gpu=1 pending_cpu=1 pending_gpu=0 other=0 total=2") {
+	if !strings.Contains(out, "queue_jobs: running_cpu=0 running_gpu=1 pending_cpu=1 pending_gpu=0 other=0 total=2") {
 		t.Fatalf("expected queue cpu/gpu split in output, got: %q", out)
 	}
-	if !strings.Contains(out, "alice running_cpu_jobs=0 running_gpu_jobs=1 pending_cpu_jobs=1 pending_gpu_jobs=0") {
-		t.Fatalf("expected user cpu/gpu split in output, got: %q", out)
+	if !strings.Contains(out, "queue_resources: running_cpu=8 running_gpu=1 pending_cpu=4 pending_gpu=0") {
+		t.Fatalf("expected queue resource totals in output, got: %q", out)
+	}
+	if !strings.Contains(out, "alice held_cpu=8 held_gpu=1 running_cpu_jobs=0 running_gpu_jobs=1 pending_cpu_jobs=1 pending_gpu_jobs=0 pending_cpu=4 pending_gpu=0") {
+		t.Fatalf("expected user held-resource and cpu/gpu job split in output, got: %q", out)
 	}
 }
 

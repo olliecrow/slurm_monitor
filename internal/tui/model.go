@@ -325,10 +325,10 @@ func (m Model) renderQueuePanel(userLimit int, showDemand bool) string {
 
 	lines := []string{
 		m.sectionTitle("queue summary"),
-		m.queueStatusLine("running cpu", q.RunningCPUJobs),
-		m.queueStatusLine("running gpu", q.RunningGPUJobs),
-		m.queueStatusLine("pending cpu", q.PendingCPUJobs),
-		m.queueStatusLine("pending gpu", q.PendingGPUJobs),
+		m.queueStatusLine("running cpu jobs", q.RunningCPUJobs),
+		m.queueStatusLine("running gpu jobs", q.RunningGPUJobs),
+		m.queueStatusLine("pending cpu jobs", q.PendingCPUJobs),
+		m.queueStatusLine("pending gpu jobs", q.PendingGPUJobs),
 		m.queueStatusLine("other", q.Other),
 		m.queueStatusLine("total", total),
 	}
@@ -351,10 +351,10 @@ func (m Model) renderQueuePanelWithBudget(contentHeight, maxHeight int, compactL
 	total := q.Running + q.Pending + q.Other
 	lines := []string{
 		m.sectionTitle("queue summary"),
-		m.queueStatusLine("running cpu", q.RunningCPUJobs),
-		m.queueStatusLine("running gpu", q.RunningGPUJobs),
-		m.queueStatusLine("pending cpu", q.PendingCPUJobs),
-		m.queueStatusLine("pending gpu", q.PendingGPUJobs),
+		m.queueStatusLine("running cpu jobs", q.RunningCPUJobs),
+		m.queueStatusLine("running gpu jobs", q.RunningGPUJobs),
+		m.queueStatusLine("pending cpu jobs", q.PendingCPUJobs),
+		m.queueStatusLine("pending gpu jobs", q.PendingGPUJobs),
 		m.queueStatusLine("other", q.Other),
 		m.queueStatusLine("total", total),
 	}
@@ -392,7 +392,7 @@ func (m Model) renderUserLines(limit int, showDemand bool) []string {
 		return []string{"users", "(no data)"}
 	}
 	users := append([]slurm.UserSummary(nil), m.snapshot.Users...)
-	slurm.SortUsersByPendingDemand(users)
+	slurm.SortUsersForDisplay(users)
 
 	if limit <= 0 {
 		limit = 10
@@ -418,11 +418,13 @@ func (m Model) renderUserLines(limit int, showDemand bool) []string {
 
 	lines := []string{m.sectionTitle(title)}
 	if showDemand {
-		lines = append(lines, fmt.Sprintf("%-12s %10s %10s %10s %10s", "user", "runningCPU", "runningGPU", "pendingCPU", "pendingGPU"))
+		lines = append(lines, fmt.Sprintf("%-12s %8s %8s %8s %8s %8s %8s", "user", "heldCPU", "heldGPU", "runCJob", "runGJob", "penCJob", "penGJob"))
 		for _, u := range users {
 			lines = append(lines, fmt.Sprintf(
-				"%-12s %10d %10d %10d %10d",
+				"%-12s %8d %8d %8d %8d %8d %8d",
 				truncateRunes(u.User, 12),
+				u.RunningCPU,
+				u.RunningGPU,
 				u.RunningCPUJobs,
 				u.RunningGPUJobs,
 				u.PendingCPUJobs,
@@ -432,11 +434,13 @@ func (m Model) renderUserLines(limit int, showDemand bool) []string {
 		return lines
 	}
 
-	lines = append(lines, fmt.Sprintf("%-10s %5s %5s %5s %5s", "user", "runC", "runG", "penC", "penG"))
+	lines = append(lines, fmt.Sprintf("%-10s %5s %5s %4s %4s %4s %4s", "user", "hCPU", "hGPU", "rCJ", "rGJ", "pCJ", "pGJ"))
 	for _, u := range users {
 		lines = append(lines, fmt.Sprintf(
-			"%-10s %5d %5d %5d %5d",
+			"%-10s %5d %5d %4d %4d %4d %4d",
 			truncateRunes(u.User, 10),
+			u.RunningCPU,
+			u.RunningGPU,
 			u.RunningCPUJobs,
 			u.RunningGPUJobs,
 			u.PendingCPUJobs,
@@ -451,7 +455,7 @@ func (m Model) renderUserLinesWithBudget(maxRows, rowBudget int, showDemand bool
 		return nil
 	}
 	users := append([]slurm.UserSummary(nil), m.snapshot.Users...)
-	slurm.SortUsersByPendingDemand(users)
+	slurm.SortUsersForDisplay(users)
 
 	totalUsers := len(users)
 	if maxRows < 0 {
@@ -490,8 +494,10 @@ func (m Model) renderUserLinesWithBudget(maxRows, rowBudget int, showDemand bool
 		if len(visibleUsers) == 1 {
 			u := visibleUsers[0]
 			lines = append(lines, fmt.Sprintf(
-				"%-10s %5d %5d %5d %5d",
+				"%-10s %5d %5d %4d %4d %4d %4d",
 				truncateRunes(u.User, 10),
+				u.RunningCPU,
+				u.RunningGPU,
 				u.RunningCPUJobs,
 				u.RunningGPUJobs,
 				u.PendingCPUJobs,
@@ -502,11 +508,13 @@ func (m Model) renderUserLinesWithBudget(maxRows, rowBudget int, showDemand bool
 	}
 
 	if showDemand {
-		lines = append(lines, fmt.Sprintf("%-12s %10s %10s %10s %10s", "user", "runningCPU", "runningGPU", "pendingCPU", "pendingGPU"))
+		lines = append(lines, fmt.Sprintf("%-12s %8s %8s %8s %8s %8s %8s", "user", "heldCPU", "heldGPU", "runCJob", "runGJob", "penCJob", "penGJob"))
 		for _, u := range visibleUsers {
 			lines = append(lines, fmt.Sprintf(
-				"%-12s %10d %10d %10d %10d",
+				"%-12s %8d %8d %8d %8d %8d %8d",
 				truncateRunes(u.User, 12),
+				u.RunningCPU,
+				u.RunningGPU,
 				u.RunningCPUJobs,
 				u.RunningGPUJobs,
 				u.PendingCPUJobs,
@@ -517,11 +525,13 @@ func (m Model) renderUserLinesWithBudget(maxRows, rowBudget int, showDemand bool
 		return fitLinesToWidth(lines, contentWidth)
 	}
 
-	lines = append(lines, fmt.Sprintf("%-10s %5s %5s %5s %5s", "user", "runC", "runG", "penC", "penG"))
+	lines = append(lines, fmt.Sprintf("%-10s %5s %5s %4s %4s %4s %4s", "user", "hCPU", "hGPU", "rCJ", "rGJ", "pCJ", "pGJ"))
 	for _, u := range visibleUsers {
 		lines = append(lines, fmt.Sprintf(
-			"%-10s %5d %5d %5d %5d",
+			"%-10s %5d %5d %4d %4d %4d %4d",
 			truncateRunes(u.User, 10),
+			u.RunningCPU,
+			u.RunningGPU,
 			u.RunningCPUJobs,
 			u.RunningGPUJobs,
 			u.PendingCPUJobs,
