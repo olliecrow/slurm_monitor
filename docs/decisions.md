@@ -1,41 +1,6 @@
-# Decision Capture Policy
+# Durable decisions
 
-This document defines how to record fixes and important decisions so future work does not re-litigate the same questions. It is written to stay accurate over time; avoid time-specific language.
-
-## When to record
-- Any fix for a confirmed bug, regression, or safety issue.
-- Any deliberate behavior choice that differs from intuitive defaults.
-- Any trade-off decision that affects modeling or behavior.
-- Any change that affects external behavior, invariants, or public APIs.
-
-## Where to record
-Use the smallest, most local place that makes the decision obvious:
-- **Code comments** near the behavior when the rationale is not obvious.
-- **Tests** with names/assertions that encode the invariant.
-- **Docs** (this file or another focused doc) when the decision is cross-cutting.
-
-Prefer updating an existing note over creating a new file.
-
-## What to record
-Keep entries short and focused:
-- **Decision**: what was chosen.
-- **Context**: what problem or risk it addresses.
-- **Rationale**: why this choice was made.
-- **Trade-offs**: what we are not doing.
-- **Enforcement**: which tests or code paths lock it in.
-- **References** (optional): file paths, tests, or PRs that embody the decision.
-
-## Template
-```
-Decision:
-Context:
-Rationale:
-Trade-offs:
-Enforcement:
-References:
-```
-
-## Decision Records
+These records keep cross-cutting product rationale that is not clearer in code, tests, the specification, or the architecture document.
 
 Decision:
 Use Go as the implementation language.
@@ -48,7 +13,7 @@ Less strict type-level guarantees than Rust; parser/data modeling discipline mus
 Enforcement:
 Initialize Go module and keep implementation in Go packages.
 References:
-`docs/spec.md`, `docs/architecture.md`, `docs/implementation-plan.md`.
+`docs/spec.md`, `docs/architecture.md`.
 
 Decision:
 Use the system `ssh` client for remote transport instead of implementing SSH protocol directly in-process.
@@ -74,7 +39,7 @@ Partially configured hosts still fail immediately; transient startup transport f
 Enforcement:
 Startup capability checks for required commands via `sh -lc`; immediate process exit for missing-command, permanent SSH/auth/configuration, and argument failures; retry loop for transient startup transport failures.
 References:
-`docs/spec.md` (startup checks), `docs/implementation-plan.md` (phase 1 acceptance checks).
+`docs/spec.md` (startup checks), `internal/app/preflight_test.go`.
 
 Decision:
 The monitor remains read-only and does not mutate Slurm state.
@@ -100,7 +65,7 @@ Job-level drill-down is not part of the default panel set.
 Enforcement:
 TUI layout includes a node panel plus a combined queue panel containing queue and user sections, with corresponding collectors/aggregators.
 References:
-`docs/spec.md` (Runtime Data Contract), `docs/implementation-plan.md` (Phase 3 and Phase 5).
+`docs/spec.md` (Runtime Data Contract), `internal/slurm/`, `internal/tui/`.
 
 Decision:
 SSH authentication follows standard SSH mechanisms and excludes password CLI flags.
@@ -339,52 +304,6 @@ Enforcement:
 - Error details render on a second line only when an error is present.
 References:
 `internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`
-
-Decision: Default-branch-first day-to-day workflow is acceptable in this personal repo.
-Context: This repository is part of the user's personal GitHub portfolio and often supports experimental or fast-iteration work. The user explicitly prefers to work directly on the default branch for normal day-to-day changes unless there is a task-specific reason to branch.
-Rationale: Working directly on the default branch keeps personal-repo execution simple and fast. Branches remain available when they materially help with coordination, isolation, or review.
-Trade-offs: There is less branch isolation by default, so targeted staging, small checkpoints, and verification still matter.
-Enforcement: Agents may use the repository's default branch for normal personal-repo work unless the user requests a separate branch or the task clearly benefits from one.
-References: `AGENTS.md`, `docs/workflows.md`, `README.md`
-
-Decision: This public repository keeps always-on public-readiness and safety/privacy/security discipline.
-Context: The repository is currently public on GitHub and the user wants public personal repositories to continue following stronger public-surface safety, security, privacy, and publication standards during normal maintenance work.
-Rationale: Public repositories have an external audience and external blast radius, so public-readiness hygiene should remain active continuously rather than only during one-off release work.
-Trade-offs: Day-to-day maintenance carries more process overhead than it would in a private-only repo.
-Enforcement: Keep public-surface safety, security, privacy, and publication checks active for normal maintenance work in this repository.
-References: `AGENTS.md`, `docs/workflows.md`, `README.md`
-
-Decision: This personal repository uses only official, reputable, and well-supported third-party dependencies and services by default.
-Context: The user explicitly does not want dodgy or non-reputable third-party services, APIs, MCPs, packages, frameworks, libraries, modules, or similar tooling introduced here, regardless of whether the repository is public or private.
-Rationale: Favoring official vendor offerings and reputable, popular, well-supported dependencies reduces supply-chain, maintenance, abandonment, and trust risk while keeping the repository easier to maintain.
-Trade-offs: Some niche or experimental tools will be skipped unless they later earn a stronger trust/support profile or the user explicitly approves them.
-Enforcement: Prefer official APIs, official MCPs, official SDKs, and reputable well-maintained third-party services, packages, frameworks, libraries, and modules. Do not add obscure, weakly maintained, questionable, or low-trust dependencies or integrations without explicit user approval.
-References: `docs/decisions.md`
-
-Decision: Plain English and clear naming are the default for this repository.
-Context:
-The owner wants this repository to stay easy to understand in future chat sessions, docs work, code review, and day-to-day code changes.
-Rationale:
-Plain English cuts down confusion and makes work faster to read. Clear names in code reduce guessing and make the code easier to change safely later.
-Trade-offs:
-Some technical ideas need a short extra explanation, and some older names may stay in place until the code around them is touched safely.
-Enforcement:
-`AGENTS.md` requires plain English in chat and written project material. When touching code, prefer clear descriptive names for files, folders, flags, config keys, functions, classes, types, variables, tests, and examples, and rename confusing names when the change is safe and worth it.
-References:
-`AGENTS.md`
-
-Decision:
-Treat this repository as belonging under the personal GitHub account `olliecrow`.
-Context:
-Work in this workspace can span personal GitHub accounts and organization-owned repositories. A repo-level ownership note keeps docs, remotes, automation, releases, and publishing steps pointed at the right account.
-Rationale:
-A clear owner account rule cuts down avoidable confusion and keeps future repo work tied to the right GitHub home.
-Trade-offs:
-If this repository ever moves to a different owner, this note must be updated in the same change.
-Enforcement:
-`AGENTS.md` and any repo docs, remotes, automation, release, or publishing steps that need the owning GitHub account should point to `olliecrow` unless Ollie explicitly changes that ownership decision.
-References:
-`AGENTS.md`
 
 Decision:
 Queue and user views should show CPU-job and GPU-job splits directly for both running and pending jobs.

@@ -1,74 +1,24 @@
-# Repository Guidelines
+# slurm_monitor repository guidance
 
-## Project Overview (slurm_monitor)
-- `slurm_monitor` is a CLI + TUI monitor for Slurm clusters.
-- Primary use case is robust remote monitoring over SSH from unreliable networks.
-- Secondary use case is local monitoring on hosts that already have Slurm CLI tooling.
-- Monitoring is strictly read-only; queue mutation actions are out of scope.
+## Purpose and layout
 
-## Repository Ownership
-- This repository belongs under the personal GitHub account `olliecrow`.
-- Do not move it to a GitHub organization or a different personal account unless Ollie explicitly asks for that change.
-- When docs, remotes, automation, releases, or publishing steps need the owning GitHub account, use `olliecrow`.
+- `slurm_monitor` is a public Go CLI/TUI for read-only local or SSH monitoring of Slurm clusters on macOS and Linux.
+- The CLI entry point is `cmd/slurm-monitor/`. Runtime packages live under `internal/`; fixtures and tests stay beside the packages they cover.
+- `docs/spec.md` is the behavior contract, `docs/architecture.md` defines component and resilience boundaries, `docs/security.md` defines auth and disclosure constraints, and `docs/decisions.md` records durable product rationale.
 
-## Open-Source Transition Posture
-- Treat this repository as open-source-ready now, even while private.
-- Never commit secrets, credentials, tokens, private keys, passwords, or confidential internal details.
-- Keep auth material in local environment/secret stores or SSH agent/config only.
-- Assume docs and logs may become public; redact sensitive details by default.
+## Product and safety contracts
 
-## Docs, Plans, and Decisions (agent usage)
-- `docs/` is long-lived and committed (and may use nested directories + cross-links to stay organized).
-- `plan/` is short-lived scratch space and is not committed.
-- Decision capture policy lives in `docs/decisions.md`.
-- Operating workflow conventions live in `docs/workflows.md`.
-- Canonical runtime behavior lives in `docs/spec.md`.
-- System architecture lives in `docs/architecture.md`.
-- Implementation and validation planning lives in `docs/implementation-plan.md`.
-- Requirement traceability lives in `docs/alignment.md`.
-- Security and credential-handling policy lives in `docs/security.md`.
+- Keep Slurm access strictly read-only. The command allowlist is limited to `sinfo`, `squeue`, and read-only `scontrol` queries; do not add queue mutation controls.
+- Preserve local and system-OpenSSH transports, POSIX `sh -lc`, standard SSH config/agent/key behavior, aliases, `user@host`, ProxyJump, and optional identity/config/port overrides. Never accept password flags or persist credentials.
+- Fail fast for invalid arguments, missing capabilities, and permanent auth/config/parser failures. Retry only transient transport failures, keep the last good snapshot visible, and retain explicit stale/recovery state.
+- Count arrays at task granularity with `squeue -r`; use Slurm `tres-alloc` for queue CPU/GPU totals and keep the bounded job-detail fallback where required.
+- Preserve composite node states, node alerts, allocation-vs-utilization labels, deterministic clipping metadata, mandatory total rows, resize behavior, and terminal restoration.
+- Keep public surfaces free of secrets, private targets, machine paths, confidential cluster details, and sensitive logs.
 
-## Note Routing (agent usage)
-- Active notes go in `plan/current/notes.md`.
-- Multi-workstream index goes in `plan/current/notes-index.md`.
-- Orchestration status goes in `plan/current/orchestrator-status.md`.
+## Development and verification
 
-## Plan Directory Structure (agent usage)
-- `plan/current/`
-- `plan/backlog/`
-- `plan/complete/`
-- `plan/experiments/`
-- `plan/artifacts/`
-- `plan/scratch/`
-- `plan/handoffs/`
-
-## Dictation-Aware Input Handling
-- The user often dictates prompts, so minor transcription errors and homophone substitutions are expected.
-- Infer intent from local context and repository state; ask a concise clarification only when ambiguity changes execution risk.
-- Keep explicit typo dictionaries at workspace level (do not duplicate repo-local typo maps).
-
-## Third-Party Dependency Trust Policy
-- Prefer official packages, libraries, SDKs, frameworks, and services from authoritative sources.
-- Prefer options that are reputable, well-maintained, popular, and well-supported.
-- Before adopting or upgrading third-party dependencies, verify ownership/publisher authenticity, maintenance activity, security history, license fit, and ecosystem adoption.
-- Avoid low-trust, obscure, or weakly maintained dependencies when a stronger alternative exists.
-- Pin versions and keep lockfiles current for reproducibility and supply-chain safety.
-- If trust signals are unclear, do not adopt the dependency until explicitly approved.
-
-<!-- third-party-policy:start -->
-## Third-Party Repository Handling
-- External repositories may be cloned for static analysis only.
-- Clone them only into ephemeral `plan/` locations such as `plan/scratch/upstream/` or `plan/artifacts/external/`.
-- Immediately sanitize clone metadata: prefer `rm -rf .git`; if `.git` is temporarily needed, remove all remotes first and then remove `.git`.
-- Never execute third-party code (no scripts, tests, builds, package installs, binaries, or containers).
-- Persistent remotes in this repo must reference only `github.com/olliecrow/*`.
-<!-- third-party-policy:end -->
-
-## Plain English Default
-- Use plain English in chat, session replies, docs, notes, comments, reports, commit messages, issue text, and review text.
-- Prefer short words, short sentences, and direct statements.
-- If a technical term is needed for correctness, explain it in simple words the first time.
-- In code, prefer clear descriptive names for files, folders, flags, config keys, functions, classes, types, variables, tests, and examples.
-- Avoid vague names, short cryptic names, and cute internal code names unless an old established name is already clearer than changing it.
-- When touching old code, rename confusing names if the change is low risk and clearly improves readability.
-- Keep the durable why for this rule in `docs/decisions.md`.
+- Format Go changes with `gofmt`.
+- Run `go test ./...`, `go test -race ./...`, and `go vet ./...` for material runtime, parser, transport, or TUI changes.
+- Use `go run ./cmd/slurm-monitor --help` and `go run ./cmd/slurm-monitor dry-run [target]` for non-mutating CLI checks. Use `doctor` or live monitor mode only against an explicitly authorized target.
+- Keep README, completion/help text, spec, architecture, security notes, and tests aligned when their shared contract changes.
+- Run the repository's sensitive-text checks before publishing changes.

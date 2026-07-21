@@ -1,32 +1,10 @@
-# Docs Directory
+# Maintainer documentation
 
-This directory holds long-term, high-signal documentation for this repo. It is primarily written for maintainers and automation agents and is committed to git.
+- [`../README.md`](../README.md): installation, quickstart, and CLI usage.
+- [`../SECURITY.md`](../SECURITY.md): vulnerability disclosure.
+- [`spec.md`](spec.md): canonical product and runtime behavior.
+- [`architecture.md`](architecture.md): component, transport, collection, and resilience design.
+- [`security.md`](security.md): runtime authentication, logging, and secret handling.
+- [`decisions.md`](decisions.md): durable cross-cutting product rationale.
 
-## Index
-- [`../README.md`](../README.md): user-facing quickstart and CLI usage.
-- [`../AGENTS.md`](../AGENTS.md): automation-facing operating rules and constraints for this repository.
-- [`../SECURITY.md`](../SECURITY.md): vulnerability disclosure policy.
-- [`spec.md`](spec.md): canonical product and runtime behavior contract.
-- [`architecture.md`](architecture.md): component boundaries, transport model, and resilience design.
-- [`implementation-plan.md`](implementation-plan.md): phased implementation with verification and battle testing.
-- [`alignment.md`](alignment.md): requirement traceability from user requirements to implementation/testing.
-- [`security.md`](security.md): secret handling and authentication policy.
-- [`open-questions.md`](open-questions.md): compact index of resolved defaults and canonical pointers.
-- [`decisions.md`](decisions.md): durable rationale and decision records.
-- [`workflows.md`](workflows.md): note routing and operating workflow conventions.
-- [`project-preferences.md`](project-preferences.md): durable maintenance and collaboration preferences.
-- [`untrusted-third-party-repos.md`](untrusted-third-party-repos.md): policy for static-only handling of external repositories.
-
-Principles:
-- Keep content evergreen and aligned with the codebase.
-- Avoid time- or date-dependent language.
-- Prefer updating existing docs when they have a clear home, but do not hesitate to create new focused docs and nested subdirectories when it improves organization and findability.
-- Use docs for cross-cutting context or rationale that does not belong in code comments or tests.
-- Keep entries concise and high-signal.
-- Make docs interrelate: use relative links between related docs and avoid orphan docs by linking new docs from an index or a nearby "parent" doc.
-
-Relationship to `/plan/`:
-- `/plan/` is a short-term, disposable scratch space for agents and is not committed to git.
-- `/plan/handoffs/` is used for sequential workflow handoffs between automation scripts when needed.
-- Active notes should be routed into `/plan/current/` and promoted into `/docs/` only when they become durable guidance.
-- `/docs/` is long-lived; only stable guidance should live here.
+Keep these documents evergreen and update the existing canonical contract instead of adding parallel workflow or status documents.
