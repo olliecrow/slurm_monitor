@@ -17,23 +17,26 @@ allowed_path_placeholder_regex='(/Users/(YOU|USER|username)|/home/(user|USER|use
 secret_assignment_regex='([Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Ss][Ee][Cc][Rr][Ee][Tt])[[:space:]]*[:=][[:space:]]*["'"'"']?[A-Za-z0-9_./+=-]{12,}'
 known_token_regex='((ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20,})'
 
-search_pattern() {
+has_pattern() {
   local pattern="$1"
   local file_path="$2"
   if command -v rg >/dev/null 2>&1; then
-    rg --line-number --no-heading --color never -e "$pattern" "$file_path" || true
+    rg --quiet --no-messages -e "$pattern" "$file_path"
   else
-    grep -nE "$pattern" "$file_path" || true
+    grep -qE "$pattern" "$file_path"
   fi
 }
 
-exclude_pattern() {
-  local pattern="$1"
+has_disallowed_path() {
+  local file_path="$1"
+  local matches
   if command -v rg >/dev/null 2>&1; then
-    rg --invert-match --ignore-case --no-heading -e "$pattern" || true
+    matches="$(rg --only-matching --no-filename --no-line-number -e "$local_path_regex" "$file_path" || true)"
   else
-    grep -viE "$pattern" || true
+    matches="$(grep -Eo "$local_path_regex" "$file_path" || true)"
   fi
+  [[ -n "$matches" ]] || return 1
+  printf '%s\n' "$matches" | grep -qEiv "^${allowed_path_placeholder_regex}$"
 }
 
 failed=0
@@ -42,18 +45,20 @@ for target in "$@"; do
     continue
   fi
 
-  path_matches="$(search_pattern "$local_path_regex" "$target")"
-  if [[ -n "$path_matches" ]]; then
-    path_matches="$(printf '%s\n' "$path_matches" | exclude_pattern "$allowed_path_placeholder_regex")"
+  violations=()
+  if has_disallowed_path "$target"; then
+    violations+=("local absolute path")
+  fi
+  if has_pattern "$secret_assignment_regex" "$target"; then
+    violations+=("credential-like assignment")
+  fi
+  if has_pattern "$known_token_regex" "$target"; then
+    violations+=("known token format")
   fi
 
-  secret_assignment_matches="$(search_pattern "$secret_assignment_regex" "$target")"
-  known_token_matches="$(search_pattern "$known_token_regex" "$target")"
-
-  matches="$(printf '%s\n%s\n%s\n' "$path_matches" "$secret_assignment_matches" "$known_token_matches" | sed '/^$/d' | sort -u)"
-  if [[ -n "$matches" ]]; then
-    echo "policy violation in ${context}: ${target}" >&2
-    echo "$matches" >&2
+  if [[ "${#violations[@]}" -gt 0 ]]; then
+    violation_list="$(IFS=', '; echo "${violations[*]}")"
+    echo "policy violation in ${context}: ${target} (${violation_list})" >&2
     failed=1
   fi
 done
