@@ -9,8 +9,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"slurm_monitor/internal/monitor"
-	"slurm_monitor/internal/slurm"
+	"github.com/olliecrow/slurm_monitor/internal/monitor"
+	"github.com/olliecrow/slurm_monitor/internal/slurm"
 )
 
 func TestViewFitsViewportAcrossSizes(t *testing.T) {
@@ -174,7 +174,7 @@ func TestHeaderErrorLineLongMessageStillFitsWidth(t *testing.T) {
 
 func TestQueueSummaryRendersWithoutBars(t *testing.T) {
 	m := seededModel()
-	out := m.renderQueuePanel(4, true)
+	out := m.renderQueuePanelWithBudget(20, true, 120)
 	if strings.Contains(out, "█") || strings.Contains(out, "░") {
 		t.Fatalf("expected queue summary without bar glyphs, got: %q", out)
 	}
@@ -187,8 +187,6 @@ func TestQueueSummaryCountsStayAligned(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 	m.snapshot.Queue = slurm.QueueSummary{
-		Running:        45,
-		Pending:        56,
 		RunningCPUJobs: 5,
 		RunningGPUJobs: 40,
 		PendingCPUJobs: 1,
@@ -202,7 +200,7 @@ func TestQueueSummaryCountsStayAligned(t *testing.T) {
 		m.queueStatusLine("pending cpu jobs", m.snapshot.Queue.PendingCPUJobs),
 		m.queueStatusLine("pending gpu jobs", m.snapshot.Queue.PendingGPUJobs),
 		m.queueStatusLine("other", m.snapshot.Queue.Other),
-		m.queueStatusLine("total", m.snapshot.Queue.Running+m.snapshot.Queue.Pending+m.snapshot.Queue.Other),
+		m.queueStatusLine("total", m.snapshot.Queue.TotalJobs()),
 	}
 
 	start := lastDigitIndex(lines[0])
@@ -220,7 +218,7 @@ func TestWideNodeTableUsesGPUAllocLabel(t *testing.T) {
 	m := seededModel()
 	m.width = 150
 
-	out := m.renderNodeTableWithBudget(12, 24, false, 140)
+	out := m.renderNodeTableWithBudget(12, false, 140)
 	if !strings.Contains(out, "gpu alloc%") {
 		t.Fatalf("expected wide node table to label GPU percentage as allocation, got: %q", out)
 	}
@@ -230,7 +228,7 @@ func TestQueuePanelBudgetKeepsUserTitleWhenOnlyOneLineRemains(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 
-	out := m.renderQueuePanelWithBudget(6, 16, true, true, 70)
+	out := m.renderQueuePanelWithBudget(6, true, 70)
 	if !strings.Contains(out, "user view") {
 		t.Fatalf("expected user section title even when queue budget is tight, got: %q", out)
 	}
@@ -260,7 +258,7 @@ func TestWideUserColumnsStayAligned(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 
-	lines := m.renderUserLines(3, true)
+	lines := m.renderUserLinesWithBudget(3, 5, true, 120)
 	if len(lines) < 3 {
 		t.Fatalf("expected header plus rows, got: %q", strings.Join(lines, "\n"))
 	}
@@ -305,7 +303,7 @@ func TestCompactUserColumnsStayAligned(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 
-	lines := m.renderUserLines(3, false)
+	lines := m.renderUserLinesWithBudget(3, 5, false, 80)
 	if len(lines) < 3 {
 		t.Fatalf("expected compact header plus rows, got: %q", strings.Join(lines, "\n"))
 	}
@@ -362,7 +360,7 @@ func TestCompactNodePanelUsesAvailableHeightBeforeHidingRows(t *testing.T) {
 	}
 	m.snapshot.Nodes = nodes
 
-	out := m.renderNodeTableWithBudget(22, 60, true, 88)
+	out := m.renderNodeTableWithBudget(22, true, 88)
 	if strings.Contains(out, "hidden)") {
 		t.Fatalf("did not expect hidden-node indicator when compact panel has enough height, got: %q", out)
 	}
@@ -379,8 +377,6 @@ func TestCompactQueuePanelUsesAvailableHeightBeforeHidingUsers(t *testing.T) {
 	for i := 0; i < 15; i++ {
 		users = append(users, slurm.UserSummary{
 			User:           fmt.Sprintf("user%02d", i),
-			Running:        1,
-			Pending:        30 - i,
 			RunningCPUJobs: 1,
 			RunningGPUJobs: 0,
 			PendingCPUJobs: 30 - i,
@@ -389,7 +385,7 @@ func TestCompactQueuePanelUsesAvailableHeightBeforeHidingUsers(t *testing.T) {
 	}
 	m.snapshot.Users = users
 
-	out := m.renderQueuePanelWithBudget(24, 60, true, true, 88)
+	out := m.renderQueuePanelWithBudget(24, true, 88)
 	if strings.Contains(out, "hidden)") {
 		t.Fatalf("did not expect hidden-user indicator when compact panel has enough height, got: %q", out)
 	}
@@ -403,7 +399,7 @@ func TestNodeTableShowsNodeAlert(t *testing.T) {
 	m.styles = defaultStyles(true)
 	m.snapshot.Nodes[0].State = "MIXED+DRAIN"
 
-	out := m.renderNodeTable(10)
+	out := m.renderNodeTableWithBudget(10, false, 170)
 	if !strings.Contains(out, "node alert: drain=1") {
 		t.Fatalf("expected node table to include drain alert, got: %q", out)
 	}
@@ -414,7 +410,7 @@ func TestNodeTableBudgetKeepsAlertAndTotalInTightSpace(t *testing.T) {
 	m.styles = defaultStyles(true)
 	m.snapshot.Nodes[0].State = "MIXED+DRAIN"
 
-	out := m.renderNodeTableWithBudget(4, 16, true, 60)
+	out := m.renderNodeTableWithBudget(4, true, 60)
 	if !strings.Contains(out, "node summary") {
 		t.Fatalf("expected node summary title in tight budget, got: %q", out)
 	}
@@ -429,7 +425,7 @@ func TestNodeTableBudgetKeepsAlertAndTotalInTightSpace(t *testing.T) {
 func TestNodeTableShowsHiddenCountAndTotalWhenCapped(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
-	out := m.renderNodeTable(1)
+	out := m.renderNodeTableWithBudget(4, false, 170)
 
 	if !strings.Contains(out, "node summary (top 1/3, +2 hidden)") {
 		t.Fatalf("expected capped node summary label, got: %q", out)
@@ -445,7 +441,7 @@ func TestWideNodeTableShowsUntruncatedDrainState(t *testing.T) {
 	m.width = 180
 	m.snapshot.Nodes[0].State = "MIXED+DRAIN"
 
-	out := m.renderNodeTable(10)
+	out := m.renderNodeTableWithBudget(10, false, 170)
 	if !strings.Contains(out, "MIXED+DRAIN") {
 		t.Fatalf("expected wide table to show full drain state, got: %q", out)
 	}
@@ -454,7 +450,7 @@ func TestWideNodeTableShowsUntruncatedDrainState(t *testing.T) {
 func TestUserViewShowsHiddenCountWhenCapped(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
-	lines := m.renderUserLines(1, true)
+	lines := m.renderUserLinesWithBudget(1, 3, true, 120)
 	out := strings.Join(lines, "\n")
 
 	if !strings.Contains(out, "user view (top 1/3, +2 hidden)") {
@@ -471,8 +467,6 @@ func TestViewShowsHiddenUserIndicatorInTightLayout(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		m.snapshot.Users = append(m.snapshot.Users, slurm.UserSummary{
 			User:           fmt.Sprintf("user-%02d", i),
-			Running:        1,
-			Pending:        1,
 			RunningCPUJobs: 1,
 			PendingCPUJobs: 1,
 		})
@@ -638,43 +632,22 @@ func sampleSnapshot() slurm.Snapshot {
 			},
 		},
 		Queue: slurm.QueueSummary{
-			Running:        42,
-			Pending:        5,
 			Other:          1,
 			RunningCPUJobs: 14,
 			RunningGPUJobs: 28,
 			PendingCPUJobs: 2,
 			PendingGPUJobs: 3,
-			ByState: []slurm.StateCount{
-				{State: "RUNNING", Count: 42},
-				{State: "PENDING", Count: 5},
-				{State: "COMPLETING", Count: 1},
-			},
-			ByPartition: []slurm.PartitionCount{
-				{Partition: "gpu", Running: 34, Pending: 4},
-				{Partition: "cpu", Running: 8, Pending: 1},
-			},
-			ByJobName: []slurm.NameCount{
-				{Name: "train_large", Count: 11},
-				{Name: "preprocess", Count: 8},
-			},
-			PendingCause: []slurm.NameCount{
-				{Name: "Priority", Count: 3},
-				{Name: "Resources", Count: 2},
-			},
 			ResourceLoad: slurm.ResourceTotals{
-				RunningCPU:   640,
-				PendingCPU:   96,
-				RunningMemMB: 1880000,
-				PendingMemMB: 220000,
-				RunningGPU:   38,
-				PendingGPU:   8,
+				RunningCPU: 640,
+				PendingCPU: 96,
+				RunningGPU: 38,
+				PendingGPU: 8,
 			},
 		},
 		Users: []slurm.UserSummary{
-			{User: "alice", Running: 17, Pending: 3, RunningCPU: 640, RunningGPU: 38, RunningCPUJobs: 5, RunningGPUJobs: 12, PendingCPUJobs: 1, PendingGPUJobs: 2, PendingCPU: 96, PendingMemMB: 220000, PendingGPU: 8},
-			{User: "bob", Running: 9, Pending: 1, RunningCPU: 220, RunningGPU: 0, RunningCPUJobs: 9, RunningGPUJobs: 0, PendingCPUJobs: 1, PendingGPUJobs: 0, PendingCPU: 32, PendingMemMB: 64000, PendingGPU: 0},
-			{User: "carol", Running: 6, Pending: 1, RunningCPU: 180, RunningGPU: 6, RunningCPUJobs: 2, RunningGPUJobs: 4, PendingCPUJobs: 0, PendingGPUJobs: 1, PendingCPU: 16, PendingMemMB: 32000, PendingGPU: 1},
+			{User: "alice", RunningCPU: 640, RunningGPU: 38, RunningCPUJobs: 5, RunningGPUJobs: 12, PendingCPUJobs: 1, PendingGPUJobs: 2, PendingCPU: 96, PendingMemMB: 220000, PendingGPU: 8},
+			{User: "bob", RunningCPU: 220, RunningCPUJobs: 9, PendingCPUJobs: 1, PendingCPU: 32, PendingMemMB: 64000},
+			{User: "carol", RunningCPU: 180, RunningGPU: 6, RunningCPUJobs: 2, RunningGPUJobs: 4, PendingGPUJobs: 1, PendingCPU: 16, PendingMemMB: 32000, PendingGPU: 1},
 		},
 	}
 }

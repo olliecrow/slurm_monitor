@@ -3,10 +3,11 @@ package slurm
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
-	"slurm_monitor/internal/transport"
+	"github.com/olliecrow/slurm_monitor/internal/transport"
 )
 
 const (
@@ -14,7 +15,9 @@ const (
 	// counts and requested/allocated CPU/GPU demand accurate for large arrays.
 	// Use tres-alloc instead of %b so GPU demand comes from Slurm's documented
 	// TRES view for both running and pending jobs.
-	combinedCollectCommand = `scontrol show node -o; echo "__SLURM_MONITOR_SPLIT__"; squeue -h -r -O "JobID:|,State:|,UserName:|,NumCPUs:|,MinMemory:|,tres-alloc:|,Partition:|,Name:|,Reason"`
+	combinedCollectCommand = `scontrol show node -o; echo "__SLURM_MONITOR_SPLIT__"; squeue -h -r -O "JobID:|,State:|,UserName:|,NumCPUs:|,MinMemory:|,tres-alloc"`
+
+	maxPendingGPUProbesPerCollect = 4
 )
 
 type Collector struct {
@@ -46,7 +49,9 @@ func (c *Collector) Collect(ctx context.Context) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("parse nodes: %w", err)
 	}
-	c.fillPendingGPURequestCache(ctx, queueRaw)
+	probeCtx, cancelProbes := context.WithTimeout(ctx, c.commandTimeout)
+	c.fillPendingGPURequestCache(probeCtx, queueRaw)
+	cancelProbes()
 	queue, users := parseQueueLines(queueRaw, c.pendingGPUCountByJobRoot)
 
 	return Snapshot{
@@ -71,13 +76,21 @@ func (c *Collector) runWithTimeout(ctx context.Context, command string) (string,
 func (c *Collector) fillPendingGPURequestCache(ctx context.Context, queueRaw string) {
 	roots := extractPendingJobRoots(queueRaw)
 	active := make(map[string]struct{}, len(roots))
+	probes := 0
 	for _, root := range roots {
 		active[root] = struct{}{}
 		if _, ok := c.pendingGPUCountByJobRoot[root]; ok {
 			continue
 		}
+		if probes >= maxPendingGPUProbesPerCollect {
+			continue
+		}
+		probes++
 		gpuCount, err := c.jobRootRequestsGPU(ctx, root)
 		if err != nil {
+			if ctx.Err() != nil {
+				break
+			}
 			continue
 		}
 		c.pendingGPUCountByJobRoot[root] = gpuCount
@@ -109,12 +122,16 @@ func extractPendingJobRoots(queueRaw string) []string {
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "|", 9)
-		if len(parts) < 9 {
+		parts := strings.SplitN(line, "|", 6)
+		if len(parts) < 6 {
 			continue
 		}
 		state := strings.ToUpper(strings.TrimSpace(parts[1]))
 		if !strings.Contains(state, "PENDING") {
+			continue
+		}
+		tresAlloc := strings.TrimSpace(parts[5])
+		if tresAlloc != "" && !strings.EqualFold(tresAlloc, "N/A") {
 			continue
 		}
 		root := rootJobID(parts[0])
@@ -128,6 +145,7 @@ func extractPendingJobRoots(queueRaw string) []string {
 	for root := range set {
 		out = append(out, root)
 	}
+	sort.Strings(out)
 	return out
 }
 

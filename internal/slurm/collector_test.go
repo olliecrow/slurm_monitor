@@ -2,8 +2,12 @@ package slurm
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/olliecrow/slurm_monitor/internal/transport"
 )
 
 func TestCombinedCollectCommandExpandsArrayTasks(t *testing.T) {
@@ -19,7 +23,7 @@ func TestCombinedCollectCommandExpandsArrayTasks(t *testing.T) {
 }
 
 func TestSplitCombinedOutput(t *testing.T) {
-	raw := "node-a\n__SLURM_MONITOR_SPLIT__\n1001|PENDING|alice|1|4G|N/A|gpu|job|Priority"
+	raw := "node-a\n__SLURM_MONITOR_SPLIT__\n1001|PENDING|alice|1|4G|N/A"
 	nodes, queue, err := splitCombinedOutput(raw)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -27,7 +31,7 @@ func TestSplitCombinedOutput(t *testing.T) {
 	if nodes != "node-a" {
 		t.Fatalf("unexpected nodes payload: %q", nodes)
 	}
-	if queue != "1001|PENDING|alice|1|4G|N/A|gpu|job|Priority" {
+	if queue != "1001|PENDING|alice|1|4G|N/A" {
 		t.Fatalf("unexpected queue payload: %q", queue)
 	}
 }
@@ -40,7 +44,7 @@ func TestFillPendingGPURequestCachePrunesStaleRoots(t *testing.T) {
 		},
 	}
 
-	queueRaw := "2002_1|PENDING|alice|1|4G|N/A|gpu|job|Priority"
+	queueRaw := "2002_1|PENDING|alice|1|4G|N/A"
 	c.fillPendingGPURequestCache(context.Background(), queueRaw)
 
 	if len(c.pendingGPUCountByJobRoot) != 1 {
@@ -51,5 +55,41 @@ func TestFillPendingGPURequestCachePrunesStaleRoots(t *testing.T) {
 	}
 	if _, ok := c.pendingGPUCountByJobRoot["1001"]; ok {
 		t.Fatalf("expected stale root to be pruned")
+	}
+}
+
+type probeCountingTransport struct {
+	calls int
+}
+
+func (t *probeCountingTransport) Run(context.Context, string) (transport.RunResult, error) {
+	t.calls++
+	return transport.RunResult{Stdout: "JobId=1 ReqTRES=cpu=1,gres/gpu=1"}, nil
+}
+
+func (t *probeCountingTransport) Describe() string {
+	return "probe-counter"
+}
+
+func TestFillPendingGPURequestCacheOnlyProbesMissingDetailsWithinLimit(t *testing.T) {
+	var lines []string
+	lines = append(lines, "1|PENDING|alice|1|4G|cpu=1,mem=4G,gres/gpu=1")
+	lines = append(lines, "2|PENDING|alice|1|4G|cpu=1,mem=4G")
+	for i := 3; i < 3+maxPendingGPUProbesPerCollect+4; i++ {
+		lines = append(lines, fmt.Sprintf("%d|PENDING|alice|1|4G|N/A", i))
+	}
+
+	tr := &probeCountingTransport{}
+	collector := NewCollector(tr, time.Second)
+	collector.fillPendingGPURequestCache(context.Background(), strings.Join(lines, "\n"))
+
+	if tr.calls != maxPendingGPUProbesPerCollect {
+		t.Fatalf("expected %d bounded fallback probes, got %d", maxPendingGPUProbesPerCollect, tr.calls)
+	}
+	if _, ok := collector.pendingGPUCountByJobRoot["1"]; ok {
+		t.Fatalf("job with complete GPU details must not be probed")
+	}
+	if _, ok := collector.pendingGPUCountByJobRoot["2"]; ok {
+		t.Fatalf("job with complete CPU-only details must not be probed")
 	}
 }

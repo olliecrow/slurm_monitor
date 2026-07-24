@@ -9,9 +9,7 @@ import (
 )
 
 type RunResult struct {
-	Stdout   string
-	Stderr   string
-	ExitCode int
+	Stdout string
 }
 
 type Transport interface {
@@ -20,9 +18,7 @@ type Transport interface {
 }
 
 type RunError struct {
-	Command  string
 	Target   string
-	Stdout   string
 	Stderr   string
 	ExitCode int
 	Timeout  bool

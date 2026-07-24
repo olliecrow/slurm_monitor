@@ -66,7 +66,7 @@ The tool should run for long periods with minimal operator interaction and provi
 - If target is provided, run remote checks and start remote mode.
 
 ### Capability checks (must pass before entering TUI loop)
-- Required commands: `sinfo`, `squeue`, `scontrol`.
+- Required commands: `squeue`, `scontrol`.
 - Command execution uses POSIX `sh -lc` in both local and remote modes.
 - Local mode:
   - if `sh` or required Slurm commands are missing locally, exit with a clear error.
@@ -119,7 +119,7 @@ Per-node fields:
 - explicit node-health alert line in the node summary panel when any node is `DOWN` or `DRAIN`
 
 Aggregate row:
-- totals across visible nodes for allocation/usage signals where mathematically valid.
+- totals across all collected nodes, including rows hidden by terminal clipping.
 
 ### 2) Queue summary view
 Fields:
@@ -195,11 +195,12 @@ Per-user fields:
 ## Security Constraints
 - Never commit secrets, credentials, tokens, private keys, or passwords.
 - Avoid CLI flags that expose secrets in shell history/process list.
-- Log output must redact sensitive target material if it may contain credentials.
+- Transport errors must omit executed commands and captured stdout.
+- Locally displayed SSH targets and stderr must be treated as potentially sensitive when sharing diagnostics.
 
 ## Safety Constraint
 - The monitor must never submit mutating operations to Slurm.
-- Runtime command allowlist is read-only Slurm queries (`sinfo`, `squeue`, `scontrol` reads).
+- Runtime command allowlist is read-only Slurm queries (`squeue` and `scontrol` reads).
 
 ## Non-functional acceptance criteria
 - Can run continuously for long periods without manual reconnect intervention.

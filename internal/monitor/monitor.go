@@ -5,8 +5,8 @@ import (
 	"math/rand"
 	"time"
 
-	"slurm_monitor/internal/slurm"
-	"slurm_monitor/internal/transport"
+	"github.com/olliecrow/slurm_monitor/internal/slurm"
+	"github.com/olliecrow/slurm_monitor/internal/transport"
 )
 
 type State string

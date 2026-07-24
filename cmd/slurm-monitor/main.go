@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"slurm_monitor/internal/app"
-	"slurm_monitor/internal/config"
+	"github.com/olliecrow/slurm_monitor/internal/app"
+	"github.com/olliecrow/slurm_monitor/internal/config"
 )
 
 func main() {
@@ -80,7 +80,7 @@ func completionScript(shell string) (string, error) {
 _slurm_monitor_completion() {
   local cur prev words cword
   _init_completion || return
-  local commands="doctor dry-run completion monitor help"
+  local commands="doctor dry-run completion monitor"
   if [[ ${cword} -eq 1 ]]; then
     COMPREPLY=( $(compgen -W "${commands}" -- "${cur}") )
     return
@@ -108,7 +108,6 @@ _slurm_monitor() {
     'doctor:run non-mutating preflight checks'
     'dry-run:print planned execution order'
     'completion:print shell completion script'
-    'help:show help text'
   )
   if (( CURRENT == 2 )); then
     _describe 'command' commands

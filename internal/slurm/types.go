@@ -24,26 +24,18 @@ type Node struct {
 }
 
 type QueueSummary struct {
-	Running int
-	Pending int
-	Other   int
+	Other int
 
 	RunningCPUJobs int
 	RunningGPUJobs int
 	PendingCPUJobs int
 	PendingGPUJobs int
 
-	ByState      []StateCount
-	ByPartition  []PartitionCount
-	ByJobName    []NameCount
-	PendingCause []NameCount
 	ResourceLoad ResourceTotals
 }
 
 type UserSummary struct {
-	User    string
-	Running int
-	Pending int
+	User string
 
 	RunningCPU int
 	RunningGPU int
@@ -66,29 +58,9 @@ type Snapshot struct {
 	CollectedAt time.Time
 }
 
-type StateCount struct {
-	State string
-	Count int
-}
-
-type PartitionCount struct {
-	Partition string
-	Running   int
-	Pending   int
-	Other     int
-}
-
-type NameCount struct {
-	Name  string
-	Count int
-}
-
 type ResourceTotals struct {
 	RunningCPU int
 	PendingCPU int
-
-	RunningMemMB int
-	PendingMemMB int
 
 	RunningGPU int
 	PendingGPU int
@@ -116,4 +88,16 @@ func (s Snapshot) Totals() Aggregate {
 		out.GPUTotal += n.GPUTotal
 	}
 	return out
+}
+
+func (q QueueSummary) TotalJobs() int {
+	return q.RunningCPUJobs + q.RunningGPUJobs + q.PendingCPUJobs + q.PendingGPUJobs + q.Other
+}
+
+func (u UserSummary) RunningJobs() int {
+	return u.RunningCPUJobs + u.RunningGPUJobs
+}
+
+func (u UserSummary) PendingJobs() int {
+	return u.PendingCPUJobs + u.PendingGPUJobs
 }
