@@ -11,7 +11,7 @@ tags = ["policy", "privacy"]
 
 [[rules.allowlists]]
 description = "Allow explicit placeholder examples used in policy/docs."
-regexTarget = "line"
+regexTarget = "match"
 regexes = [
   '''(/Users/(YOU|USER|username)|/home/(user|USER|username)|[A-Za-z]:\\+Users\\+(YOU|USER|USERNAME|username))'''
 ]
