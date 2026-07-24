@@ -12,8 +12,8 @@ func SortUsersForDisplay(users []UserSummary) {
 		if users[i].RunningCPU != users[j].RunningCPU {
 			return users[i].RunningCPU > users[j].RunningCPU
 		}
-		if users[i].Running != users[j].Running {
-			return users[i].Running > users[j].Running
+		if users[i].RunningJobs() != users[j].RunningJobs() {
+			return users[i].RunningJobs() > users[j].RunningJobs()
 		}
 		if users[i].PendingGPU != users[j].PendingGPU {
 			return users[i].PendingGPU > users[j].PendingGPU
@@ -21,8 +21,8 @@ func SortUsersForDisplay(users []UserSummary) {
 		if users[i].PendingCPU != users[j].PendingCPU {
 			return users[i].PendingCPU > users[j].PendingCPU
 		}
-		if users[i].Pending != users[j].Pending {
-			return users[i].Pending > users[j].Pending
+		if users[i].PendingJobs() != users[j].PendingJobs() {
+			return users[i].PendingJobs() > users[j].PendingJobs()
 		}
 		if users[i].PendingGPUJobs != users[j].PendingGPUJobs {
 			return users[i].PendingGPUJobs > users[j].PendingGPUJobs

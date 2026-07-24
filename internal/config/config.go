@@ -87,7 +87,7 @@ func HelpText() string {
 	b.WriteString("  completion Print shell completion script output and exit.\n\n")
 	b.WriteString("Positional target:\n")
 	b.WriteString("  ssh-target is optional.\n")
-	b.WriteString("  - omitted: run locally (requires local sinfo/squeue/scontrol)\n")
+	b.WriteString("  - omitted: run locally (requires local squeue/scontrol)\n")
 	b.WriteString("  - provided: run remotely through OpenSSH using alias or user@host\n\n")
 	b.WriteString("Behavior:\n")
 	b.WriteString("  - monitor is read-only and never mutates Slurm state\n")

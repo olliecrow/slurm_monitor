@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"slurm_monitor/internal/config"
-	"slurm_monitor/internal/transport"
+	"github.com/olliecrow/slurm_monitor/internal/config"
+	"github.com/olliecrow/slurm_monitor/internal/transport"
 )
 
 type doctorCheck struct {
@@ -115,7 +115,7 @@ func buildDoctorChecks(cfg config.Config, deps doctorDeps) []doctorCheck {
 	}
 
 	if cfg.Mode == config.ModeLocal {
-		for _, tool := range []string{"sh", "sinfo", "squeue", "scontrol"} {
+		for _, tool := range []string{"sh", "squeue", "scontrol"} {
 			appendToolCheck("local", tool)
 		}
 	} else {
@@ -176,9 +176,9 @@ func RunDryRun(cfg config.Config, out io.Writer) error {
 	fmt.Fprintln(out, "planned sequence:")
 	fmt.Fprintln(out, "1. Parse flags and build the configured transport.")
 	if cfg.Mode == config.ModeLocal {
-		fmt.Fprintln(out, "2. Run a local preflight check for sh, sinfo, squeue, and scontrol.")
+		fmt.Fprintln(out, "2. Run a local preflight check for sh, squeue, and scontrol.")
 	} else {
-		fmt.Fprintln(out, "2. Connect over OpenSSH to the target and validate sinfo, squeue, and scontrol remotely.")
+		fmt.Fprintln(out, "2. Connect over OpenSSH to the target and validate squeue and scontrol remotely.")
 	}
 	if cfg.Once {
 		fmt.Fprintln(out, "3. Collect one snapshot, print summary metrics, and exit.")

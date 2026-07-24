@@ -10,12 +10,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"slurm_monitor/internal/config"
-	"slurm_monitor/internal/monitor"
-	"slurm_monitor/internal/slurm"
-	"slurm_monitor/internal/transport"
-	"slurm_monitor/internal/tui"
-	"slurm_monitor/internal/uifmt"
+	"github.com/olliecrow/slurm_monitor/internal/config"
+	"github.com/olliecrow/slurm_monitor/internal/monitor"
+	"github.com/olliecrow/slurm_monitor/internal/slurm"
+	"github.com/olliecrow/slurm_monitor/internal/transport"
+	"github.com/olliecrow/slurm_monitor/internal/tui"
+	"github.com/olliecrow/slurm_monitor/internal/uifmt"
 )
 
 // missingSlurmCommandsError is typed so retry classification is stable and
@@ -101,7 +101,7 @@ func buildTransport(cfg config.Config) (transport.Transport, error) {
 }
 
 func checkSlurmAvailability(ctx context.Context, tr transport.Transport, timeout time.Duration) error {
-	const checkCmd = `missing=""; for c in sinfo squeue scontrol; do if ! command -v "$c" >/dev/null 2>&1; then missing="$missing $c"; fi; done; if [ -n "$missing" ]; then echo "$missing"; exit 7; fi`
+	const checkCmd = `missing=""; for c in squeue scontrol; do if ! command -v "$c" >/dev/null 2>&1; then missing="$missing $c"; fi; done; if [ -n "$missing" ]; then echo "$missing"; exit 7; fi`
 
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -208,7 +208,7 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 		snapshot.Queue.PendingCPUJobs,
 		snapshot.Queue.PendingGPUJobs,
 		snapshot.Queue.Other,
-		snapshot.Queue.Running+snapshot.Queue.Pending+snapshot.Queue.Other,
+		snapshot.Queue.TotalJobs(),
 	)
 	fmt.Fprintf(
 		os.Stdout,

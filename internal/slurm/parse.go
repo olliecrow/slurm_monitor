@@ -82,10 +82,6 @@ func parseNodeLine(line string) (Node, error) {
 func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (QueueSummary, []UserSummary) {
 	lines := strings.Split(raw, "\n")
 	users := make(map[string]*UserSummary)
-	partitionMap := make(map[string]*PartitionCount)
-	stateMap := make(map[string]int)
-	jobNameMap := make(map[string]int)
-	pendingReasonMap := make(map[string]int)
 	var queue QueueSummary
 
 	for _, line := range lines {
@@ -93,46 +89,30 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (Queue
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "|", 9)
-		if len(parts) < 9 {
+		parts := strings.SplitN(line, "|", 6)
+		if len(parts) < 6 {
 			continue
 		}
 		jobID := strings.TrimSpace(parts[0])
 		state := strings.ToUpper(strings.TrimSpace(parts[1]))
 		user := strings.TrimSpace(parts[2])
 		cpuReq := parseInt(strings.TrimSpace(parts[3]))
-		memReqMB := parseMemRequestMB(strings.TrimSpace(parts[4]))
+		memReq := strings.TrimSpace(parts[4])
 		gresReq := strings.TrimSpace(parts[5])
-		partition := strings.TrimSpace(parts[6])
-		jobName := strings.TrimSpace(parts[7])
-		reason := strings.TrimSpace(parts[8])
 		if user == "" {
 			user = "<unknown>"
-		}
-		if partition == "" {
-			partition = "<unknown>"
-		}
-		if jobName == "" || jobName == "N/A" {
-			jobName = "<unnamed>"
 		}
 
 		if _, ok := users[user]; !ok {
 			users[user] = &UserSummary{User: user}
 		}
-		if _, ok := partitionMap[partition]; !ok {
-			partitionMap[partition] = &PartitionCount{Partition: partition}
-		}
 
 		stateClass := classifyQueueState(state)
-		stateMap[state]++
-		jobNameMap[jobName]++
 		gpuReq := parseGPUReq(gresReq)
 		isGPUJob := gpuReq > 0
 
 		switch stateClass {
 		case "running":
-			queue.Running++
-			users[user].Running++
 			users[user].RunningCPU += cpuReq
 			users[user].RunningGPU += gpuReq
 			if isGPUJob {
@@ -142,13 +122,10 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (Queue
 				queue.RunningCPUJobs++
 				users[user].RunningCPUJobs++
 			}
-			partitionMap[partition].Running++
 			queue.ResourceLoad.RunningCPU += cpuReq
-			queue.ResourceLoad.RunningMemMB += memReqMB
 			queue.ResourceLoad.RunningGPU += gpuReq
 		case "pending":
-			queue.Pending++
-			users[user].Pending++
+			memReqMB := parseMemRequestMB(memReq, cpuReq)
 			if !isGPUJob {
 				if fallbackGPUCount := pendingGPUCountByJobRoot[rootJobID(jobID)]; fallbackGPUCount > 0 {
 					isGPUJob = true
@@ -165,17 +142,10 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (Queue
 			users[user].PendingCPU += cpuReq
 			users[user].PendingMemMB += memReqMB
 			users[user].PendingGPU += gpuReq
-			partitionMap[partition].Pending++
 			queue.ResourceLoad.PendingCPU += cpuReq
-			queue.ResourceLoad.PendingMemMB += memReqMB
 			queue.ResourceLoad.PendingGPU += gpuReq
-			if reason == "" {
-				reason = "<unknown>"
-			}
-			pendingReasonMap[reason]++
 		default:
 			queue.Other++
-			partitionMap[partition].Other++
 		}
 	}
 
@@ -184,11 +154,6 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (Queue
 		outUsers = append(outUsers, *v)
 	}
 	SortUsersForDisplay(outUsers)
-
-	queue.ByState = mapToStateCounts(stateMap)
-	queue.ByPartition = mapToPartitionCounts(partitionMap)
-	queue.ByJobName = mapToNameCounts(jobNameMap)
-	queue.PendingCause = mapToNameCounts(pendingReasonMap)
 
 	return queue, outUsers
 }
@@ -381,14 +346,15 @@ func parseMemMBFromTRES(tres string) int {
 	return 0
 }
 
-func parseMemRequestMB(raw string) int {
+func parseMemRequestMB(raw string, cpuCount int) int {
 	if raw == "" || raw == "N/A" {
 		return 0
 	}
-	// Slurm may append c/n for per-cpu/per-node semantics; we treat value as MB-equivalent scalar.
+	// Slurm appends c/n for per-CPU/per-node memory requests.
 	last := raw[len(raw)-1]
 	unit := byte(0)
 	numPart := raw
+	perCPU := last == 'c' || last == 'C'
 	switch last {
 	case 'c', 'C', 'n', 'N':
 		numPart = raw[:len(raw)-1]
@@ -403,18 +369,23 @@ func parseMemRequestMB(raw string) int {
 		numPart = numPart[:len(numPart)-1]
 	}
 	value := parseInt(numPart)
+	var megabytes int
 	switch unit {
 	case 'K', 'k':
-		return value / 1024
+		megabytes = value / 1024
 	case 'M', 'm':
-		return value
+		megabytes = value
 	case 'G', 'g':
-		return value * 1024
+		megabytes = value * 1024
 	case 'T', 't':
-		return value * 1024 * 1024
+		megabytes = value * 1024 * 1024
 	default:
-		return value
+		megabytes = value
 	}
+	if perCPU && cpuCount > 0 {
+		return megabytes * cpuCount
+	}
+	return megabytes
 }
 
 func parseGPUReq(raw string) int {
@@ -430,48 +401,4 @@ func parseGPUReq(raw string) int {
 		total += parseInt(m[1])
 	}
 	return total
-}
-
-func mapToStateCounts(m map[string]int) []StateCount {
-	out := make([]StateCount, 0, len(m))
-	for state, count := range m {
-		out = append(out, StateCount{State: state, Count: count})
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Count != out[j].Count {
-			return out[i].Count > out[j].Count
-		}
-		return out[i].State < out[j].State
-	})
-	return out
-}
-
-func mapToPartitionCounts(m map[string]*PartitionCount) []PartitionCount {
-	out := make([]PartitionCount, 0, len(m))
-	for _, p := range m {
-		out = append(out, *p)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		iTotal := out[i].Running + out[i].Pending + out[i].Other
-		jTotal := out[j].Running + out[j].Pending + out[j].Other
-		if iTotal != jTotal {
-			return iTotal > jTotal
-		}
-		return out[i].Partition < out[j].Partition
-	})
-	return out
-}
-
-func mapToNameCounts(m map[string]int) []NameCount {
-	out := make([]NameCount, 0, len(m))
-	for name, count := range m {
-		out = append(out, NameCount{Name: name, Count: count})
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Count != out[j].Count {
-			return out[i].Count > out[j].Count
-		}
-		return out[i].Name < out[j].Name
-	})
-	return out
 }

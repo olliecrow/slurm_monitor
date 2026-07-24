@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"slurm_monitor/internal/slurm"
-	"slurm_monitor/internal/transport"
+	"github.com/olliecrow/slurm_monitor/internal/slurm"
+	"github.com/olliecrow/slurm_monitor/internal/transport"
 )
 
 type fakeTransport struct {
@@ -55,7 +55,7 @@ func (s *scriptedTransport) Describe() string {
 
 func TestCheckSlurmAvailabilityMissingCommands(t *testing.T) {
 	tr := fakeTransport{
-		result: transport.RunResult{Stdout: " sinfo scontrol"},
+		result: transport.RunResult{Stdout: " squeue scontrol"},
 		err:    errors.New("exit 7"),
 	}
 	err := checkSlurmAvailability(context.Background(), tr, 2*time.Second)
@@ -101,7 +101,7 @@ func TestAwaitSlurmAvailabilityStopsOnMissingCommands(t *testing.T) {
 	tr := &scriptedTransport{
 		responses: []transportResponse{
 			{
-				result: transport.RunResult{Stdout: " sinfo scontrol"},
+				result: transport.RunResult{Stdout: " squeue scontrol"},
 				err:    errors.New("exit 7"),
 			},
 			{},
@@ -124,10 +124,10 @@ func TestIsMissingSlurmCommandError(t *testing.T) {
 	if isMissingSlurmCommandError(nil) {
 		t.Fatalf("expected false for nil error")
 	}
-	if isMissingSlurmCommandError(errors.New("missing required Slurm commands on fake: sinfo")) {
+	if isMissingSlurmCommandError(errors.New("missing required Slurm commands on fake: squeue")) {
 		t.Fatalf("expected false for plain string error")
 	}
-	err := &missingSlurmCommandsError{source: "fake", missing: "sinfo"}
+	err := &missingSlurmCommandsError{source: "fake", missing: "squeue"}
 	if !isMissingSlurmCommandError(err) {
 		t.Fatalf("expected true for missingSlurmCommandsError")
 	}
@@ -179,8 +179,8 @@ func TestRunOncePrintsQueueAndUserCPUAndGPUSplit(t *testing.T) {
 	raw := strings.Join([]string{
 		"NodeName=node001 State=IDLE CPUTot=64 CPUAlloc=32 CPULoad=16.00 RealMemory=256000 AllocMem=128000 FreeMem=96000 Partitions=main CfgTRES=cpu=64,mem=256000M,billing=64,gres/gpu=4 AllocTRES=cpu=32,mem=128000M,billing=32,gres/gpu=2",
 		"__SLURM_MONITOR_SPLIT__",
-		"1001|RUNNING|alice|8|20G|cpu=8,mem=20G,gres/gpu=1|train|jobA|None",
-		"1002|PENDING|alice|4|10G|N/A|train|jobB|Priority",
+		"1001|RUNNING|alice|8|20G|cpu=8,mem=20G,gres/gpu=1",
+		"1002|PENDING|alice|4|10G|cpu=4,mem=10G",
 	}, "\n")
 	collector := slurm.NewCollector(fakeTransport{
 		result: transport.RunResult{Stdout: raw},

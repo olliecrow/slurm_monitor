@@ -1,347 +1,97 @@
 # Durable decisions
 
-These records keep cross-cutting product rationale that is not clearer in code, tests, the specification, or the architecture document.
+This file records cross-cutting rationale that is not clearer in code, tests, the specification, or the architecture document.
 
-Decision:
-Use Go as the implementation language.
-Context:
-The project needs a fast terminal app for macOS and Linux only, stable static binaries, and robust process/SSH orchestration.
-Rationale:
-Go offers a strong CLI/TUI ecosystem (`cobra`, `bubbletea`), good operational ergonomics, and straightforward subprocess/network concurrency.
-Trade-offs:
-Less strict type-level guarantees than Rust; parser/data modeling discipline must come from tests and code review. Windows is intentionally unsupported.
-Enforcement:
-Initialize Go module and keep implementation in Go packages.
-References:
-`docs/spec.md`, `docs/architecture.md`.
+## Use Go on macOS and Linux
 
-Decision:
-Use the system `ssh` client for remote transport instead of implementing SSH protocol directly in-process.
-Context:
-The tool must support aliases, ProxyJump/bastions, user@host shorthand, and existing SSH config/auth flows.
-Rationale:
-System `ssh` already handles host key checking, config resolution, jump hosts, key agents, and auth prompts reliably across environments.
-Trade-offs:
-Depends on external binary behavior and command-line invocation discipline; requires careful stderr parsing and timeout handling.
-Enforcement:
-Remote transport layer shells out to `ssh` with explicit options/timeouts and reconnection policy.
-References:
-`docs/spec.md` (remote mode), `docs/architecture.md` (transport manager).
+The project needs a responsive terminal application, straightforward process orchestration, and easily distributed binaries. Go provides suitable CLI/TUI libraries and simple concurrency without adding a more complex runtime or build toolchain.
 
-Decision:
-Startup is fail-fast only for non-recoverable capability/argument failures; transient transport failures retry automatically.
-Context:
-User wants explicit errors for wrong host selection (or local mode without Slurm) rather than silent degraded behavior.
-Rationale:
-Fail-fast for missing Slurm tools and permanent SSH/auth/configuration errors reduces false confidence and avoids rendering stale/empty data as if monitoring were active. Retrying transient transport failures improves resilience on unreliable networks.
-Trade-offs:
-Partially configured hosts still fail immediately; transient startup transport failures can delay startup for a long time unless operator quits or sets `--duration`.
-Enforcement:
-Startup capability checks for required commands via `sh -lc`; immediate process exit for missing-command, permanent SSH/auth/configuration, and argument failures; retry loop for transient startup transport failures.
-References:
-`docs/spec.md` (startup checks), `internal/app/preflight_test.go`.
+Windows is intentionally unsupported. Parser and process boundaries remain covered by tests because Go provides fewer type-level guarantees than some alternatives.
 
-Decision:
-The monitor remains read-only and does not mutate Slurm state.
-Context:
-The requested scope is monitoring reliability and visibility; action controls increase risk and complexity.
-Rationale:
-Read-only design reduces blast radius and keeps operator trust high.
-Trade-offs:
-No in-TUI cancel/requeue/hold actions.
-Enforcement:
-Collector command allowlist includes read-only Slurm commands only (`sinfo`, `squeue`, `scontrol` reads).
-References:
-`docs/spec.md` (non-goals), `docs/security.md` (safety posture).
+Enforcement: keep runtime implementation in Go and preserve the macOS/Linux platform contract.
 
-Decision:
-The TUI exposes three primary data views: node summary, queue summary, and per-user view.
-Context:
-The monitoring objective requires high-level cluster state plus clear per-user queue attribution without requiring job mutation controls.
-Rationale:
-Keeping these three views visible keeps the display focused and readable while covering operator needs.
-Trade-offs:
-Job-level drill-down is not part of the default panel set.
-Enforcement:
-TUI layout includes a node panel plus a combined queue panel containing queue and user sections, with corresponding collectors/aggregators.
-References:
-`docs/spec.md` (Runtime Data Contract), `internal/slurm/`, `internal/tui/`.
+References: `go.mod`, `docs/spec.md`, `docs/architecture.md`.
 
-Decision:
-SSH authentication follows standard SSH mechanisms and excludes password CLI flags.
-Context:
-The tool must support aliases, `user@host`, and bastion paths while preserving secret safety.
-Rationale:
-Using existing SSH config/agent/key flows preserves compatibility and avoids credential leakage risks.
-Trade-offs:
-Users without configured SSH auth must configure SSH externally instead of passing passwords to the tool.
-Enforcement:
-CLI target handling accepts alias or `user@host`; authentication is delegated to OpenSSH config/agent/keys only.
-References:
-`docs/spec.md` (CLI Contract, Remote Resilience Contract), `docs/security.md` (SSH/auth policy).
+## Use system OpenSSH and POSIX `sh`
 
-Decision:
-Queue and per-user counts use Slurm job-array task granularity.
-Context:
-Collapsed array rows in default `squeue` output under-count pending/running jobs and pending CPU/GPU demand for array-heavy workloads.
-Rationale:
-Using `squeue -r` expands array tasks so each task is counted as one job and pending demand reflects the real schedulable workload.
-Trade-offs:
-Array-expanded output is larger and can slightly increase parse/load costs.
-Enforcement:
-Collector command uses `squeue -h -r`; parsing/aggregation sums per-line task demand; regression test guards presence of `-r`.
-References:
-`internal/slurm/collector.go`, `internal/slurm/parse.go`, `internal/slurm/collector_test.go`, `docs/spec.md` (Runtime Data Contract).
+Remote mode must honor existing host aliases, ProxyJump routes, host-key checks, agents, keys, and SSH configuration. The system `ssh` client already implements those contracts; an embedded SSH stack would duplicate them and risk behaving differently from an operator's normal connection.
 
-Decision:
-Node CPU/memory utilization reflects raw Slurm node metrics without synthetic smoothing/interpolation.
-Context:
-On some clusters these fields refresh slowly, making percentages appear static over short windows even while polling is healthy.
-Rationale:
-Displaying source-of-truth values avoids inventing activity that Slurm does not report and keeps monitor semantics transparent.
-Trade-offs:
-Short-term visual movement can be low during stable periods; users may perceive slower change despite active refresh.
-Enforcement:
-UI refresh indicators (heartbeat clock, last-update age, status spinner) show liveness independently of metric movement; node utilization comes directly from parsed Slurm node fields.
-References:
-`internal/slurm/parse.go`, `internal/tui/model.go`, `docs/architecture.md` (Optional metrics), `docs/spec.md` (TUI Behavior).
+Local and remote commands use `sh -lc`. The command strings are simple and POSIX-compatible, so requiring Bash would add an unnecessary dependency.
 
-Decision:
-Use POSIX `sh` for local and remote command execution instead of assuming `bash`.
-Context:
-The monitor executes simple shell command strings locally and remotely, and the supported platforms are macOS and Linux where POSIX `sh` is standard.
-Rationale:
-Using `sh -lc` removes an unnecessary undeclared Bash dependency while preserving the existing command contract.
-Trade-offs:
-Shell snippets must remain POSIX-compatible; Bash-specific features are intentionally out of scope.
-Enforcement:
-Local and SSH transports invoke `sh -lc`; doctor and dry-run wording reference `sh`.
-References:
-`internal/transport/local.go`, `internal/transport/ssh.go`, `internal/app/preflight.go`, `README.md`, `docs/spec.md`.
+No password flag is provided. Authentication stays in standard OpenSSH configuration, agents, and keys.
 
-Decision:
-Treat displayed GPU percentage as allocation percentage, not live device utilization.
-Context:
-The collector derives the GPU percentage from `GPUAlloc/GPUTotal`, which reflects allocation saturation rather than runtime activity on the device.
-Rationale:
-Explicit labeling prevents operators from reading scheduler allocation as hardware utilization.
-Trade-offs:
-The UI is more precise but slightly more verbose.
-Enforcement:
-Wide node-table header labels the column as `gpu alloc%`; docs describe the percentage as allocation-derived.
-References:
-`internal/slurm/parse.go`, `internal/tui/model.go`, `docs/spec.md`, `docs/architecture.md`.
+Enforcement: local and SSH transports invoke `sh -lc`; SSH options preserve standard configuration while adding timeouts, keepalives, and connection reuse.
 
-Decision:
-Stop infinite retries on permanent startup/runtime failures and keep the last good snapshot visible.
-Context:
-Long-running monitoring sessions need automatic recovery from flaky transport failures, but auth/configuration/parser-contract failures are not helped by retrying forever.
-Rationale:
-Separating retryable from permanent failures preserves resilience while making real operator-action items obvious.
-Trade-offs:
-Retry classification depends on known transport signals and may need occasional extension if SSH surfaces new message variants.
-Enforcement:
-Startup preflight uses retry classification before backoff; runtime loop enters a disconnected state and stops scheduling retries after non-retryable failures.
-References:
-`internal/transport/transport.go`, `internal/app/app.go`, `internal/monitor/monitor.go`, `docs/spec.md`, `docs/architecture.md`.
+References: `internal/transport/`, `internal/config/config.go`, `docs/security.md`.
 
-Decision:
-CLI help is first-class and self-contained.
-Context:
-Operators often launch the tool from terminals where docs may not be open; usage and failure guidance must be discoverable in-command.
-Rationale:
-Rich `--help` output and parse-error hints reduce onboarding friction and prevent avoidable misconfiguration loops.
-Trade-offs:
-Help text requires maintenance when flags/behavior change.
-Enforcement:
-Argument parser exposes a dedicated help path; main handles help with zero-exit output; parse errors include a direct `--help` hint.
-References:
-`internal/config/config.go`, `internal/config/config_test.go`, `cmd/slurm-monitor/main.go`, `docs/spec.md` (CLI Contract).
+## Keep all Slurm access read-only
 
-Decision:
-Add explicit `doctor` and `dry-run` commands alongside monitor mode.
-Context:
-Operators need a fast way to validate setup and understand execution flow before starting a long live monitor session.
-Rationale:
-Dedicated helper commands keep onboarding simple, improve troubleshooting, and avoid accidental long-running sessions when users only need validation or preview.
-Trade-offs:
-CLI surface area is slightly larger and requires docs/tests to stay aligned.
-Enforcement:
-Argument parsing supports `doctor` and `dry-run`; `doctor` reports pass/fail from non-mutating preflight checks; `dry-run` prints planned stages and executes no transport commands.
-References:
-`internal/config/config.go`, `internal/app/preflight.go`, `internal/app/preflight_test.go`, `docs/spec.md` (Helper Command Behavior).
+The product is an observability surface, not a cluster control plane. Queue mutation would increase operational risk and expand the authentication, confirmation, and recovery model.
 
-Decision:
-Preserve composite node state qualifiers and prioritize node-summary health alerts for `DOWN`/`DRAIN`.
-Context:
-Collapsing node states to base values (for example showing `MIXED` instead of `MIXED+DRAIN`) hid scheduler-critical conditions and could mislead operators when jobs were blocked by maintenance/drain status.
-Rationale:
-Displaying full composite state makes scheduler constraints explicit, and placing a red health alert in the node summary keeps the warning next to node evidence while keeping the header focused on liveness.
-Trade-offs:
-Composite states consume more horizontal space; wide-mode state column was widened to reduce truncation. Header omits duplicate alerts by design.
-Enforcement:
-Node-state parsing preserves `+DRAIN`/`+DOWN` qualifiers (only cosmetic `*` is stripped). Node summary renders a `node alert` line when any nodes are `DOWN` or `DRAIN`. Header does not render node alert badges.
-References:
-`internal/slurm/parse.go`, `internal/slurm/parse_test.go`, `internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`, `docs/architecture.md`.
+Enforcement: runtime commands are limited to `squeue` and read-only `scontrol` queries. The CLI and TUI expose no cancel, requeue, hold, release, or submit actions.
 
-Decision:
-TUI mode is read-only and non-interactive by design.
-Context:
-The monitor is intended as an observability surface, not an in-terminal control plane.
-Rationale:
-Keeping TUI read-only and non-interactive reduces operator risk and keeps the interface simple.
-Trade-offs:
-No action controls from the TUI.
-Enforcement:
-- TUI does not expose mutating commands.
-- Bottom status line shows `Ctrl+C to exit` as the only interaction hint.
+References: `internal/slurm/collector.go`, `docs/spec.md`, `docs/security.md`.
 
-Decision:
-Constrain TUI row density and frame width to terminal-aware bounds, and surface explicit hidden-row indicators for large node/user tables.
-Context:
-Large clusters (many nodes/users) can produce oversized tables that risk terminal wrapping/scroll artifacts and unstable rendering in full-screen TUIs.
-Rationale:
-Deterministic row caps plus explicit `top X/Y, +N hidden` labels keep the display stable across different cluster sizes and terminal dimensions while preserving operator context.
-Trade-offs:
-Not all rows are shown at once in constrained terminals; operators must widen/resize terminal to view more rows.
-Enforcement:
-- Node/user row rendering applies terminal-aware upper bounds.
-- Section titles include hidden-row metadata when clipping occurs.
-- Node summary always retains alert + `TOTAL` lines.
-- If final viewport clipping still occurs, last visible row is replaced with `... output clipped to terminal height ...`.
-- Tests cover capped node/user labels and stable frame width behavior.
-References:
-`internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`.
+## Fail fast only when retry cannot help
 
-Decision:
-Apply per-panel line budgeting so node alert and `TOTAL` remain visible even in tight terminal layouts.
-Context:
-Global height caps alone can still clip required node-summary lines when panel borders/padding and long labels consume extra rows.
-Rationale:
-Budgeting from panel content height keeps rendering deterministic across varying terminal sizes while preserving critical operator signals.
-Trade-offs:
-Very small terminals may show zero per-node rows while still showing section title, alert, and aggregate totals.
-Enforcement:
-- Node panel computes mandatory-line budget (`title`, optional `node alert`, `TOTAL`) before allocating per-node rows.
-- Queue panel computes remaining line budget for user rows and always shows hidden-count metadata when rows are dropped.
-- When panel budget allows zero visible rows, user-view header uses hidden-only labeling (for example `+N hidden`) instead of `top 0/N`.
-- Generated table lines are width-fitted to panel content width to prevent wrap-driven vertical drift.
-- Tests cover tight-height behavior for node alert + `TOTAL` preservation and hidden-user indicators.
-References:
-`internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`.
+Invalid arguments, missing capabilities, permanent SSH/auth/configuration failures, shell-contract failures, and parser-contract failures require operator or code changes. Retrying them indefinitely hides the real problem.
 
-Decision:
-Add a top-level completion command and include it in canonical help text.
-Context:
-Operators repeatedly run `slurm-monitor` in shells where tab completion and direct in-command guidance reduce setup friction.
-Rationale:
-`slurm-monitor completion [bash|zsh]` provides practical tab-completion installation without changing monitor/doctor/dry-run behavior.
-Trade-offs:
-Completion scripts are static and require updates if command/flag surfaces change.
-Enforcement:
-- `cmd/slurm-monitor/main.go` intercepts `completion` and prints shell script output or completion help.
-- `internal/config.HelpText()` documents completion usage and examples.
-- Tests cover completion script generation and help-text inclusion.
-References:
-`cmd/slurm-monitor/main.go`, `cmd/slurm-monitor/main_test.go`, `internal/config/config.go`, `internal/config/config_test.go`, `README.md`
+Transient transport failures should recover automatically. During recovery, the last good snapshot remains visible with explicit stale and retry state. Startup and runtime retries are unbounded unless the operator quits or sets `--duration`.
 
-Decision:
-Use explicit startup `loading` status in the TUI header before first snapshot.
-Context:
-Initial polling previously surfaced as `reconnecting`, which conflated clean startup with transport recovery.
-Rationale:
-Operators should distinguish normal warmup from retry/recovery conditions.
-Trade-offs:
-Slightly broader status vocabulary in the header.
-Enforcement:
-- Header status renders `loading` when no snapshot exists and no fetch error is present.
-- Retry and recovery states remain `reconnecting` / `disconnected, recovering`.
-References:
-`internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`
+Enforcement: typed missing-command errors and transport retry classification gate bounded exponential backoff; permanent runtime failures leave the TUI disconnected until exit.
 
-Decision:
-Use layered secret/public-path policy enforcement across local hooks, CI, and lightweight protected `main` settings that still allow direct personal pushes.
-Context:
-The repository is treated as open-source-ready and must block obvious leakage in code, commit metadata, and PR metadata while preserving a direct-to-`main` personal workflow.
-Rationale:
-No single guardrail is sufficient. Combining local hooks, CI checks, secret scanning push protection, and branch-protection safeguards around force-push/delete minimizes accidental leaks while keeping tooling lightweight for a personal repository.
-Trade-offs:
-Without required PR/status-check merge gates, enforcement for direct `main` pushes depends on local hooks and GitHub secret scanning/push-protection rather than non-bypassable required checks.
-Enforcement:
-- `pre-commit` hooks run `gitleaks` on staged content.
-- `commit-msg` and `pre-push` hooks scan commit metadata and outbound diffs/messages for sensitive patterns.
-- GitHub Actions job `security-policy` re-checks history, commit messages, and PR title/body on pushes and PRs.
-- GitHub secret scanning and push protection are enabled.
-- `main` branch protection disallows force-push/deletion while allowing direct pushes.
-References:
-`.pre-commit-config.yaml`, `.gitleaks.toml`, `scripts/security/check-sensitive-text.sh`, `scripts/security/check-push-range.sh`, `.github/workflows/security-policy.yml`, `docs/security.md`.
+References: `internal/app/app.go`, `internal/monitor/monitor.go`, `internal/transport/transport.go`, `docs/architecture.md`.
 
-Decision:
-Use panel-budget row capacity directly instead of static per-height row caps.
-Context:
-Static node/user row caps could hide rows early on roomy terminals despite available panel height.
-Rationale:
-Row visibility should be constrained by actual rendered panel budget, not coarse global caps.
-Trade-offs:
-Tall terminals can show more rows, increasing visual density.
-Enforcement:
-- Queue/user and node tables derive visible rows from per-panel content budget and mandatory-line rules.
-- Hidden-row indicators appear only when panel-budget clipping is truly required.
-References:
-`internal/tui/model.go`, `internal/tui/model_test.go`
+## Count array tasks and use Slurm TRES as the resource source
 
-Decision:
-Keep header status compact by placing clock and refresh-age chips on the top line and removing UTC/refresh-cadence duplicates.
-Context:
-Header previously consumed extra vertical space and duplicated timing context (`clock`, `refresh cadence`, and right-side UTC wall time).
-Rationale:
-A single compact status row preserves key liveness context while freeing vertical rows for node/queue panels.
-Trade-offs:
-Absolute UTC wall-clock text is no longer shown in the header.
-Enforcement:
-- Top header row renders `source`, `clock`, and `refresh` age chips before right-aligned connectivity status.
-- Header omits `refresh <interval>` and UTC timestamp text.
-- Error details render on a second line only when an error is present.
-References:
-`internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`
+Collapsed job-array rows undercount schedulable work. `squeue -r` expands tasks so queue and user job counts reflect task granularity.
 
-Decision:
-Queue and user views should show CPU-job and GPU-job splits directly for both running and pending jobs.
-Context:
-The user asked to remove the old aggregate `pending` column and replace the old `running` column with separate CPU and GPU columns. The same split is also useful in the queue summary above the user table.
-Rationale:
-Showing the split directly makes the table more useful without making the user infer job type from a single total. The old aggregate columns can be worked out from the split when needed.
-The labels must also make clear that these are job counts. Without that, users can read `runningGPU` or `pendingCPU` as resource totals instead of counts of CPU jobs, GPU jobs, or expanded array tasks.
-In the wide user table, use `{running/pending}{CPU/GPU}` headers: `runningCPU`, `runningGPU`, `pendingCPU`, and `pendingGPU`.
-Trade-offs:
-The queue section uses more rows, so tight layouts need to guard user-section visibility more carefully.
-Enforcement:
-`internal/slurm/parse.go` fills running and pending CPU-job/GPU-job counts for queue and user summaries. `internal/tui/model.go` renders queue summary rows and user headers with explicit running/pending CPU/GPU wording so the split is read as job or array-task counts, not held resource totals. Wide user-table tests assert the `{running/pending}{CPU/GPU}` headers. `internal/app/app.go` prints the same split in `--once` output. Tests cover the parser, TUI, and one-shot output.
-References:
-`internal/slurm/parse.go`, `internal/tui/model.go`, `internal/app/app.go`, `internal/slurm/parse_test.go`, `internal/tui/model_test.go`, `internal/app/app_test.go`, `docs/spec.md`
+CPU/GPU resource totals come from `tres-alloc`, which is the Slurm field for allocated or requested TRES. Some pending rows omit TRES detail, so the collector may use cached `scontrol show job` data for the affected root job. That fallback is limited to four probes per collection and one shared command-timeout budget so missing detail cannot create an unbounded poll.
 
-Decision:
-Per-user rows should show job splits, and default ordering should favor current holders over pure pending demand.
-Context:
-For live cluster use, users often want current large holders to remain near the top. Pending-heavy users can hide active large holders when the table is clipped.
-Rationale:
-Sorting by current held resources keeps the most important active rows visible first while still using pending demand as a tie-breaker. The TUI user table itself stays focused on CPU-job/GPU-job counts to avoid a wide, cluttered layout.
-Trade-offs:
-Held CPU/GPU totals are still collected and printed in `--once`, but they are not shown as user-table columns in the TUI.
-Enforcement:
-`internal/slurm/parse.go` records per-user running CPU/GPU totals, `internal/slurm/user_sort.go` orders rows by current held resources first, `internal/tui/model.go` renders only job-split columns in the user table, and `internal/app/app.go` keeps held totals in `--once` output.
-References:
-`internal/slurm/parse.go`, `internal/slurm/user_sort.go`, `internal/tui/model.go`, `internal/app/app.go`, `docs/spec.md`
+Enforcement: the collector command includes `squeue -r` and `tres-alloc`; tests lock the command shape, fallback conditions, and probe limit.
 
-Decision:
-Use Slurm `tres-alloc` as the main source for queue CPU/GPU resource totals.
-Context:
-The old `%b` field is not a clear or reliable source for the held CPU/GPU totals shown next to node totals. That made queue-side resource math easier to misread and harder to verify.
-Rationale:
-`tres-alloc` is the documented Slurm field for requested or allocated job resources. Using it keeps queue resource totals lined up with node totals and gives a clearer parse contract than `%b`.
-Trade-offs:
-Pending GPU details can still be missing on some rows, so the collector keeps a small `scontrol show job` fallback for those cases.
-Enforcement:
-`internal/slurm/collector.go` requests `tres-alloc`, `internal/slurm/parse.go` parses CPU/GPU totals from it, and tests lock in the command shape and output totals. `--once` prints queue job counts and queue resource totals as separate lines.
-References:
-`internal/slurm/collector.go`, `internal/slurm/collector_test.go`, `internal/slurm/parse.go`, `internal/slurm/parse_test.go`, `internal/app/app.go`, `internal/app/app_test.go`, `docs/spec.md`, `docs/architecture.md`
+References: `internal/slurm/collector.go`, `internal/slurm/collector_test.go`, `internal/slurm/parse.go`.
+
+## Preserve source metric semantics
+
+Node CPU load and free-memory values come directly from Slurm. They are not smoothed or interpolated because synthetic movement would misrepresent scheduler data.
+
+GPU percentage is allocation saturation (`GPUAlloc/GPUTotal`), not live device activity. The UI labels it `gpu alloc%`.
+
+Enforcement: parsers retain raw Slurm-derived values and availability flags; UI labels and tests distinguish allocation from utilization.
+
+References: `internal/slurm/parse.go`, `internal/tui/model.go`, `docs/spec.md`.
+
+## Keep the TUI focused, terminal-bounded, and non-interactive
+
+The display has three data views: node summary, queue summary, and per-user summary. It uses two stacked panels so these views remain visible without navigation.
+
+Panel-content budgets determine visible rows. Hidden-row metadata is explicit, and node alerts plus the aggregate `TOTAL` row take priority over per-node rows. This prevents large clusters or small terminals from causing wrapping, scrolling, or silent loss of critical health information.
+
+The header distinguishes initial loading, connected operation, transient recovery, and permanent disconnection. A clock, refresh age, and status spinner show liveness even when cluster metrics are unchanged.
+
+Enforcement: one budget-aware render path handles normal and compact layouts; viewport tests cover resizing, clipping metadata, alerts, totals, and footer placement.
+
+References: `internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`.
+
+## Show CPU-job and GPU-job splits directly
+
+Running and pending counts are separated into CPU-job and GPU-job columns. Explicit job wording prevents the counts from being mistaken for CPU or GPU resource totals.
+
+Per-user ordering favors current GPU and CPU holders, then current job counts, pending GPU/CPU demand, pending job counts, pending memory, and username. This keeps active large holders visible when the terminal clips rows while retaining deterministic tie-breakers.
+
+Held CPU/GPU totals remain in `--once` output but not in the TUI user table, where they would make the layout too wide.
+
+Enforcement: the parser stores the four canonical job counts; aggregate totals are derived from them rather than stored separately.
+
+References: `internal/slurm/types.go`, `internal/slurm/user_sort.go`, `internal/tui/model.go`, `internal/app/app.go`.
+
+## Keep help and preflight behavior available in the CLI
+
+Operators may need to understand behavior without opening repository documentation. `--help` therefore describes modes, flags, retry behavior, authentication, and examples.
+
+`doctor` performs one non-mutating capability pass. `dry-run` prints the resolved execution plan without invoking local or remote commands. `completion` emits static Bash or Zsh completion text.
+
+Enforcement: command parsing and output tests keep helper behavior aligned with the main CLI.
+
+References: `cmd/slurm-monitor/main.go`, `internal/config/config.go`, `internal/app/preflight.go`, `docs/spec.md`.

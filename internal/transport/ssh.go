@@ -51,18 +51,15 @@ func (t *SSHTransport) Run(ctx context.Context, command string) (RunResult, erro
 	err := cmd.Run()
 	result := RunResult{
 		Stdout: outBuf.String(),
-		Stderr: errBuf.String(),
 	}
 	if err == nil {
 		return result, nil
 	}
 
 	runErr := &RunError{
-		Command: command,
-		Target:  t.Describe(),
-		Stdout:  result.Stdout,
-		Stderr:  result.Stderr,
-		Err:     err,
+		Target: t.Describe(),
+		Stderr: errBuf.String(),
+		Err:    err,
 	}
 
 	var exitErr *exec.ExitError

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"slurm_monitor/internal/config"
-	"slurm_monitor/internal/transport"
+	"github.com/olliecrow/slurm_monitor/internal/config"
+	"github.com/olliecrow/slurm_monitor/internal/transport"
 )
 
 func TestRunDoctorWithDepsLocalPass(t *testing.T) {
@@ -41,7 +41,6 @@ func TestRunDoctorWithDepsLocalPass(t *testing.T) {
 	required := []string{
 		"slurm-monitor doctor",
 		"[ok] local tool sh",
-		"[ok] local tool sinfo",
 		"[ok] local tool squeue",
 		"[ok] local tool scontrol",
 		"doctor result: PASS",
@@ -112,7 +111,7 @@ func TestRunDryRunLocal(t *testing.T) {
 	required := []string{
 		"slurm-monitor dry-run",
 		"mode: local",
-		"Run a local preflight check for sh, sinfo, squeue, and scontrol.",
+		"Run a local preflight check for sh, squeue, and scontrol.",
 		"dry-run only: no local or remote commands were executed.",
 	}
 	for _, item := range required {

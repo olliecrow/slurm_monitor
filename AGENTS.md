@@ -8,7 +8,7 @@
 
 ## Product and safety contracts
 
-- Keep Slurm access strictly read-only. The command allowlist is limited to `sinfo`, `squeue`, and read-only `scontrol` queries; do not add queue mutation controls.
+- Keep Slurm access strictly read-only. The command allowlist is limited to `squeue` and read-only `scontrol` queries; do not add queue mutation controls.
 - Preserve local and system-OpenSSH transports, POSIX `sh -lc`, standard SSH config/agent/key behavior, aliases, `user@host`, ProxyJump, and optional identity/config/port overrides. Never accept password flags or persist credentials.
 - Fail fast for invalid arguments, missing capabilities, and permanent auth/config/parser failures. Retry only transient transport failures, keep the last good snapshot visible, and retain explicit stale/recovery state.
 - Count arrays at task granularity with `squeue -r`; use Slurm `tres-alloc` for queue CPU/GPU totals and keep the bounded job-detail fallback where required.

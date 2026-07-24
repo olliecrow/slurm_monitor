@@ -27,14 +27,11 @@ func TestParseNodeLineBasic(t *testing.T) {
 
 func TestParseQueueLines(t *testing.T) {
 	raw := "" +
-		"1001|RUNNING|alice|8|20G|cpu=8,mem=20G,gres/gpu=1|train|jobA|None\n" +
-		"1002|PENDING|alice|4|10G|N/A|train|jobB|Priority\n" +
-		"1003|COMPLETING|bob|2|5000M|cpu=2,mem=5000M,gres/gpu=2|dev|jobC|None\n" +
-		"1004|PENDING|carol|1|4G|N/A|dev|jobD|Resources\n"
+		"1001|RUNNING|alice|8|20G|cpu=8,mem=20G,gres/gpu=1\n" +
+		"1002|PENDING|alice|4|10G|N/A\n" +
+		"1003|COMPLETING|bob|2|5000M|cpu=2,mem=5000M,gres/gpu=2\n" +
+		"1004|PENDING|carol|1|4G|N/A\n"
 	queue, users := parseQueueLines(raw, nil)
-	if queue.Running != 2 || queue.Pending != 2 {
-		t.Fatalf("unexpected queue counts: running=%d pending=%d", queue.Running, queue.Pending)
-	}
 	if queue.RunningCPUJobs != 0 || queue.RunningGPUJobs != 2 {
 		t.Fatalf("unexpected queue running cpu/gpu job split: %d/%d", queue.RunningCPUJobs, queue.RunningGPUJobs)
 	}
@@ -74,31 +71,11 @@ func TestParseQueueLines(t *testing.T) {
 	if carol.PendingCPUJobs != 1 || carol.PendingGPUJobs != 0 {
 		t.Fatalf("unexpected carol pending cpu/gpu job split: %d/%d", carol.PendingCPUJobs, carol.PendingGPUJobs)
 	}
-	for _, u := range users {
-		if u.RunningCPUJobs+u.RunningGPUJobs != u.Running {
-			t.Fatalf("running cpu/gpu jobs must sum to running for %s: cpu=%d gpu=%d running=%d", u.User, u.RunningCPUJobs, u.RunningGPUJobs, u.Running)
-		}
-		if u.PendingCPUJobs+u.PendingGPUJobs != u.Pending {
-			t.Fatalf("pending cpu/gpu jobs must sum to pending for %s: cpu=%d gpu=%d pending=%d", u.User, u.PendingCPUJobs, u.PendingGPUJobs, u.Pending)
-		}
-	}
-	if queue.RunningCPUJobs+queue.RunningGPUJobs != queue.Running {
-		t.Fatalf("queue running cpu/gpu jobs must sum to running: cpu=%d gpu=%d running=%d", queue.RunningCPUJobs, queue.RunningGPUJobs, queue.Running)
-	}
-	if queue.PendingCPUJobs+queue.PendingGPUJobs != queue.Pending {
-		t.Fatalf("queue pending cpu/gpu jobs must sum to pending: cpu=%d gpu=%d pending=%d", queue.PendingCPUJobs, queue.PendingGPUJobs, queue.Pending)
+	if queue.TotalJobs() != 4 {
+		t.Fatalf("unexpected total jobs: %d", queue.TotalJobs())
 	}
 	if queue.ResourceLoad.RunningGPU != 3 {
 		t.Fatalf("unexpected running gpu total: %d", queue.ResourceLoad.RunningGPU)
-	}
-	if len(queue.ByState) == 0 || len(queue.ByPartition) == 0 {
-		t.Fatalf("expected non-empty queue mix summaries")
-	}
-	if len(queue.ByJobName) == 0 {
-		t.Fatalf("expected job name mix")
-	}
-	if len(queue.PendingCause) == 0 {
-		t.Fatalf("expected pending causes")
 	}
 }
 
@@ -109,14 +86,17 @@ func TestParseMemFromTRES(t *testing.T) {
 }
 
 func TestParseMemRequestMB(t *testing.T) {
-	if got := parseMemRequestMB("20G"); got != 20480 {
+	if got := parseMemRequestMB("20G", 1); got != 20480 {
 		t.Fatalf("unexpected mem request: %d", got)
 	}
-	if got := parseMemRequestMB("245090M"); got != 245090 {
+	if got := parseMemRequestMB("245090M", 1); got != 245090 {
 		t.Fatalf("unexpected mem request: %d", got)
 	}
-	if got := parseMemRequestMB("500Mc"); got != 500 {
-		t.Fatalf("unexpected mem request with suffix: %d", got)
+	if got := parseMemRequestMB("500Mc", 4); got != 2000 {
+		t.Fatalf("unexpected per-cpu mem request: %d", got)
+	}
+	if got := parseMemRequestMB("500Mn", 4); got != 500 {
+		t.Fatalf("unexpected per-node mem request: %d", got)
 	}
 }
 
@@ -134,15 +114,15 @@ func TestParseGPUReq(t *testing.T) {
 
 func TestPendingGPUJobsClassifiedByGPURequest(t *testing.T) {
 	raw := "" +
-		"2001|PENDING|alice|8|20G|cpu=8,mem=20G,gres/gpu=2|train|gpuJob|Resources\n" +
-		"2002|PENDING|alice|4|10G|N/A|train|cpuJob|Priority\n"
+		"2001|PENDING|alice|8|20G|cpu=8,mem=20G,gres/gpu=2\n" +
+		"2002|PENDING|alice|4|10G|N/A\n"
 	_, users := parseQueueLines(raw, nil)
 	if len(users) != 1 {
 		t.Fatalf("expected one user, got %d", len(users))
 	}
 	u := users[0]
-	if u.Pending != 2 {
-		t.Fatalf("expected 2 pending, got %d", u.Pending)
+	if u.PendingJobs() != 2 {
+		t.Fatalf("expected 2 pending, got %d", u.PendingJobs())
 	}
 	if u.RunningCPUJobs != 0 || u.RunningGPUJobs != 0 {
 		t.Fatalf("expected no running jobs, got cpu/gpu %d/%d", u.RunningCPUJobs, u.RunningGPUJobs)
@@ -154,17 +134,17 @@ func TestPendingGPUJobsClassifiedByGPURequest(t *testing.T) {
 
 func TestPendingGPUJobsFallbackByRootJobMap(t *testing.T) {
 	raw := "" +
-		"37820_1|PENDING|alice|4|64G|N/A|train|mercantile|Priority\n" +
-		"37820_2|PENDING|alice|4|64G|N/A|train|mercantile|Priority\n" +
-		"37821_1|PENDING|alice|4|64G|N/A|train|cpuJob|Priority\n"
+		"37820_1|PENDING|alice|4|64G|N/A\n" +
+		"37820_2|PENDING|alice|4|64G|N/A\n" +
+		"37821_1|PENDING|alice|4|64G|N/A\n"
 
 	queue, users := parseQueueLines(raw, map[string]int{"37820": 2})
 	if len(users) != 1 {
 		t.Fatalf("expected one user, got %d", len(users))
 	}
 	u := users[0]
-	if u.Pending != 3 {
-		t.Fatalf("expected 3 pending jobs, got %d", u.Pending)
+	if u.PendingJobs() != 3 {
+		t.Fatalf("expected 3 pending jobs, got %d", u.PendingJobs())
 	}
 	if u.PendingGPUJobs != 2 || u.PendingCPUJobs != 1 {
 		t.Fatalf("expected pending gpu/cpu jobs 2/1, got %d/%d", u.PendingGPUJobs, u.PendingCPUJobs)

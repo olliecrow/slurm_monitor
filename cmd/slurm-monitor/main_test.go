@@ -45,3 +45,15 @@ func TestCompletionScriptRejectsUnsupportedShell(t *testing.T) {
 		t.Fatalf("expected unsupported shell error, got %v", err)
 	}
 }
+
+func TestCompletionScriptsDoNotAdvertiseUnsupportedHelpCommand(t *testing.T) {
+	for _, shell := range []string{"bash", "zsh"} {
+		script, err := completionScript(shell)
+		if err != nil {
+			t.Fatalf("completionScript(%q): %v", shell, err)
+		}
+		if strings.Contains(script, "help:") || strings.Contains(script, " monitor help") {
+			t.Fatalf("%s completion advertises unsupported help command:\n%s", shell, script)
+		}
+	}
+}

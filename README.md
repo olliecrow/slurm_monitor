@@ -25,7 +25,7 @@ Give you a clear live view of cluster health and queue state without running any
 
 - Go `1.22+`
 - POSIX `sh` available on the operator host and remote target environment
-- Slurm CLI tools available on target environment (`sinfo`, `squeue`, `scontrol`)
+- Slurm CLI tools available on target environment (`squeue`, `scontrol`)
 - OpenSSH `ssh` available for remote mode
 - supported operator platforms: macOS and Linux only
 
@@ -51,7 +51,13 @@ pre-commit run --all-files
 
 ## Quick start
 
-Build the binary.
+Install the latest public version.
+
+```bash
+go install github.com/olliecrow/slurm_monitor/cmd/slurm-monitor@latest
+```
+
+Or build from a cloned repository.
 
 ```bash
 go build ./cmd/slurm-monitor
@@ -117,7 +123,6 @@ mode: local
 target: local
 
 [ok] local tool sh: /bin/sh
-[ok] local tool sinfo: /usr/bin/sinfo
 [ok] local tool squeue: /usr/bin/squeue
 [ok] local tool scontrol: /usr/bin/scontrol
 [ok] slurm preflight: required Slurm commands are reachable on local
@@ -141,7 +146,7 @@ no-color: false
 
 planned sequence:
 1. Parse flags and build the configured transport.
-2. Run a local preflight check for sh, sinfo, squeue, and scontrol.
+2. Run a local preflight check for sh, squeue, and scontrol.
 3. Start the polling loop and render the live TUI until interrupted or duration is reached.
 4. Exit without mutating any Slurm queue or cluster state.
 
