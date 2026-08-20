@@ -66,9 +66,13 @@ type channelClosedMsg struct{}
 var pulseFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 const (
-	frameRightGutter        = 1
-	groupedSummaryNameWidth = 16
-	viewportClipText        = "... output clipped to terminal height ..."
+	frameRightGutter           = 1
+	groupedSummaryNameWidth    = 16
+	groupedSummaryColumnGaps   = 4
+	pendingReasonTaskWidth     = 14
+	pendingReasonResourceWidth = 14
+	pendingReasonColumnGaps    = 3
+	viewportClipText           = "... output clipped to terminal height ..."
 )
 
 func NewModel(opts Options) Model {
@@ -268,7 +272,7 @@ func (m Model) renderMain(maxHeight int) string {
 	contentWidth := panelContentWidth(inner)
 	expanded := !m.compact && contentWidth >= groupedSummaryMinContentWidth(m.snapshot)
 	body := m.renderInsightsPanelWithBudget(panelContentHeight(maxHeight), expanded, contentWidth)
-	return clipToHeight(m.styles.panel.Width(inner).Render(body), maxHeight)
+	return clipToHeight(m.styles.panel.Width(inner).Height(panelContentHeight(maxHeight)).Render(body), maxHeight)
 }
 
 func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, contentWidth int) string {
@@ -339,9 +343,10 @@ func (m Model) renderPendingReasonLinesWithBudget(rowBudget int, wide bool, cont
 	visibleRows := visibleRowsForBudget(len(reasons), rowBudget, tableHeader)
 	lines := []string{m.sectionTitle(viewTitle("Why jobs are pending", len(reasons), visibleRows))}
 	if tableHeader {
-		lines = append(lines, pendingReasonHeaderLine(contentWidth))
+		tableWidth := min(contentWidth, pendingReasonTableWidth(reasons[:visibleRows]))
+		lines = append(lines, pendingReasonHeaderLine(tableWidth))
 		for _, reason := range reasons[:visibleRows] {
-			lines = append(lines, pendingReasonRowLine(reason, contentWidth))
+			lines = append(lines, pendingReasonRowLine(reason, tableWidth))
 		}
 	} else {
 		for _, reason := range reasons[:visibleRows] {
@@ -419,9 +424,10 @@ func (m Model) renderPartitionLinesWithBudget(rowBudget int, wide bool, contentW
 	}
 	lines := []string{m.sectionTitle(viewTitle(title, len(partitions), visibleRows))}
 	if tableHeader {
-		lines = append(lines, groupedSummaryHeaderLine("partition", contentWidth))
+		tableWidth := min(contentWidth, groupedSummaryMinContentWidth(m.snapshot))
+		lines = append(lines, groupedSummaryHeaderLine("partition", tableWidth))
 		for _, partition := range partitions[:visibleRows] {
-			lines = append(lines, groupedSummaryRowLine(partition.Name, partition.Queue, contentWidth))
+			lines = append(lines, groupedSummaryRowLine(partition.Name, partition.Queue, tableWidth))
 		}
 	} else {
 		for _, partition := range partitions[:visibleRows] {
@@ -449,9 +455,10 @@ func (m Model) renderUserLinesWithBudget(rowBudget int, expanded bool, contentWi
 	lines := []string{m.sectionTitle(viewTitle(title, totalUsers, visibleRows))}
 
 	if tableHeader {
-		lines = append(lines, groupedSummaryHeaderLine("user", contentWidth))
+		tableWidth := min(contentWidth, groupedSummaryMinContentWidth(m.snapshot))
+		lines = append(lines, groupedSummaryHeaderLine("user", tableWidth))
 		for _, u := range visibleUsers {
-			lines = append(lines, groupedSummaryRowLine(u.User, userQueueSummary(u), contentWidth))
+			lines = append(lines, groupedSummaryRowLine(u.User, userQueueSummary(u), tableWidth))
 		}
 		lines = clipLines(lines, rowBudget)
 		return fitLinesToWidth(lines, contentWidth)
@@ -490,7 +497,6 @@ func groupedSummaryRowLine(name string, q slurm.QueueSummary, contentWidth int) 
 }
 
 func groupedSummaryMinContentWidth(snapshot *slurm.Snapshot) int {
-	const columnGaps = 4
 	metricWidth := lipgloss.Width("resources requested")
 	for _, partition := range snapshot.Partitions {
 		for _, metric := range groupedSummaryMetrics(partition.Queue) {
@@ -502,7 +508,7 @@ func groupedSummaryMinContentWidth(snapshot *slurm.Snapshot) int {
 			metricWidth = max(metricWidth, lipgloss.Width(metric))
 		}
 	}
-	return groupedSummaryNameWidth + columnGaps + 4*metricWidth
+	return groupedSummaryNameWidth + groupedSummaryColumnGaps + 4*metricWidth
 }
 
 func groupedSummaryMetrics(q slurm.QueueSummary) [4]string {
@@ -515,7 +521,7 @@ func groupedSummaryMetrics(q slurm.QueueSummary) [4]string {
 }
 
 func groupedSummaryColumnWidths(contentWidth int) (int, int) {
-	return groupedSummaryNameWidth, max(1, (contentWidth-groupedSummaryNameWidth-4)/4)
+	return groupedSummaryNameWidth, max(1, (contentWidth-groupedSummaryNameWidth-groupedSummaryColumnGaps)/4)
 }
 
 func compactGroupedSummaryRowLine(name string, q slurm.QueueSummary) string {
@@ -545,9 +551,15 @@ func compactPendingReasonSummaryLine(reason slurm.PendingReasonSummary, contentW
 }
 
 func pendingReasonColumnWidths(contentWidth int) (int, int, int) {
-	const taskWidth = 14
-	const resourceWidth = 14
-	return max(18, contentWidth-taskWidth-2*resourceWidth-3), taskWidth, resourceWidth
+	return max(18, contentWidth-pendingReasonTaskWidth-2*pendingReasonResourceWidth-pendingReasonColumnGaps), pendingReasonTaskWidth, pendingReasonResourceWidth
+}
+
+func pendingReasonTableWidth(reasons []slurm.PendingReasonSummary) int {
+	reasonWidth := 18
+	for _, reason := range reasons {
+		reasonWidth = max(reasonWidth, lipgloss.Width(reason.Reason))
+	}
+	return reasonWidth + pendingReasonTaskWidth + 2*pendingReasonResourceWidth + pendingReasonColumnGaps
 }
 
 func userQueueSummary(u slurm.UserSummary) slurm.QueueSummary {
