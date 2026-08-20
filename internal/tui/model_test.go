@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/olliecrow/slurm_monitor/internal/monitor"
@@ -33,6 +34,26 @@ func TestViewFitsViewportAcrossSizes(t *testing.T) {
 			assertViewportBounds(t, out, size.width, size.height)
 		})
 	}
+}
+
+func TestWindowResizeSwitchesResponsiveLayout(t *testing.T) {
+	model := seededModel()
+
+	resized, _ := model.Update(tea.WindowSizeMsg{Width: 72, Height: 20})
+	compact := resized.(Model)
+	compactView := compact.View()
+	if !strings.Contains(compactView, "CPU-only run") || strings.Contains(compactView, "resources in use") {
+		t.Fatalf("expected compact layout after narrowing the same model, got %q", compactView)
+	}
+	assertViewportBounds(t, compactView, 71, 20)
+
+	resized, _ = compact.Update(tea.WindowSizeMsg{Width: 115, Height: 30})
+	expanded := resized.(Model)
+	expandedView := expanded.View()
+	if !strings.Contains(expandedView, "resources in use") {
+		t.Fatalf("expected expanded layout after widening the same model, got %q", expandedView)
+	}
+	assertViewportBounds(t, expandedView, 114, 30)
 }
 
 func TestUpdateStoresLatestSnapshot(t *testing.T) {
@@ -528,6 +549,30 @@ func TestWideViewUsesPlainLabelsAndAvailableReasonWidth(t *testing.T) {
 		if strings.Contains(out, unwanted) {
 			t.Fatalf("did not expect abbreviation %q in wide view, got %q", unwanted, out)
 		}
+	}
+}
+
+func TestExpandedLayoutStartsAfterGroupedMetricsFit(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.height = 30
+	queue := slurm.QueueSummary{PendingCPUJobs: 1454, PendingGPUJobs: 98}
+	m.snapshot.Partitions = []slurm.PartitionSummary{{Name: "short", Queue: queue}}
+	m.snapshot.Users = []slurm.UserSummary{{User: "researcher", PendingCPUJobs: 1454, PendingGPUJobs: 98}}
+
+	m.width = 114
+	compact := m.View()
+	if strings.Contains(compact, "resources in use") || strings.Contains(compact, "…") {
+		t.Fatalf("expected width 114 to keep the complete compact layout, got %q", compact)
+	}
+
+	m.width = 115
+	expanded := m.View()
+	if !strings.Contains(expanded, "resources in use") || strings.Count(expanded, "CPU-only 1454, GPU 98") != 2 {
+		t.Fatalf("expected width 115 to show complete grouped metrics, got %q", expanded)
+	}
+	if strings.Contains(expanded, "…") {
+		t.Fatalf("expected width 115 grouped metrics without truncation, got %q", expanded)
 	}
 }
 
