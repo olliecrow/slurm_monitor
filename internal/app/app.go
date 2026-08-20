@@ -237,12 +237,38 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 		uifmt.Ratio(totals.GPUAlloc, totals.GPUTotal),
 	)
 
+	partitions := append([]slurm.PartitionSummary(nil), snapshot.Partitions...)
+	slurm.SortPartitionsForDisplay(partitions)
+	totalPartitions := len(partitions)
+	if len(partitions) > 10 {
+		partitions = partitions[:10]
+	}
+	fmt.Fprintf(os.Stdout, "partitions: shown=%d total=%d\n", len(partitions), totalPartitions)
+	for _, partition := range partitions {
+		q := partition.Queue
+		fmt.Fprintf(
+			os.Stdout,
+			"  - %s running_cpu_jobs=%d running_gpu_jobs=%d pending_cpu_jobs=%d pending_gpu_jobs=%d other=%d running_cpu=%d running_gpu=%d pending_cpu=%d pending_gpu=%d\n",
+			partition.Name,
+			q.RunningCPUJobs,
+			q.RunningGPUJobs,
+			q.PendingCPUJobs,
+			q.PendingGPUJobs,
+			q.Other,
+			q.ResourceLoad.RunningCPU,
+			q.ResourceLoad.RunningGPU,
+			q.ResourceLoad.PendingCPU,
+			q.ResourceLoad.PendingGPU,
+		)
+	}
+
 	users := append([]slurm.UserSummary(nil), snapshot.Users...)
 	slurm.SortUsersForDisplay(users)
+	totalUsers := len(users)
 	if len(users) > 10 {
 		users = users[:10]
 	}
-	fmt.Fprintln(os.Stdout, "users:")
+	fmt.Fprintf(os.Stdout, "users: shown=%d total=%d\n", len(users), totalUsers)
 	for _, user := range users {
 		fmt.Fprintf(
 			os.Stdout,
@@ -257,6 +283,27 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 			user.PendingCPU,
 			user.PendingGPU,
 			uifmt.MemMB(user.PendingMemMB),
+		)
+	}
+
+	jobs := append([]slurm.JobSummary(nil), snapshot.Jobs...)
+	slurm.SortJobsForDisplay(jobs)
+	totalJobs := len(jobs)
+	if len(jobs) > 10 {
+		jobs = jobs[:10]
+	}
+	fmt.Fprintf(os.Stdout, "jobs: shown=%d total=%d grouping=root+user+partition+state\n", len(jobs), totalJobs)
+	for _, job := range jobs {
+		fmt.Fprintf(
+			os.Stdout,
+			"  - %s user=%s partition=%s state=%s tasks=%d cpu=%d gpu=%d\n",
+			job.JobID,
+			job.User,
+			job.Partition,
+			job.State,
+			job.Tasks,
+			job.CPU,
+			job.GPU,
 		)
 	}
 

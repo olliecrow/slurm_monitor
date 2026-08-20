@@ -181,6 +181,57 @@ func TestQueueSummaryRendersWithoutBars(t *testing.T) {
 	}
 }
 
+func TestQueuePanelShowsPartitionUserAndGroupedJobViews(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.snapshot.Partitions = []slurm.PartitionSummary{
+		{Name: "gpu", Queue: slurm.QueueSummary{PendingGPUJobs: 2}},
+		{Name: "cpu", Queue: slurm.QueueSummary{RunningCPUJobs: 3}},
+	}
+	m.snapshot.Jobs = []slurm.JobSummary{
+		{JobID: "3001", User: "alice", Partition: "gpu", State: "PENDING", Tasks: 12, CPU: 48, GPU: 12},
+		{JobID: "3002", User: "bob", Partition: "cpu", State: "RUNNING", Tasks: 1, CPU: 8},
+	}
+
+	out := m.renderQueuePanelWithBudget(22, true, 100)
+	for _, want := range []string{"partition view", "gpu", "user view", "alice", "job view", "3001", "tasks"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q in combined insight panel, got: %q", want, out)
+		}
+	}
+}
+
+func TestQueuePanelSharesTightBudgetAcrossAllDetailViews(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.snapshot.Partitions = []slurm.PartitionSummary{{Name: "gpu"}}
+	m.snapshot.Jobs = []slurm.JobSummary{{JobID: "3001", User: "alice", Partition: "gpu", State: "PENDING", Tasks: 2}}
+
+	out := m.renderQueuePanelWithBudget(13, true, 90)
+	for _, want := range []string{"partition view", "gpu", "user view", "alice", "job view", "3001"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q in tight combined insight panel, got: %q", want, out)
+		}
+	}
+	if got := len(strings.Split(out, "\n")); got > 13 {
+		t.Fatalf("expected at most 13 lines, got %d", got)
+	}
+}
+
+func TestJobCompactStateLabelsAreUnambiguous(t *testing.T) {
+	tests := map[string]string{
+		"PENDING":     "PEND",
+		"RUNNING":     "RUN",
+		"COMPLETING":  "COMP",
+		"CONFIGURING": "CONF",
+	}
+	for state, want := range tests {
+		if got := shortJobState(state); got != want {
+			t.Fatalf("shortJobState(%q)=%q want=%q", state, got, want)
+		}
+	}
+}
+
 func TestQueueSummaryCountsStayAligned(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)

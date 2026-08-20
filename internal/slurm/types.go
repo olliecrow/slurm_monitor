@@ -51,10 +51,29 @@ type UserSummary struct {
 	PendingGPU   int
 }
 
+type PartitionSummary struct {
+	Name  string
+	Queue QueueSummary
+}
+
+// JobSummary groups array tasks from one root job when their user, partition,
+// and state match. Queue, partition, and user counts remain task-granular.
+type JobSummary struct {
+	JobID     string
+	User      string
+	Partition string
+	State     string
+	Tasks     int
+	CPU       int
+	GPU       int
+}
+
 type Snapshot struct {
 	Nodes       []Node
 	Queue       QueueSummary
+	Partitions  []PartitionSummary
 	Users       []UserSummary
+	Jobs        []JobSummary
 	CollectedAt time.Time
 }
 

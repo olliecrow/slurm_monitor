@@ -30,14 +30,15 @@ func TestParseNodeLineBasic(t *testing.T) {
 
 func TestParseQueueLines(t *testing.T) {
 	raw := "" +
-		"1001|RUNNING|alice|8|20G|cpu=8,mem=20G,gres/gpu=1\n" +
-		"1002|PENDING|alice|4|10G|N/A\n" +
-		"1003|COMPLETING|bob|2|5000M|cpu=2,mem=5000M,gres/gpu=2\n" +
-		"1004|PENDING|carol|1|4G|N/A\n"
-	queue, users, err := parseQueueLines(raw, nil)
+		"1001|RUNNING|alice|gpu|8|20G|cpu=8,mem=20G,gres/gpu=1\n" +
+		"1002|PENDING|alice|cpu|4|10G|N/A\n" +
+		"1003|COMPLETING|bob|gpu|2|5000M|cpu=2,mem=5000M,gres/gpu=2\n" +
+		"1004|PENDING|carol|cpu|1|4G|N/A\n"
+	data, err := parseQueueLines(raw, nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+	queue, users := data.Queue, data.Users
 	if queue.RunningCPUJobs != 0 || queue.RunningGPUJobs != 2 {
 		t.Fatalf("unexpected queue running cpu/gpu job split: %d/%d", queue.RunningCPUJobs, queue.RunningGPUJobs)
 	}
@@ -86,22 +87,66 @@ func TestParseQueueLines(t *testing.T) {
 }
 
 func TestParseQueueLinesRejectsMalformedRow(t *testing.T) {
-	_, _, err := parseQueueLines("1001|RUNNING|alice", nil)
+	_, err := parseQueueLines("1001|RUNNING|alice", nil)
 	if err == nil {
 		t.Fatal("expected malformed queue row error")
 	}
-	if !strings.Contains(err.Error(), "expected 6 fields, got 3") {
+	if !strings.Contains(err.Error(), "expected 7 fields, got 3") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
 func TestParseQueueLinesAcceptsTrailingDelimiter(t *testing.T) {
-	queue, _, err := parseQueueLines("1001|RUNNING|alice|8|20G|cpu=8,mem=20G,gres/gpu=1|", nil)
+	data, err := parseQueueLines("1001|RUNNING|alice|gpu|8|20G|cpu=8,mem=20G,gres/gpu=1|", nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+	queue := data.Queue
 	if queue.RunningGPUJobs != 1 || queue.ResourceLoad.RunningGPU != 1 {
 		t.Fatalf("unexpected GPU queue totals: jobs=%d resources=%d", queue.RunningGPUJobs, queue.ResourceLoad.RunningGPU)
+	}
+}
+
+func TestParseQueueLinesBuildsPartitionAndGroupedJobSummaries(t *testing.T) {
+	raw := "" +
+		"3001_1|PENDING|alice|gpu|4|16G|cpu=4,mem=16G,gres/gpu=1\n" +
+		"3001_2|PENDING|alice|gpu|4|16G|cpu=4,mem=16G,gres/gpu=1\n" +
+		"3002|RUNNING|bob|cpu|8|32G|cpu=8,mem=32G\n"
+
+	data, err := parseQueueLines(raw, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(data.Partitions) != 2 {
+		t.Fatalf("expected two partitions, got %d", len(data.Partitions))
+	}
+	partitionByName := make(map[string]PartitionSummary, len(data.Partitions))
+	for _, partition := range data.Partitions {
+		partitionByName[partition.Name] = partition
+	}
+	if got := partitionByName["gpu"].Queue.PendingGPUJobs; got != 2 {
+		t.Fatalf("expected two task-granular pending GPU jobs, got %d", got)
+	}
+	if got := partitionByName["gpu"].Queue.ResourceLoad.PendingGPU; got != 2 {
+		t.Fatalf("expected two pending GPUs in partition total, got %d", got)
+	}
+	if got := partitionByName["cpu"].Queue.RunningCPUJobs; got != 1 {
+		t.Fatalf("expected one running CPU job, got %d", got)
+	}
+
+	if len(data.Jobs) != 2 {
+		t.Fatalf("expected two grouped root jobs, got %d", len(data.Jobs))
+	}
+	jobsByID := make(map[string]JobSummary, len(data.Jobs))
+	for _, job := range data.Jobs {
+		jobsByID[job.JobID] = job
+	}
+	arrayJob := jobsByID["3001"]
+	if arrayJob.Tasks != 2 || arrayJob.CPU != 8 || arrayJob.GPU != 2 {
+		t.Fatalf("unexpected grouped array totals: %+v", arrayJob)
+	}
+	if arrayJob.User != "alice" || arrayJob.Partition != "gpu" || arrayJob.State != "PENDING" {
+		t.Fatalf("unexpected grouped array identity: %+v", arrayJob)
 	}
 }
 
@@ -151,12 +196,13 @@ func TestParseGPUCount(t *testing.T) {
 
 func TestPendingGPUJobsClassifiedByGPURequest(t *testing.T) {
 	raw := "" +
-		"2001|PENDING|alice|8|20G|cpu=8,mem=20G,gres/gpu=2\n" +
-		"2002|PENDING|alice|4|10G|N/A\n"
-	_, users, err := parseQueueLines(raw, nil)
+		"2001|PENDING|alice|gpu|8|20G|cpu=8,mem=20G,gres/gpu=2\n" +
+		"2002|PENDING|alice|cpu|4|10G|N/A\n"
+	data, err := parseQueueLines(raw, nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+	users := data.Users
 	if len(users) != 1 {
 		t.Fatalf("expected one user, got %d", len(users))
 	}
@@ -174,14 +220,15 @@ func TestPendingGPUJobsClassifiedByGPURequest(t *testing.T) {
 
 func TestPendingGPUJobsFallbackByRootJobMap(t *testing.T) {
 	raw := "" +
-		"37820_1|PENDING|alice|4|64G|N/A\n" +
-		"37820_2|PENDING|alice|4|64G|N/A\n" +
-		"37821_1|PENDING|alice|4|64G|N/A\n"
+		"37820_1|PENDING|alice|gpu|4|64G|N/A\n" +
+		"37820_2|PENDING|alice|gpu|4|64G|N/A\n" +
+		"37821_1|PENDING|alice|cpu|4|64G|N/A\n"
 
-	queue, users, err := parseQueueLines(raw, map[string]int{"37820": 2})
+	data, err := parseQueueLines(raw, map[string]int{"37820": 2})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+	queue, users := data.Queue, data.Users
 	if len(users) != 1 {
 		t.Fatalf("expected one user, got %d", len(users))
 	}
