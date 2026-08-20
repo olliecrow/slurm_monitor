@@ -246,7 +246,7 @@ func TestInsightsPanelShowsAllAggregateViews(t *testing.T) {
 	}
 
 	out := m.renderInsightsPanelWithBudget(28, true, 100)
-	for _, want := range []string{"Partitions", "gpu", "Users", "alice", "Why jobs are pending", "Resources", "tasks"} {
+	for _, want := range []string{"Partitions", "gpu", "Users", "alice", "Why jobs are pending", "Waiting for resources", "tasks"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected %q in combined insight panel, got: %q", want, out)
 		}
@@ -281,7 +281,7 @@ func TestInsightsPanelSharesTightBudgetAcrossAggregateViews(t *testing.T) {
 	}
 
 	out := m.renderInsightsPanelWithBudget(17, true, 90)
-	for _, want := range []string{"Partitions", "gpu", "Users", "alice", "Why jobs are pending", "Resources"} {
+	for _, want := range []string{"Partitions", "gpu", "Users", "alice", "Why jobs are pending", "Waiting for resources"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected %q in tight combined insight panel, got: %q", want, out)
 		}
@@ -309,12 +309,46 @@ func TestSchedulerActivityLinesExplainJobsAndResources(t *testing.T) {
 	}
 }
 
+func TestPendingReasonLabelsUsePlainLanguageAndPreserveUnknownReasons(t *testing.T) {
+	tests := map[string]string{
+		"Dependency":               "Waiting for dependency",
+		"DependencyNeverSatisfied": "Dependency cannot be satisfied",
+		"JobArrayTaskLimit":        "Job array task limit reached",
+		"Priority":                 "Waiting behind higher-priority jobs",
+		"ReqNodeNotAvail":          "Required node unavailable",
+		"ReqNodeNotAvail, Reserved for maintenance":  "Required node unavailable: Reserved for maintenance",
+		"ReqNodeNotAvail,":                           "Required node unavailable",
+		"Resources":                                  "Waiting for resources",
+		"Nodes required for job are DOWN or DRAINED": "Nodes required for job are DOWN or DRAINED",
+	}
+	for input, want := range tests {
+		if got := pendingReasonLabel(input); got != want {
+			t.Errorf("pendingReasonLabel(%q)=%q want %q", input, got, want)
+		}
+	}
+}
+
+func TestCountNounUsesSingularOnlyForOne(t *testing.T) {
+	for _, test := range []struct {
+		count int
+		want  string
+	}{
+		{count: 0, want: "0 tasks"},
+		{count: 1, want: "1 task"},
+		{count: 2, want: "2 tasks"},
+	} {
+		if got := countNoun(test.count, "task"); got != test.want {
+			t.Errorf("countNoun(%d)=%q want %q", test.count, got, test.want)
+		}
+	}
+}
+
 func TestInsightsPanelBudgetKeepsOneRowAndSpacingForEachAggregateView(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 
 	out := m.renderInsightsPanelWithBudget(13, true, 90)
-	for _, want := range []string{"Partitions", "gpu", "Users", "alice", "Why jobs are pending", "Resources"} {
+	for _, want := range []string{"Partitions", "gpu", "Users", "alice", "Why jobs are pending", "Waiting for resources"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected %q in compact insight budget, got: %q", want, out)
 		}
@@ -332,7 +366,7 @@ func TestInsightsPanelUsesSpacingForDataOnVeryTightTerminals(t *testing.T) {
 	m.styles = defaultStyles(true)
 
 	out := m.renderInsightsPanelWithBudget(9, true, 90)
-	for _, want := range []string{"gpu", "alice", "Resources"} {
+	for _, want := range []string{"gpu", "alice", "Waiting for resources"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected tight layout to retain data row %q, got %q", want, out)
 		}
@@ -559,7 +593,7 @@ func TestCompactStandardViewportUsesHeaderSpaceForData(t *testing.T) {
 	m.height = 20
 
 	out := m.View()
-	for _, want := range []string{"gpu:", "cpu:", "alice:", "bob:", "carol:", "Resources", "Priority"} {
+	for _, want := range []string{"gpu:", "cpu:", "alice:", "bob:", "carol:", "Waiting for resources", "Waiting behind higher-priority jobs"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected compact 72x20 view to include %q, got: %q", want, out)
 		}

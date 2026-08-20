@@ -172,7 +172,7 @@ dry-run only: no local or remote commands were executed.
 - `--compact`
 - `--no-color`
 - `--once`
-- `--duration <duration>`
+- `--duration <duration>` cleanly stops the monitor at its deadline, including during transient startup retries
 
 ## Known limitations
 

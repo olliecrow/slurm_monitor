@@ -60,6 +60,8 @@ The interactive display omits individual jobs because partition, user, and pendi
 
 The queue summary uses two lines when both activity groups fit together and three lines otherwise. It states total, running, pending, and non-zero other job counts, then shows CPU-only jobs, GPU jobs, CPUs, and GPUs for running and pending work.
 
+The TUI translates stable common Slurm pending-reason codes into plain language and preserves unknown reason text. The `--once` report keeps raw reason values for diagnostics and downstream parsing. Compact pending-reason details use singular task and resource labels only for one.
+
 Wide partition and user tables group running jobs, pending jobs, resources in use, and requested resources under plain-language labels instead of abbreviated metric names. Wide tables use only the width required by their current labels and values, while pending-reason tables expand as needed for reason text. Compact detail sections remove table headers and use self-describing rows with explicit CPU-only/GPU job or task/CPU/GPU units.
 
 Panel-content budgets determine visible rows, and the panel fills the body above the footer even when all data fits. Blank lines separate sections when every active detail can still show at least one data row; tight terminals use that space for data first. The short queue summary and headerless compact details leave enough space for every active detail section to show at least one data row at 72x20, while common queues show multiple rows. Hidden-row metadata uses `X shown · N hidden`, and smaller terminals keep every active detail section title when space permits. This prevents large queues or small terminals from causing wrapping, scrolling, or silent loss of scheduler context.
