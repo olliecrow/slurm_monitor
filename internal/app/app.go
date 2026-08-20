@@ -285,9 +285,9 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 	for _, reason := range pendingReasons {
 		fmt.Fprintf(
 			os.Stdout,
-			"  - reason=%q jobs=%d cpu=%d gpu=%d\n",
+			"  - reason=%q tasks=%d cpu=%d gpu=%d\n",
 			reason.Reason,
-			reason.Jobs,
+			reason.Tasks,
 			reason.CPU,
 			reason.GPU,
 		)

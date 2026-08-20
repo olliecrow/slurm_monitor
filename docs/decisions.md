@@ -58,7 +58,7 @@ The display has scheduler summary, partition, user, pending-reason, and job view
 
 The job view groups array tasks only when root job, user, partition, state, and pending reason match. This keeps large arrays readable without changing task-granular queue totals. Partition ordering surfaces pending pressure before current load. Pending-reason ordering surfaces the largest GPU and CPU demand. Job ordering surfaces pending GPU, running GPU, pending CPU, and running CPU work, then favors larger grouped jobs.
 
-Panel-content budgets determine visible rows. Hidden-row metadata is explicit, and every active detail section keeps a title under tight height constraints. This prevents large queues or small terminals from causing wrapping, scrolling, or silent loss of scheduler context.
+Panel-content budgets determine visible rows. The compact five-line scheduler table leaves enough space for every active detail section to show at least one data row at 72x20. Hidden-row metadata is explicit, and smaller terminals keep every active detail section title when space permits. This prevents large queues or small terminals from causing wrapping, scrolling, or silent loss of scheduler context.
 
 The header distinguishes initial loading, connected operation, transient recovery, and permanent disconnection. A clock, refresh age, and status spinner show liveness even when cluster metrics are unchanged.
 

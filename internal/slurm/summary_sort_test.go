@@ -17,13 +17,13 @@ func TestSortPartitionsForDisplayPrioritizesPendingPressure(t *testing.T) {
 
 func TestSortPendingReasonsForDisplayPrioritizesResourcePressure(t *testing.T) {
 	reasons := []PendingReasonSummary{
-		{Reason: "many-jobs", Jobs: 1000, CPU: 1000},
-		{Reason: "gpu", Jobs: 1, CPU: 4, GPU: 1},
-		{Reason: "cpu", Jobs: 10, CPU: 2000},
+		{Reason: "many-tasks", Tasks: 1000, CPU: 1000},
+		{Reason: "gpu", Tasks: 1, CPU: 4, GPU: 1},
+		{Reason: "cpu", Tasks: 10, CPU: 2000},
 	}
 
 	SortPendingReasonsForDisplay(reasons)
-	want := []string{"gpu", "cpu", "many-jobs"}
+	want := []string{"gpu", "cpu", "many-tasks"}
 	for i := range want {
 		if reasons[i].Reason != want[i] {
 			t.Fatalf("unexpected reason order at %d: got %s want %s", i, reasons[i].Reason, want[i])
