@@ -79,19 +79,19 @@ func parseNodeLine(line string) (Node, error) {
 	}, nil
 }
 
-func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (QueueSummary, []UserSummary) {
+func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (QueueSummary, []UserSummary, error) {
 	lines := strings.Split(raw, "\n")
 	users := make(map[string]*UserSummary)
 	var queue QueueSummary
 
-	for _, line := range lines {
+	for lineIndex, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
 		parts := strings.SplitN(line, "|", 6)
 		if len(parts) < 6 {
-			continue
+			return QueueSummary{}, nil, fmt.Errorf("queue row %d: expected 6 fields, got %d", lineIndex+1, len(parts))
 		}
 		jobID := strings.TrimSpace(parts[0])
 		state := strings.ToUpper(strings.TrimSpace(parts[1]))
@@ -155,7 +155,7 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (Queue
 	}
 	SortUsersForDisplay(outUsers)
 
-	return queue, outUsers
+	return queue, outUsers, nil
 }
 
 func rootJobID(jobID string) string {
