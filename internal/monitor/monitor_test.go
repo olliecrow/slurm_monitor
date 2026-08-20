@@ -48,6 +48,16 @@ type collectStep struct {
 	err      error
 }
 
+type cancellationCollector struct {
+	started chan<- struct{}
+}
+
+func (c cancellationCollector) Collect(ctx context.Context) (slurm.Snapshot, error) {
+	c.started <- struct{}{}
+	<-ctx.Done()
+	return slurm.Snapshot{}, ctx.Err()
+}
+
 func (s *scriptedCollector) Collect(context.Context) (slurm.Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -227,5 +237,22 @@ func TestLoopStopsRetryingAfterPermanentFailure(t *testing.T) {
 	}
 	if sc.position != 2 {
 		t.Fatalf("expected collector to stop after permanent failure, got %d calls", sc.position)
+	}
+}
+
+func TestLoopDoesNotReportContextCancellationAsFailure(t *testing.T) {
+	for range 32 {
+		ctx, cancel := context.WithCancel(context.Background())
+		started := make(chan struct{}, 1)
+		updates := make(chan Update, 1)
+		loop := NewLoop(cancellationCollector{started: started}, time.Second)
+
+		go loop.Run(ctx, updates)
+		<-started
+		cancel()
+
+		for update := range updates {
+			t.Fatalf("expected clean cancellation without an update, got %+v", update)
+		}
 	}
 }
