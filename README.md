@@ -3,21 +3,19 @@
 `slurm_monitor` is a terminal-first monitor for Slurm clusters.
 It supports local mode and remote mode over SSH, and it stays read only.
 
-<img width="690" height="561" alt="image" src="https://github.com/user-attachments/assets/07fe763d-610a-4133-8f64-31c925155b13" />
-
 ## Current status
 
 This project is actively maintained for read-only cluster monitoring workflows.
 
 ## What this project is trying to achieve
 
-Give you a clear live view of cluster health and queue state without running any mutating Slurm commands.
+Give you a clear live view of scheduler activity and queue pressure without running any mutating Slurm commands.
 
 ## What you experience as a user
 
 1. Run the tool locally on a cluster node, or remotely over SSH.
-2. See a live terminal user interface (TUI) with node, partition, user, and job insights.
-3. Track CPU-job and GPU-job splits for the cluster, each partition, and each user.
+2. See a live terminal user interface (TUI) with cluster, partition, user, pending-reason, and job insights.
+3. Compare job counts and CPU/GPU resource pressure for the cluster, each partition, and each user.
 4. Keep monitoring through transient SSH or network failures, with automatic retries.
 5. On very large clusters, tables show a capped top slice with explicit `+N hidden` indicators to stay terminal-stable.
 
@@ -122,7 +120,7 @@ Run one-shot collection.
 go run ./cmd/slurm-monitor --once cluster_alias
 ```
 
-`--once` prints node totals, queue job and resource totals, top partition and user rows, and grouped root jobs. Array-task counts stay task-granular; the job list groups matching tasks to stay useful on large arrays.
+`--once` prints queue job and resource totals, top partition, user, and pending-reason rows, and grouped root jobs. Array-task counts stay task-granular; the job list groups matching tasks to stay useful on large arrays.
 
 ## Doctor output example
 

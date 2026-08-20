@@ -2,27 +2,6 @@ package slurm
 
 import "time"
 
-type Node struct {
-	Name      string
-	State     string
-	Partition string
-
-	CPUAlloc int
-	CPUTotal int
-	CPUUtil  float64
-	HasCPU   bool
-
-	MemAllocMB int
-	MemTotalMB int
-	MemUtil    float64
-	HasMem     bool
-
-	GPUAlloc int
-	GPUTotal int
-	GPUUtil  float64
-	HasGPU   bool
-}
-
 type QueueSummary struct {
 	Other int
 
@@ -56,25 +35,34 @@ type PartitionSummary struct {
 	Queue QueueSummary
 }
 
+type PendingReasonSummary struct {
+	Reason string
+	Jobs   int
+	CPU    int
+	GPU    int
+}
+
 // JobSummary groups array tasks from one root job when their user, partition,
-// and state match. Queue, partition, and user counts remain task-granular.
+// state, and pending reason match. Queue, partition, user, and reason counts
+// remain task-granular.
 type JobSummary struct {
 	JobID     string
 	User      string
 	Partition string
 	State     string
+	Reason    string
 	Tasks     int
 	CPU       int
 	GPU       int
 }
 
 type Snapshot struct {
-	Nodes       []Node
-	Queue       QueueSummary
-	Partitions  []PartitionSummary
-	Users       []UserSummary
-	Jobs        []JobSummary
-	CollectedAt time.Time
+	Queue          QueueSummary
+	Partitions     []PartitionSummary
+	Users          []UserSummary
+	PendingReasons []PendingReasonSummary
+	Jobs           []JobSummary
+	CollectedAt    time.Time
 }
 
 type ResourceTotals struct {
@@ -83,30 +71,6 @@ type ResourceTotals struct {
 
 	RunningGPU int
 	PendingGPU int
-}
-
-type Aggregate struct {
-	CPUAlloc int
-	CPUTotal int
-
-	MemAllocMB int
-	MemTotalMB int
-
-	GPUAlloc int
-	GPUTotal int
-}
-
-func (s Snapshot) Totals() Aggregate {
-	var out Aggregate
-	for _, n := range s.Nodes {
-		out.CPUAlloc += n.CPUAlloc
-		out.CPUTotal += n.CPUTotal
-		out.MemAllocMB += n.MemAllocMB
-		out.MemTotalMB += n.MemTotalMB
-		out.GPUAlloc += n.GPUAlloc
-		out.GPUTotal += n.GPUTotal
-	}
-	return out
 }
 
 func (q QueueSummary) TotalJobs() int {

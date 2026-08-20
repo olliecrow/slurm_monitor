@@ -5,7 +5,7 @@ Build a resilient CLI/TUI monitor for Slurm that can run:
 - locally on a host with Slurm CLI access, or
 - remotely over SSH with robust recovery from network drops and SSH failures.
 
-The tool should run for long periods with minimal operator interaction and provide a clear live view of cluster node usage and queue state.
+The tool should run for long periods with minimal operator interaction and provide a clear live view of scheduler activity and queue pressure.
 
 ## Scope
 
@@ -16,10 +16,10 @@ The tool should run for long periods with minimal operator interaction and provi
 - Remote mode via SSH target (alias from SSH config or `user@host` style target).
 - Recovery behavior for transient SSH/network failures.
 - Five primary data views:
-  - node summary view (per-node rows + aggregate totals)
-  - queue summary view (cluster-level CPU-job/GPU-job split for running and pending jobs)
-  - partition view (per-partition CPU-job/GPU-job split for running and pending jobs)
-  - user view (per-user CPU-job/GPU-job split for running and pending jobs)
+  - scheduler summary view (cluster-level job counts and CPU/GPU resource totals)
+  - partition view (per-partition job counts and CPU/GPU resource totals)
+  - user view (per-user job counts and CPU/GPU resource totals)
+  - pending-reason view (scheduler reasons with affected task, CPU, and GPU demand)
   - job view (top grouped root jobs with user, partition, state, task count, CPU, and GPU demand)
 - Queue labels must make it clear these are job or array-task counts, not held CPU or GPU resource totals.
 - Clear connectivity status indicators in the UI.
@@ -58,7 +58,7 @@ The tool should run for long periods with minimal operator interaction and provi
 - `--port <int>`: optional SSH port override.
 - `--no-color`: disable colored UI output.
 - `--compact`: compact layout for small terminal dimensions.
-- `--once`: collect one snapshot and print a text summary with node totals, queue job and resource totals, and top partition, user, and grouped-job rows.
+- `--once`: collect one snapshot and print a text summary with queue job and resource totals, and top partition, user, pending-reason, and grouped-job rows.
 - `--duration <duration>`: optional auto-exit timer for TUI runs.
 
 ## Startup Behavior
@@ -107,54 +107,50 @@ The tool should run for long periods with minimal operator interaction and provi
 
 ## Runtime Data Contract
 
-### 1) Node summary view
-Per-node fields:
-- node name
-- node state (preserve full Slurm composite state including qualifiers such as `+DRAIN` and `+DOWN`)
-- CPU allocation (`allocated/total`)
-- CPU utilization (if available from Slurm-reported metrics; else display `n/a`)
-- memory allocation (`allocated/total`)
-- memory utilization (if available; else `n/a`)
-- GPU allocation (`allocated/total`)
-- GPU allocation percentage (`gpu alloc%`) derived from `GPUAlloc/GPUTotal`
-- partition(s)
-- explicit node-health alert line in the node summary panel when any node is `DOWN` or `DRAIN`
-
-Aggregate row:
-- totals across all collected nodes, including rows hidden by terminal clipping.
-- CPU and memory utilization percentages show `n/a`; their adjacent allocation ratios remain available, and allocation is never relabeled as utilization.
-
-### 2) Queue summary view
+### 1) Scheduler summary view
 Fields:
 - running CPU-job count
 - running GPU-job count
 - pending CPU-job count
 - pending GPU-job count
 - other jobs count
+- running CPU and GPU resource totals
+- pending CPU and GPU resource demand
 - aligned label/count rows for running CPU/running GPU/pending CPU/pending GPU/other/total
 - counts include Slurm job arrays at array-task granularity (each array task counts as one job).
 
-### 3) User view
+### 2) User view
 Per-user fields:
 - user
 - running CPU-job count
 - running GPU-job count
 - pending CPU-job count
 - pending GPU-job count
+- running CPU and GPU resource totals
+- pending CPU and GPU resource demand
 - running CPU-job count + running GPU-job count equals running count for each user.
 - pending CPU-job count + pending GPU-job count equals pending count for each user.
 - job-type counts include Slurm job arrays at array-task granularity.
 - default user ordering should keep the biggest current holders near the top, with pending demand used as a tie-breaker.
 
-### 4) Partition view
+### 3) Partition view
 Per-partition fields:
 - partition name
 - running CPU-job count
 - running GPU-job count
 - pending CPU-job count
 - pending GPU-job count
-- counts and resource totals use the same task-granular rules as the queue summary.
+- counts and resource totals use the same task-granular rules as the scheduler summary.
 - default ordering surfaces pending GPU pressure, pending CPU pressure, then current GPU and CPU load.
+
+### 4) Pending-reason view
+Per-reason fields:
+- pending reason reported by Slurm
+- affected array-task count
+- total pending CPU demand
+- total pending GPU demand
+- blank or unavailable reasons appear as `<unknown>`.
+- default ordering surfaces GPU demand, CPU demand, then affected task count.
 
 ### 5) Job view
 Per grouped-job fields:
@@ -162,9 +158,10 @@ Per grouped-job fields:
 - user
 - partition
 - state
+- pending reason (blank for non-pending work)
 - matching array-task count
 - total requested or allocated CPU and GPU resources across those tasks
-- array tasks are grouped only when root job, user, partition, and state match.
+- array tasks are grouped only when root job, user, partition, state, and pending reason match.
 - default ordering surfaces pending GPU work, running GPU work, pending CPU work, then running CPU work; larger grouped jobs sort first within each class.
 
 ## TUI Behavior
@@ -174,16 +171,12 @@ Per grouped-job fields:
 - Non-interactive display: no in-app controls or navigation; monitor-only rendering.
 - Header includes a heartbeat clock and refresh age.
 - Header includes a status spinner so refresh/liveness is visible even when metrics are stable.
-- Header intentionally omits node-health alert badges; `DOWN`/`DRAIN` alerts are shown directly in the node summary panel.
-- Body renders two vertically stacked panels in fixed order:
-  - node summary
-  - combined queue panel (queue summary, partition, user, and job sections)
-- Compact terminals reduce row/detail density but keep the same two-panel vertical order.
-- Node, partition, user, and job tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
-- Row budgets are computed from per-panel content height (not just global terminal height) so mandatory lines remain visible under tight layouts.
+- Body renders one scheduler-insights panel with summary, partition, user, pending-reason, and grouped-job sections.
+- Compact terminals reduce row/detail density while preserving every active section title.
+- Partition, user, pending-reason, and job tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
+- Row budgets are computed from panel content height and shared fairly across active detail sections.
 - When rows are clipped, section headers must show deterministic truncation metadata (for example `top X/Y, +N hidden`).
 - When no rows fit in a panel budget, headers should still show hidden-row metadata without `top 0/...` phrasing (for example `+N hidden`).
-- Node summary must always include node-alert line (when applicable) and `TOTAL` aggregate row, even when per-node rows are clipped.
 - In worst-case global viewport clipping, the final visible row must show `... output clipped to terminal height ...`.
 - Connectivity indicator states:
   - loading

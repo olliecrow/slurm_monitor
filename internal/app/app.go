@@ -15,7 +15,6 @@ import (
 	"github.com/olliecrow/slurm_monitor/internal/slurm"
 	"github.com/olliecrow/slurm_monitor/internal/transport"
 	"github.com/olliecrow/slurm_monitor/internal/tui"
-	"github.com/olliecrow/slurm_monitor/internal/uifmt"
 )
 
 // missingSlurmCommandsError is typed so retry classification is stable and
@@ -208,7 +207,6 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 
 	fmt.Fprintf(os.Stdout, "source: %s\n", source)
 	fmt.Fprintf(os.Stdout, "collected_at: %s\n", snapshot.CollectedAt.Format(time.RFC3339))
-	fmt.Fprintf(os.Stdout, "nodes: %d\n", len(snapshot.Nodes))
 	fmt.Fprintf(
 		os.Stdout,
 		"queue_jobs: running_cpu=%d running_gpu=%d pending_cpu=%d pending_gpu=%d other=%d total=%d\n",
@@ -226,15 +224,6 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 		snapshot.Queue.ResourceLoad.RunningGPU,
 		snapshot.Queue.ResourceLoad.PendingCPU,
 		snapshot.Queue.ResourceLoad.PendingGPU,
-	)
-
-	totals := snapshot.Totals()
-	fmt.Fprintf(
-		os.Stdout,
-		"totals: cpu=%s mem=%s gpu=%s\n",
-		uifmt.Ratio(totals.CPUAlloc, totals.CPUTotal),
-		uifmt.MemPair(totals.MemAllocMB, totals.MemTotalMB),
-		uifmt.Ratio(totals.GPUAlloc, totals.GPUTotal),
 	)
 
 	partitions := append([]slurm.PartitionSummary(nil), snapshot.Partitions...)
@@ -272,7 +261,7 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 	for _, user := range users {
 		fmt.Fprintf(
 			os.Stdout,
-			"  - %s held_cpu=%d held_gpu=%d running_cpu_jobs=%d running_gpu_jobs=%d pending_cpu_jobs=%d pending_gpu_jobs=%d pending_cpu=%d pending_gpu=%d pending_mem=%s\n",
+			"  - %s running_cpu=%d running_gpu=%d running_cpu_jobs=%d running_gpu_jobs=%d pending_cpu_jobs=%d pending_gpu_jobs=%d pending_cpu=%d pending_gpu=%d pending_mem=%s\n",
 			user.User,
 			user.RunningCPU,
 			user.RunningGPU,
@@ -282,7 +271,25 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 			user.PendingGPUJobs,
 			user.PendingCPU,
 			user.PendingGPU,
-			uifmt.MemMB(user.PendingMemMB),
+			formatMemMB(user.PendingMemMB),
+		)
+	}
+
+	pendingReasons := append([]slurm.PendingReasonSummary(nil), snapshot.PendingReasons...)
+	slurm.SortPendingReasonsForDisplay(pendingReasons)
+	totalPendingReasons := len(pendingReasons)
+	if len(pendingReasons) > 10 {
+		pendingReasons = pendingReasons[:10]
+	}
+	fmt.Fprintf(os.Stdout, "pending_reasons: shown=%d total=%d\n", len(pendingReasons), totalPendingReasons)
+	for _, reason := range pendingReasons {
+		fmt.Fprintf(
+			os.Stdout,
+			"  - reason=%q jobs=%d cpu=%d gpu=%d\n",
+			reason.Reason,
+			reason.Jobs,
+			reason.CPU,
+			reason.GPU,
 		)
 	}
 
@@ -292,15 +299,16 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 	if len(jobs) > 10 {
 		jobs = jobs[:10]
 	}
-	fmt.Fprintf(os.Stdout, "jobs: shown=%d total=%d grouping=root+user+partition+state\n", len(jobs), totalJobs)
+	fmt.Fprintf(os.Stdout, "jobs: shown=%d total=%d grouping=root+user+partition+state+pending_reason\n", len(jobs), totalJobs)
 	for _, job := range jobs {
 		fmt.Fprintf(
 			os.Stdout,
-			"  - %s user=%s partition=%s state=%s tasks=%d cpu=%d gpu=%d\n",
+			"  - %s user=%s partition=%s state=%s reason=%q tasks=%d cpu=%d gpu=%d\n",
 			job.JobID,
 			job.User,
 			job.Partition,
 			job.State,
+			job.Reason,
 			job.Tasks,
 			job.CPU,
 			job.GPU,
@@ -308,4 +316,14 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 	}
 
 	return nil
+}
+
+func formatMemMB(value int) string {
+	if value >= 1024*1024 {
+		return fmt.Sprintf("%.1fT", float64(value)/1024.0/1024.0)
+	}
+	if value >= 1024 {
+		return fmt.Sprintf("%.1fG", float64(value)/1024.0)
+	}
+	return fmt.Sprintf("%dM", value)
 }

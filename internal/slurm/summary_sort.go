@@ -27,6 +27,24 @@ func SortPartitionsForDisplay(partitions []PartitionSummary) {
 	})
 }
 
+// SortPendingReasonsForDisplay surfaces the reasons that strand the largest
+// GPU and CPU requests, followed by the reasons that affect the most tasks.
+func SortPendingReasonsForDisplay(reasons []PendingReasonSummary) {
+	sort.Slice(reasons, func(i, j int) bool {
+		a, b := reasons[i], reasons[j]
+		if a.GPU != b.GPU {
+			return a.GPU > b.GPU
+		}
+		if a.CPU != b.CPU {
+			return a.CPU > b.CPU
+		}
+		if a.Jobs != b.Jobs {
+			return a.Jobs > b.Jobs
+		}
+		return a.Reason < b.Reason
+	})
+}
+
 // SortJobsForDisplay surfaces queued GPU work, running GPU work, queued CPU
 // work, and running CPU work in that order. Larger grouped jobs sort first.
 func SortJobsForDisplay(jobs []JobSummary) {
@@ -54,7 +72,10 @@ func SortJobsForDisplay(jobs []JobSummary) {
 		if a.Partition != b.Partition {
 			return a.Partition < b.Partition
 		}
-		return a.State < b.State
+		if a.State != b.State {
+			return a.State < b.State
+		}
+		return a.Reason < b.Reason
 	})
 }
 
