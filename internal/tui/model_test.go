@@ -574,6 +574,24 @@ func TestExpandedLayoutStartsAfterGroupedMetricsFit(t *testing.T) {
 	if strings.Contains(expanded, "…") {
 		t.Fatalf("expected width 115 grouped metrics without truncation, got %q", expanded)
 	}
+
+	queue.PendingCPUJobs = 12345
+	m.snapshot.Partitions[0].Queue = queue
+	m.snapshot.Users[0].PendingCPUJobs = 12345
+	m.width = 118
+	compact = m.View()
+	if strings.Contains(compact, "resources in use") || strings.Contains(compact, "…") {
+		t.Fatalf("expected larger metrics to delay the expanded layout, got %q", compact)
+	}
+
+	m.width = 119
+	expanded = m.View()
+	if !strings.Contains(expanded, "resources in use") || strings.Count(expanded, "CPU-only 12345, GPU 98") != 2 {
+		t.Fatalf("expected expanded layout when larger metrics fit, got %q", expanded)
+	}
+	if strings.Contains(expanded, "…") {
+		t.Fatalf("expected larger grouped metrics without truncation, got %q", expanded)
+	}
 }
 
 func TestUserPanelUsesAvailableHeightBeforeHidingUsers(t *testing.T) {
