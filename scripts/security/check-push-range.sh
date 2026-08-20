@@ -31,7 +31,9 @@ commit_msg_file="${tmp_dir}/commit_messages.txt"
 patch_file="${tmp_dir}/patches.diff"
 
 git log --no-walk --format='%H%n%s%n%b%n' "${commits[@]}" > "${commit_msg_file}"
-git show --format= --patch --no-color "${commits[@]}" > "${patch_file}"
+git show --format= --patch --unified=0 --no-color "${commits[@]}" \
+  | sed -n -e '/^+++ /d' -e 's/^+//p' > "${patch_file}"
 
+bash scripts/security/check-git-identities.sh --context=push-git-identity "${commits[@]}"
 bash scripts/security/check-sensitive-text.sh --context=push-commit-message "${commit_msg_file}"
-bash scripts/security/check-sensitive-text.sh --context=push-diff "${patch_file}"
+bash scripts/security/check-sensitive-text.sh --context=push-added-lines "${patch_file}"

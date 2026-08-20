@@ -30,9 +30,10 @@ Give you a clear live view of scheduler activity and queue pressure without runn
 ## Security guardrails for public/open-source readiness
 
 - `gitleaks` runs in local pre-commit hooks and in GitHub Actions.
-- Commit messages are blocked if they include local absolute paths or credential-like values.
-- Outbound pushes are blocked locally when new commit messages or patches contain sensitive patterns.
-- Pull request titles/descriptions are checked in CI for the same policy.
+- Staged files and commit messages are blocked if they contain personal contact details, local absolute paths, or credential-like values.
+- Commits must use a GitHub no-reply or reserved example address for author and committer metadata.
+- Outbound pushes are blocked locally when new identities, messages, or added lines violate the same policy.
+- Pull request titles and descriptions are checked in CI.
 
 Install [pre-commit](https://pre-commit.com/#install), then set up the repository hooks.
 

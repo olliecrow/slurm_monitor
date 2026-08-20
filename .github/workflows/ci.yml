@@ -64,11 +64,16 @@ jobs:
           version="8.30.0"
           archive="gitleaks_${version}_linux_x64.tar.gz"
           base_url="https://github.com/gitleaks/gitleaks/releases/download/v${version}"
-          curl -sSfL -o "${archive}" "${base_url}/${archive}"
-          curl -sSfL -o checksums.txt "${base_url}/gitleaks_${version}_checksums.txt"
-          grep "${archive}" checksums.txt | sha256sum -c -
-          tar -xzf "${archive}"
-          install -m 0755 gitleaks "$RUNNER_TEMP/gitleaks"
+          extract_dir="${RUNNER_TEMP}/gitleaks-extract"
+          mkdir -p "${extract_dir}"
+          curl -sSfL -o "${RUNNER_TEMP}/${archive}" "${base_url}/${archive}"
+          curl -sSfL -o "${RUNNER_TEMP}/gitleaks-checksums.txt" "${base_url}/gitleaks_${version}_checksums.txt"
+          (
+            cd "${RUNNER_TEMP}"
+            grep " ${archive}$" gitleaks-checksums.txt | sha256sum -c -
+          )
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${extract_dir}"
+          install -m 0755 "${extract_dir}/gitleaks" "$RUNNER_TEMP/gitleaks"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
       - name: Scan pushed/PR commit range with gitleaks
@@ -90,7 +95,7 @@ jobs:
       - name: Self-test sensitive text policy
         run: bash scripts/security/test-sensitive-text.sh
 
-      - name: Check commit messages for policy violations
+      - name: Check commit identities and added text for policy violations
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -105,9 +110,17 @@ jobs:
             range="${PUSH_BEFORE_SHA}..${GITHUB_SHA}"
           fi
 
-          temp_file="$(mktemp)"
-          git log --format='%H%n%s%n%b%n' "${range}" > "${temp_file}"
-          bash scripts/security/check-sensitive-text.sh --context=commit-message "${temp_file}"
+          mapfile -t commits < <(git rev-list "${range}")
+          bash scripts/security/check-git-identities.sh --context=ci-git-identity "${commits[@]}"
+
+          temp_dir="$(mktemp -d)"
+          git log --format='%H%n%s%n%b%n' "${range}" > "${temp_dir}/commit-messages.txt"
+          git log --format= --patch --unified=0 --no-color "${range}" \
+            | sed -n -e '/^+++ /d' -e 's/^+//p' > "${temp_dir}/added-lines.txt"
+          mapfile -d '' -t tracked_files < <(git ls-files -z)
+          bash scripts/security/check-sensitive-text.sh --context=tracked-file "${tracked_files[@]}"
+          bash scripts/security/check-sensitive-text.sh --context=commit-message "${temp_dir}/commit-messages.txt"
+          bash scripts/security/check-sensitive-text.sh --context=added-lines "${temp_dir}/added-lines.txt"
 
       - name: Check pull request title/body for policy violations
         if: github.event_name == 'pull_request'
