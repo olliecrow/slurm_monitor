@@ -312,6 +312,7 @@ func TestGroupedQueueLinesKeepCPUAndGPUValuesDistinct(t *testing.T) {
 
 func TestPendingReasonLabelsUsePlainLanguageAndPreserveUnknownReasons(t *testing.T) {
 	tests := map[string]string{
+		"BeginTime":                "Waiting for scheduled start time",
 		"Dependency":               "Waiting for dependency",
 		"DependencyNeverSatisfied": "Dependency cannot be satisfied",
 		"JobArrayTaskLimit":        "Job array task limit reached",
@@ -509,12 +510,26 @@ func TestWidePendingReasonTableUsesNaturalWidth(t *testing.T) {
 func TestUserColumnsDoNotShowHeldTotals(t *testing.T) {
 	snapshot := sampleSnapshot()
 	wideHeader := groupedSummaryHeaderLine("user", groupedSummaryMetricWidths(&snapshot))
-	compactRow := compactGroupedSummaryRowLine("alice", userQueueSummary(snapshot.Users[0]))
+	compactRow := compactGroupedSummaryRowLine("alice", userQueueSummary(snapshot.Users[0]), 80)
 	if strings.Contains(wideHeader, "heldCPU") || strings.Contains(wideHeader, "heldGPU") {
 		t.Fatalf("wide user header should not show held totals: %q", wideHeader)
 	}
 	if strings.Contains(compactRow, "640") || strings.Contains(compactRow, "38") {
 		t.Fatalf("compact user row should not show resource totals: %q", compactRow)
+	}
+}
+
+func TestCompactGroupedSummaryPreservesCompleteMetricsBeforeLongNames(t *testing.T) {
+	q := slurm.QueueSummary{PendingCPUJobs: 1, RunningGPUJobs: 24, PendingGPUJobs: 23}
+	row := compactGroupedSummaryRowLine("long-research-username", q, 65)
+	if lipgloss.Width(row) > 65 {
+		t.Fatalf("expected compact row to fit 65 columns, got %d in %q", lipgloss.Width(row), row)
+	}
+	if !strings.Contains(row, "CPU-only 0 running/1 pending · GPU 24 running/23 pending") {
+		t.Fatalf("expected complete CPU and GPU metrics, got %q", row)
+	}
+	if !strings.Contains(row, "…:") {
+		t.Fatalf("expected the name to shorten before the metrics, got %q", row)
 	}
 }
 
@@ -547,7 +562,7 @@ func TestCompactUserRowsAreSelfDescribingAndHeaderless(t *testing.T) {
 	if strings.Contains(out, "CPU-only run") {
 		t.Fatalf("did not expect a compact table header, got: %q", out)
 	}
-	for _, want := range []string{"Users · job counts · 3", "alice: CPU-only 5 running, 1 pending · GPU 12 running, 2 pending", "bob", "carol"} {
+	for _, want := range []string{"Users · job counts · 3", "alice: CPU-only 5 running/1 pending · GPU 12 running/2 pending", "bob", "carol"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected self-describing compact content %q, got: %q", want, out)
 		}
