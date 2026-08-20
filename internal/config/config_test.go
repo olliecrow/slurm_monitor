@@ -123,3 +123,36 @@ func TestHelpTextIncludesUsageAndExamples(t *testing.T) {
 		}
 	}
 }
+
+func TestHelpExamplesParse(t *testing.T) {
+	const commandPrefix = "slurm-monitor "
+
+	inExamples := false
+	tested := 0
+	for _, line := range strings.Split(HelpText(), "\n") {
+		if line == "Examples:" {
+			inExamples = true
+			continue
+		}
+		if !inExamples {
+			continue
+		}
+
+		command := strings.TrimSpace(line)
+		if !strings.HasPrefix(command, commandPrefix) {
+			continue
+		}
+		args := strings.Fields(strings.TrimPrefix(command, commandPrefix))
+		if len(args) > 0 && args[0] == "completion" {
+			continue
+		}
+
+		tested++
+		if _, err := ParseArgs(args); err != nil {
+			t.Errorf("help example %q does not parse: %v", command, err)
+		}
+	}
+	if tested == 0 {
+		t.Fatal("expected at least one parseable help example")
+	}
+}
