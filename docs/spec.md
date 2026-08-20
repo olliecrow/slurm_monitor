@@ -178,7 +178,7 @@ Per grouped-job fields:
 - Wide pending-reason tables give spare terminal width to reason text before truncating it.
 - The TUI replaces stable common Slurm pending-reason codes with plain-language labels and preserves unknown reason text. Long prose reasons clip at a word boundary when space permits. The `--once` report keeps raw Slurm reason values for diagnostics.
 - Wide tables use the minimum width needed for their current labels and values instead of stretching columns across the terminal.
-- Compact detail sections omit table headers and use self-describing rows so more data fits. Partition and user section titles identify their values as job counts, and each row shows the CPU-only group before the GPU group; pending-reason rows include task, CPU, and GPU units. Data is truncated only when the terminal width requires it.
+- Compact detail sections omit table headers and use self-describing rows so more data fits. Partition and user section titles identify their values as job counts, and each row shows the CPU-only group before the GPU group; pending-reason rows include task, CPU, and GPU units. When a summary row is too wide, it shortens the partition or user name before the metric text. Data is truncated only when the terminal width requires it.
 - At 72x20 and larger, compact terminals preserve at least one data row from every active detail section. Smaller terminals preserve every active section title when space permits.
 - Partition, user, and pending-reason tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
 - Row budgets are computed from panel content height and shared fairly across active detail sections.
