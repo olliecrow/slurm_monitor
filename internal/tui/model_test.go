@@ -343,6 +343,16 @@ func TestCountNounUsesSingularOnlyForOne(t *testing.T) {
 	}
 }
 
+func TestPendingReasonTruncationKeepsWholeWords(t *testing.T) {
+	reason := "Nodes required for job are DOWN, DRAINED or reserved"
+	if got, want := truncatePendingReason(reason, 46), "Nodes required for job are DOWN, DRAINED…"; got != want {
+		t.Fatalf("truncatePendingReason()=%q want %q", got, want)
+	}
+	if got := truncatePendingReason("SingleUnbrokenReasonName", 12); got != "SingleUnbro…" {
+		t.Fatalf("expected unbroken reason to use safe rune truncation, got %q", got)
+	}
+}
+
 func TestInsightsPanelBudgetKeepsOneRowAndSpacingForEachAggregateView(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
