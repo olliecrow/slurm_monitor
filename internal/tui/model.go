@@ -431,7 +431,7 @@ func (m Model) renderPartitionLinesWithBudget(rowBudget int, wide bool, contentW
 		}
 	} else {
 		for _, partition := range partitions[:visibleRows] {
-			lines = append(lines, compactGroupedSummaryRowLine(partition.Name, partition.Queue))
+			lines = append(lines, compactGroupedSummaryRowLine(partition.Name, partition.Queue, contentWidth))
 		}
 	}
 	return fitLinesToWidth(clipLines(lines, rowBudget), contentWidth)
@@ -465,7 +465,7 @@ func (m Model) renderUserLinesWithBudget(rowBudget int, expanded bool, contentWi
 	}
 
 	for _, u := range visibleUsers {
-		lines = append(lines, compactGroupedSummaryRowLine(u.User, userQueueSummary(u)))
+		lines = append(lines, compactGroupedSummaryRowLine(u.User, userQueueSummary(u), contentWidth))
 	}
 	lines = clipLines(lines, rowBudget)
 	return fitLinesToWidth(lines, contentWidth)
@@ -532,15 +532,16 @@ func groupedSummaryMetrics(q slurm.QueueSummary) [4]string {
 	}
 }
 
-func compactGroupedSummaryRowLine(name string, q slurm.QueueSummary) string {
-	return fmt.Sprintf(
-		"%s: CPU-only %d running, %d pending · GPU %d running, %d pending",
-		name,
+func compactGroupedSummaryRowLine(name string, q slurm.QueueSummary, contentWidth int) string {
+	metrics := fmt.Sprintf(
+		"CPU-only %d running/%d pending · GPU %d running/%d pending",
 		q.RunningCPUJobs,
 		q.PendingCPUJobs,
 		q.RunningGPUJobs,
 		q.PendingGPUJobs,
 	)
+	nameWidth := max(1, contentWidth-lipgloss.Width(metrics)-2)
+	return fmt.Sprintf("%s: %s", truncateRunes(name, nameWidth), metrics)
 }
 
 func pendingReasonHeaderLine(contentWidth int) string {
@@ -574,6 +575,8 @@ func pendingReasonTableWidth(reasons []slurm.PendingReasonSummary) int {
 
 func pendingReasonLabel(reason string) string {
 	switch reason {
+	case "BeginTime":
+		return "Waiting for scheduled start time"
 	case "Dependency":
 		return "Waiting for dependency"
 	case "DependencyNeverSatisfied":
