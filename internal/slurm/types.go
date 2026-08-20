@@ -37,7 +37,7 @@ type PartitionSummary struct {
 
 type PendingReasonSummary struct {
 	Reason string
-	Jobs   int
+	Tasks  int
 	CPU    int
 	GPU    int
 }

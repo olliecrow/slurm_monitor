@@ -38,8 +38,8 @@ func SortPendingReasonsForDisplay(reasons []PendingReasonSummary) {
 		if a.CPU != b.CPU {
 			return a.CPU > b.CPU
 		}
-		if a.Jobs != b.Jobs {
-			return a.Jobs > b.Jobs
+		if a.Tasks != b.Tasks {
+			return a.Tasks > b.Tasks
 		}
 		return a.Reason < b.Reason
 	})
