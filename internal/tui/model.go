@@ -284,7 +284,6 @@ func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, c
 		detailLineCapacity(len(m.snapshot.Partitions), expanded),
 		detailLineCapacity(len(m.snapshot.Users), expanded),
 		detailLineCapacity(len(m.snapshot.PendingReasons), expanded),
-		detailLineCapacity(len(m.snapshot.Jobs), expanded),
 	}
 	activeDetailSections := 0
 	for _, cap := range detailCaps {
@@ -301,18 +300,28 @@ func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, c
 		lines = clipLines(lines, summaryBudget)
 	}
 
-	detailBudgets := allocateLineBudgets(contentHeight-len(lines), detailCaps)
+	separatorLines := 0
+	if contentHeight-len(lines) >= 3*activeDetailSections {
+		separatorLines = activeDetailSections
+	}
+	detailBudgets := allocateLineBudgets(contentHeight-len(lines)-separatorLines, detailCaps)
 	if detailBudgets[0] > 0 {
+		if separatorLines > 0 {
+			lines = append(lines, "")
+		}
 		lines = append(lines, m.renderPartitionLinesWithBudget(detailBudgets[0], expanded, contentWidth)...)
 	}
 	if detailBudgets[1] > 0 {
+		if separatorLines > 0 {
+			lines = append(lines, "")
+		}
 		lines = append(lines, m.renderUserLinesWithBudget(detailBudgets[1], expanded, contentWidth)...)
 	}
 	if detailBudgets[2] > 0 {
+		if separatorLines > 0 {
+			lines = append(lines, "")
+		}
 		lines = append(lines, m.renderPendingReasonLinesWithBudget(detailBudgets[2], expanded, contentWidth)...)
-	}
-	if detailBudgets[3] > 0 {
-		lines = append(lines, m.renderJobLinesWithBudget(detailBudgets[3], expanded, contentWidth)...)
 	}
 
 	lines = clipLines(lines, contentHeight)
@@ -455,28 +464,6 @@ func (m Model) renderUserLinesWithBudget(rowBudget int, expanded bool, contentWi
 	return fitLinesToWidth(lines, contentWidth)
 }
 
-func (m Model) renderJobLinesWithBudget(rowBudget int, wide bool, contentWidth int) []string {
-	if m.snapshot == nil || rowBudget <= 0 {
-		return nil
-	}
-	jobs := append([]slurm.JobSummary(nil), m.snapshot.Jobs...)
-	slurm.SortJobsForDisplay(jobs)
-	tableHeader := wide && rowBudget >= 3
-	visibleRows := visibleRowsForBudget(len(jobs), rowBudget, tableHeader)
-	lines := []string{m.sectionTitle(viewTitle("Jobs", len(jobs), visibleRows))}
-	if tableHeader {
-		lines = append(lines, wideJobHeaderLine(contentWidth))
-		for _, job := range jobs[:visibleRows] {
-			lines = append(lines, wideJobRowLine(job, contentWidth))
-		}
-	} else {
-		for _, job := range jobs[:visibleRows] {
-			lines = append(lines, compactJobSummaryLine(job, contentWidth))
-		}
-	}
-	return fitLinesToWidth(clipLines(lines, rowBudget), contentWidth)
-}
-
 func groupedSummaryHeaderLine(nameLabel string, contentWidth int) string {
 	nameWidth, metricWidth := groupedSummaryColumnWidths(contentWidth)
 	return fmt.Sprintf(
@@ -540,28 +527,6 @@ func compactGroupedSummaryRowLine(name string, q slurm.QueueSummary) string {
 		q.PendingCPUJobs,
 		q.PendingGPUJobs,
 	)
-}
-
-func wideJobHeaderLine(contentWidth int) string {
-	reasonWidth := wideJobReasonWidth(contentWidth)
-	return fmt.Sprintf("%-11s %-14s %-12s %-12s %-*s %7s %7s %7s", "job ID", "user", "partition", "state", reasonWidth, "reason", "tasks", "CPUs", "GPUs")
-}
-
-func wideJobRowLine(job slurm.JobSummary, contentWidth int) string {
-	reasonWidth := wideJobReasonWidth(contentWidth)
-	state := strings.ToUpper(strings.TrimSpace(job.State))
-	return fmt.Sprintf("%-11s %-14s %-12s %-12s %-*s %7d %7d %7d", truncateRunes(job.JobID, 11), truncateRunes(job.User, 14), truncateRunes(job.Partition, 12), truncateRunes(state, 12), reasonWidth, truncateRunes(job.Reason, reasonWidth), job.Tasks, job.CPU, job.GPU)
-}
-
-func wideJobReasonWidth(contentWidth int) int {
-	return max(18, contentWidth-77)
-}
-
-func compactJobSummaryLine(job slurm.JobSummary, contentWidth int) string {
-	state := strings.ToUpper(strings.TrimSpace(job.State))
-	identity := fmt.Sprintf("job %s %s %s %s", job.JobID, job.User, job.Partition, state)
-	resources := fmt.Sprintf("%d tasks, %d CPUs, %d GPUs", job.Tasks, job.CPU, job.GPU)
-	return joinWithPaddingKeepRight(identity, resources, contentWidth)
 }
 
 func pendingReasonHeaderLine(contentWidth int) string {
