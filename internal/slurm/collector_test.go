@@ -11,6 +11,9 @@ import (
 )
 
 func TestCombinedCollectCommandExpandsArrayTasks(t *testing.T) {
+	if strings.Contains(combinedCollectCommand, ";") {
+		t.Fatalf("combined collect command must stop after a failed read: %q", combinedCollectCommand)
+	}
 	if !strings.Contains(combinedCollectCommand, "squeue -h -r ") {
 		t.Fatalf("combined collect command must include squeue -r to expand arrays: %q", combinedCollectCommand)
 	}

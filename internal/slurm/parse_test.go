@@ -1,6 +1,9 @@
 package slurm
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseNodeLineBasic(t *testing.T) {
 	line := "NodeName=node001 State=IDLE CPUTot=64 CPUAlloc=32 CPULoad=16.00 RealMemory=256000 AllocMem=128000 FreeMem=96000 Partitions=main CfgTRES=cpu=64,mem=256000M,billing=64,gres/gpu=4 AllocTRES=cpu=32,mem=128000M,billing=32,gres/gpu=2"
@@ -31,7 +34,10 @@ func TestParseQueueLines(t *testing.T) {
 		"1002|PENDING|alice|4|10G|N/A\n" +
 		"1003|COMPLETING|bob|2|5000M|cpu=2,mem=5000M,gres/gpu=2\n" +
 		"1004|PENDING|carol|1|4G|N/A\n"
-	queue, users := parseQueueLines(raw, nil)
+	queue, users, err := parseQueueLines(raw, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
 	if queue.RunningCPUJobs != 0 || queue.RunningGPUJobs != 2 {
 		t.Fatalf("unexpected queue running cpu/gpu job split: %d/%d", queue.RunningCPUJobs, queue.RunningGPUJobs)
 	}
@@ -79,6 +85,16 @@ func TestParseQueueLines(t *testing.T) {
 	}
 }
 
+func TestParseQueueLinesRejectsMalformedRow(t *testing.T) {
+	_, _, err := parseQueueLines("1001|RUNNING|alice", nil)
+	if err == nil {
+		t.Fatal("expected malformed queue row error")
+	}
+	if !strings.Contains(err.Error(), "expected 6 fields, got 3") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestParseMemFromTRES(t *testing.T) {
 	if got := parseMemMBFromTRES("cpu=8,mem=12G,billing=8"); got != 12288 {
 		t.Fatalf("unexpected mem parse: %d", got)
@@ -116,7 +132,10 @@ func TestPendingGPUJobsClassifiedByGPURequest(t *testing.T) {
 	raw := "" +
 		"2001|PENDING|alice|8|20G|cpu=8,mem=20G,gres/gpu=2\n" +
 		"2002|PENDING|alice|4|10G|N/A\n"
-	_, users := parseQueueLines(raw, nil)
+	_, users, err := parseQueueLines(raw, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
 	if len(users) != 1 {
 		t.Fatalf("expected one user, got %d", len(users))
 	}
@@ -138,7 +157,10 @@ func TestPendingGPUJobsFallbackByRootJobMap(t *testing.T) {
 		"37820_2|PENDING|alice|4|64G|N/A\n" +
 		"37821_1|PENDING|alice|4|64G|N/A\n"
 
-	queue, users := parseQueueLines(raw, map[string]int{"37820": 2})
+	queue, users, err := parseQueueLines(raw, map[string]int{"37820": 2})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
 	if len(users) != 1 {
 		t.Fatalf("expected one user, got %d", len(users))
 	}
