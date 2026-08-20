@@ -415,6 +415,43 @@ func TestExpandedPartitionColumnsShowJobCountsAndResources(t *testing.T) {
 	}
 }
 
+func TestWideAggregateTablesUseNaturalWidth(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	const availableWidth = 174
+	wantWidth := groupedSummaryMinContentWidth(m.snapshot)
+
+	partitionLines := m.renderPartitionLinesWithBudget(5, true, availableWidth)
+	userLines := m.renderUserLinesWithBudget(5, true, availableWidth)
+	for name, lines := range map[string][]string{"partition": partitionLines, "user": userLines} {
+		if got := lipgloss.Width(lines[1]); got != wantWidth {
+			t.Fatalf("expected %s table width %d, got %d in %q", name, wantWidth, got, lines[1])
+		}
+		if got := lipgloss.Width(lines[1]); got >= availableWidth {
+			t.Fatalf("expected %s table not to stretch across %d columns, got %d", name, availableWidth, got)
+		}
+	}
+}
+
+func TestWidePendingReasonTableUsesNaturalWidth(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.snapshot.PendingReasons = []slurm.PendingReasonSummary{
+		{Reason: "Dependency", Tasks: 4, CPU: 16},
+		{Reason: "DependencyNeverSatisfied", Tasks: 2, GPU: 2},
+	}
+	const availableWidth = 174
+	wantWidth := pendingReasonTableWidth(m.snapshot.PendingReasons)
+
+	lines := m.renderPendingReasonLinesWithBudget(4, true, availableWidth)
+	if got := lipgloss.Width(lines[1]); got != wantWidth {
+		t.Fatalf("expected pending-reason table width %d, got %d in %q", wantWidth, got, lines[1])
+	}
+	if got := lipgloss.Width(lines[1]); got >= availableWidth {
+		t.Fatalf("expected pending-reason table not to stretch across %d columns, got %d", availableWidth, got)
+	}
+}
+
 func TestUserColumnsDoNotShowHeldTotals(t *testing.T) {
 	wideHeader := groupedSummaryHeaderLine("user", 120)
 	compactRow := compactGroupedSummaryRowLine("alice", userQueueSummary(sampleSnapshot().Users[0]))
@@ -712,6 +749,9 @@ func TestViewPinsExitHintToBottomRow(t *testing.T) {
 	}
 	if !strings.Contains(lines[len(lines)-1], "Ctrl+C to exit") {
 		t.Fatalf("expected exit hint on bottom row, got: %q", lines[len(lines)-1])
+	}
+	if !strings.HasPrefix(lines[len(lines)-2], "╰") {
+		t.Fatalf("expected the panel to fill the body above the footer, got: %q", lines[len(lines)-2])
 	}
 }
 

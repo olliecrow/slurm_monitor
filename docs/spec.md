@@ -175,6 +175,7 @@ Per grouped-job fields:
 - The queue summary uses one activity line on wide terminals and separate running and pending lines when the combined line does not fit.
 - Wide partition and user tables group plain-language running jobs, pending jobs, resources in use, and requested resources. Values identify CPU-only jobs, GPU jobs, CPUs, and GPUs explicitly.
 - Wide pending-reason tables give spare terminal width to reason text before truncating it.
+- Wide tables use the minimum width needed for their current labels and values instead of stretching columns across the terminal.
 - Compact detail sections omit table headers and use self-describing rows so more data fits. Partition and user section titles identify their values as job counts, and each row labels running and pending CPU-only/GPU values; pending-reason rows include task, CPU, and GPU units. Data is truncated only when the terminal width requires it.
 - At 72x20 and larger, compact terminals preserve at least one data row from every active detail section. Smaller terminals preserve every active section title when space permits.
 - Partition, user, and pending-reason tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
@@ -183,6 +184,7 @@ Per grouped-job fields:
 - When rows are clipped, section headers must show deterministic plain-language metadata (for example `X shown · N hidden`).
 - When no rows fit in a panel budget, headers should still show the hidden-row count without `0 shown` phrasing (for example `N hidden`).
 - In worst-case global viewport clipping, the final visible row must show `... output clipped to terminal height ...`.
+- The insights panel fills the body above the footer, including when all data rows fit with height to spare.
 - Connectivity indicator states:
   - loading
   - connected
