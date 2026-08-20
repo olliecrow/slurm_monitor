@@ -53,6 +53,9 @@ func Run(cfg config.Config) error {
 	defer cancel()
 
 	if err := awaitSlurmAvailability(ctx, tr, cfg.CommandTimeout); err != nil {
+		if monitorDurationExpired(cfg, ctx) {
+			return nil
+		}
 		return err
 	}
 
@@ -78,6 +81,10 @@ func Run(cfg config.Config) error {
 	}
 
 	return nil
+}
+
+func monitorDurationExpired(cfg config.Config, ctx context.Context) bool {
+	return cfg.Duration > 0 && !cfg.Once && errors.Is(ctx.Err(), context.DeadlineExceeded)
 }
 
 func buildTransport(cfg config.Config) (transport.Transport, error) {

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/olliecrow/slurm_monitor/internal/config"
 	"github.com/olliecrow/slurm_monitor/internal/slurm"
 	"github.com/olliecrow/slurm_monitor/internal/transport"
 )
@@ -198,6 +199,32 @@ func TestAwaitSlurmAvailabilityStopsOnPermanentTransportFailure(t *testing.T) {
 	}
 	if tr.calls != 1 {
 		t.Fatalf("expected no retries for permanent failure, got %d calls", tr.calls)
+	}
+}
+
+func TestMonitorDurationExpiryIsCleanOnlyForInteractiveMonitor(t *testing.T) {
+	expiredCtx, cancelExpired := context.WithTimeout(context.Background(), 0)
+	defer cancelExpired()
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	tests := []struct {
+		name string
+		cfg  config.Config
+		ctx  context.Context
+		want bool
+	}{
+		{name: "interactive duration", cfg: config.Config{Duration: time.Second}, ctx: expiredCtx, want: true},
+		{name: "one-shot duration", cfg: config.Config{Duration: time.Second, Once: true}, ctx: expiredCtx, want: false},
+		{name: "no configured duration", cfg: config.Config{}, ctx: expiredCtx, want: false},
+		{name: "operator cancellation", cfg: config.Config{Duration: time.Second}, ctx: canceledCtx, want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := monitorDurationExpired(test.cfg, test.ctx); got != test.want {
+				t.Fatalf("monitorDurationExpired()=%t want %t", got, test.want)
+			}
+		})
 	}
 }
 

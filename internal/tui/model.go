@@ -542,12 +542,12 @@ func pendingReasonHeaderLine(contentWidth int) string {
 
 func pendingReasonRowLine(reason slurm.PendingReasonSummary, contentWidth int) string {
 	reasonWidth, taskWidth, resourceWidth := pendingReasonColumnWidths(contentWidth)
-	return fmt.Sprintf("%-*s %*d %*d %*d", reasonWidth, truncateRunes(reason.Reason, reasonWidth), taskWidth, reason.Tasks, resourceWidth, reason.CPU, resourceWidth, reason.GPU)
+	return fmt.Sprintf("%-*s %*d %*d %*d", reasonWidth, truncateRunes(pendingReasonLabel(reason.Reason), reasonWidth), taskWidth, reason.Tasks, resourceWidth, reason.CPU, resourceWidth, reason.GPU)
 }
 
 func compactPendingReasonSummaryLine(reason slurm.PendingReasonSummary, contentWidth int) string {
-	resources := fmt.Sprintf("%d tasks, %d CPUs, %d GPUs", reason.Tasks, reason.CPU, reason.GPU)
-	return joinWithPaddingKeepRight(reason.Reason, resources, contentWidth)
+	resources := fmt.Sprintf("%s, %s, %s", countNoun(reason.Tasks, "task"), countNoun(reason.CPU, "CPU"), countNoun(reason.GPU, "GPU"))
+	return joinWithPaddingKeepRight(pendingReasonLabel(reason.Reason), resources, contentWidth)
 }
 
 func pendingReasonColumnWidths(contentWidth int) (int, int, int) {
@@ -557,9 +557,36 @@ func pendingReasonColumnWidths(contentWidth int) (int, int, int) {
 func pendingReasonTableWidth(reasons []slurm.PendingReasonSummary) int {
 	reasonWidth := 18
 	for _, reason := range reasons {
-		reasonWidth = max(reasonWidth, lipgloss.Width(reason.Reason))
+		reasonWidth = max(reasonWidth, lipgloss.Width(pendingReasonLabel(reason.Reason)))
 	}
 	return reasonWidth + pendingReasonTaskWidth + 2*pendingReasonResourceWidth + pendingReasonColumnGaps
+}
+
+func pendingReasonLabel(reason string) string {
+	switch reason {
+	case "Dependency":
+		return "Waiting for dependency"
+	case "DependencyNeverSatisfied":
+		return "Dependency cannot be satisfied"
+	case "JobArrayTaskLimit":
+		return "Job array task limit reached"
+	case "Priority":
+		return "Waiting behind higher-priority jobs"
+	case "ReqNodeNotAvail":
+		return "Required node unavailable"
+	case "Resources":
+		return "Waiting for resources"
+	}
+
+	const unavailablePrefix = "ReqNodeNotAvail,"
+	if strings.HasPrefix(reason, unavailablePrefix) {
+		detail := strings.TrimSpace(strings.TrimPrefix(reason, unavailablePrefix))
+		if detail != "" {
+			return "Required node unavailable: " + detail
+		}
+		return "Required node unavailable"
+	}
+	return reason
 }
 
 func userQueueSummary(u slurm.UserSummary) slurm.QueueSummary {
@@ -596,6 +623,14 @@ func (m Model) schedulerSummaryLines(q slurm.QueueSummary, contentWidth int) []s
 
 func schedulerActivityLine(state string, cpuOnlyJobs, gpuJobs, cpu, gpu int) string {
 	return fmt.Sprintf("%s · %d CPU-only + %d GPU jobs · %d CPUs + %d GPUs", state, cpuOnlyJobs, gpuJobs, cpu, gpu)
+}
+
+func countNoun(count int, singular string) string {
+	suffix := "s"
+	if count == 1 {
+		suffix = ""
+	}
+	return fmt.Sprintf("%d %s%s", count, singular, suffix)
 }
 
 func (m Model) sectionTitle(label string) string {
