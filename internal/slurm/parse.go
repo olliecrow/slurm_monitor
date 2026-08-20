@@ -10,7 +10,7 @@ import (
 )
 
 var numPrefixRe = regexp.MustCompile(`^-?\d+`)
-var gpuReqRe = regexp.MustCompile(`gpu(?::[a-zA-Z0-9_-]+)?[:=]([0-9]+)`)
+var gpuResourceRe = regexp.MustCompile(`^(gres/)?gpu(?::([^:=,()]+))?[:=]([0-9]+)`)
 
 func parseNodeLines(raw string) ([]Node, error) {
 	lines := strings.Split(raw, "\n")
@@ -79,9 +79,25 @@ func parseNodeLine(line string) (Node, error) {
 	}, nil
 }
 
-func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (QueueSummary, []UserSummary, error) {
+type queueData struct {
+	Queue      QueueSummary
+	Partitions []PartitionSummary
+	Users      []UserSummary
+	Jobs       []JobSummary
+}
+
+type jobSummaryKey struct {
+	jobID     string
+	user      string
+	partition string
+	state     string
+}
+
+func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (queueData, error) {
 	lines := strings.Split(raw, "\n")
 	users := make(map[string]*UserSummary)
+	partitions := make(map[string]*PartitionSummary)
+	jobs := make(map[jobSummaryKey]*JobSummary)
 	var queue QueueSummary
 
 	for lineIndex, line := range lines {
@@ -89,73 +105,139 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (Queue
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "|", 6)
-		if len(parts) < 6 {
-			return QueueSummary{}, nil, fmt.Errorf("queue row %d: expected 6 fields, got %d", lineIndex+1, len(parts))
+		parts := splitQueueRow(line)
+		if len(parts) < 7 {
+			return queueData{}, fmt.Errorf("queue row %d: expected 7 fields, got %d", lineIndex+1, len(parts))
 		}
 		jobID := strings.TrimSpace(parts[0])
 		state := strings.ToUpper(strings.TrimSpace(parts[1]))
 		user := strings.TrimSpace(parts[2])
-		cpuReq := parseInt(strings.TrimSpace(parts[3]))
-		memReq := strings.TrimSpace(parts[4])
-		gresReq := strings.TrimSpace(parts[5])
+		partition := strings.TrimSpace(parts[3])
+		cpuReq := parseInt(strings.TrimSpace(parts[4]))
+		memReq := strings.TrimSpace(parts[5])
+		gresReq := strings.TrimSpace(parts[6])
+		if jobID == "" {
+			jobID = "<unknown>"
+		}
 		if user == "" {
 			user = "<unknown>"
+		}
+		if partition == "" {
+			partition = "<unknown>"
 		}
 
 		if _, ok := users[user]; !ok {
 			users[user] = &UserSummary{User: user}
 		}
+		if _, ok := partitions[partition]; !ok {
+			partitions[partition] = &PartitionSummary{Name: partition}
+		}
 
 		stateClass := classifyQueueState(state)
-		gpuReq := parseGPUReq(gresReq)
+		gpuReq := parseGPUCount(gresReq)
 		isGPUJob := gpuReq > 0
-
-		switch stateClass {
-		case "running":
-			users[user].RunningCPU += cpuReq
-			users[user].RunningGPU += gpuReq
-			if isGPUJob {
-				queue.RunningGPUJobs++
-				users[user].RunningGPUJobs++
-			} else {
-				queue.RunningCPUJobs++
-				users[user].RunningCPUJobs++
-			}
-			queue.ResourceLoad.RunningCPU += cpuReq
-			queue.ResourceLoad.RunningGPU += gpuReq
-		case "pending":
-			memReqMB := parseMemRequestMB(memReq, cpuReq)
+		memReqMB := 0
+		if stateClass == "pending" {
+			memReqMB = parseMemRequestMB(memReq, cpuReq)
 			if !isGPUJob {
 				if fallbackGPUCount := pendingGPUCountByJobRoot[rootJobID(jobID)]; fallbackGPUCount > 0 {
 					isGPUJob = true
 					gpuReq = fallbackGPUCount
 				}
 			}
+		}
+
+		addQueueItem(&queue, stateClass, cpuReq, gpuReq, isGPUJob)
+		addQueueItem(&partitions[partition].Queue, stateClass, cpuReq, gpuReq, isGPUJob)
+
+		switch stateClass {
+		case "running":
+			users[user].RunningCPU += cpuReq
+			users[user].RunningGPU += gpuReq
 			if isGPUJob {
-				queue.PendingGPUJobs++
+				users[user].RunningGPUJobs++
+			} else {
+				users[user].RunningCPUJobs++
+			}
+		case "pending":
+			if isGPUJob {
 				users[user].PendingGPUJobs++
 			} else {
-				queue.PendingCPUJobs++
 				users[user].PendingCPUJobs++
 			}
 			users[user].PendingCPU += cpuReq
 			users[user].PendingMemMB += memReqMB
 			users[user].PendingGPU += gpuReq
-			queue.ResourceLoad.PendingCPU += cpuReq
-			queue.ResourceLoad.PendingGPU += gpuReq
-		default:
-			queue.Other++
 		}
+		jobKey := jobSummaryKey{
+			jobID:     rootJobID(jobID),
+			user:      user,
+			partition: partition,
+			state:     state,
+		}
+		job := jobs[jobKey]
+		if job == nil {
+			job = &JobSummary{
+				JobID:     jobKey.jobID,
+				User:      user,
+				Partition: partition,
+				State:     state,
+			}
+			jobs[jobKey] = job
+		}
+		job.Tasks++
+		job.CPU += cpuReq
+		job.GPU += gpuReq
 	}
 
 	outUsers := make([]UserSummary, 0, len(users))
 	for _, v := range users {
 		outUsers = append(outUsers, *v)
 	}
-	SortUsersForDisplay(outUsers)
+	outPartitions := make([]PartitionSummary, 0, len(partitions))
+	for _, partition := range partitions {
+		outPartitions = append(outPartitions, *partition)
+	}
+	outJobs := make([]JobSummary, 0, len(jobs))
+	for _, job := range jobs {
+		outJobs = append(outJobs, *job)
+	}
 
-	return queue, outUsers, nil
+	return queueData{
+		Queue:      queue,
+		Partitions: outPartitions,
+		Users:      outUsers,
+		Jobs:       outJobs,
+	}, nil
+}
+
+func addQueueItem(queue *QueueSummary, stateClass string, cpu, gpu int, isGPUJob bool) {
+	switch stateClass {
+	case "running":
+		if isGPUJob {
+			queue.RunningGPUJobs++
+		} else {
+			queue.RunningCPUJobs++
+		}
+		queue.ResourceLoad.RunningCPU += cpu
+		queue.ResourceLoad.RunningGPU += gpu
+	case "pending":
+		if isGPUJob {
+			queue.PendingGPUJobs++
+		} else {
+			queue.PendingCPUJobs++
+		}
+		queue.ResourceLoad.PendingCPU += cpu
+		queue.ResourceLoad.PendingGPU += gpu
+	default:
+		queue.Other++
+	}
+}
+
+func splitQueueRow(line string) []string {
+	line = strings.TrimSpace(line)
+	line = strings.TrimSuffix(line, "|")
+	return strings.SplitN(line, "|", 7)
 }
 
 func rootJobID(jobID string) string {
@@ -292,23 +374,27 @@ func parseGPUCount(tres string) int {
 	if tres == "" {
 		return 0
 	}
-	total := 0
+	genericTotal := 0
+	typedTotal := 0
+	hasGeneric := false
 	for _, part := range strings.Split(tres, ",") {
 		part = strings.TrimSpace(part)
-		if part == "" {
+		matches := gpuResourceRe.FindStringSubmatch(part)
+		if len(matches) != 4 {
 			continue
 		}
-		kv := strings.SplitN(part, "=", 2)
-		if len(kv) != 2 {
+		count := parseInt(matches[3])
+		if matches[2] != "" {
+			typedTotal += count
 			continue
 		}
-		key := strings.TrimSpace(kv[0])
-		if !strings.HasPrefix(key, "gres/gpu") {
-			continue
-		}
-		total += parseInt(strings.TrimSpace(kv[1]))
+		hasGeneric = true
+		genericTotal += count
 	}
-	return total
+	if hasGeneric {
+		return genericTotal
+	}
+	return typedTotal
 }
 
 func parseMemMBFromTRES(tres string) int {
@@ -386,19 +472,4 @@ func parseMemRequestMB(raw string, cpuCount int) int {
 		return megabytes * cpuCount
 	}
 	return megabytes
-}
-
-func parseGPUReq(raw string) int {
-	if raw == "" || raw == "N/A" {
-		return 0
-	}
-	matches := gpuReqRe.FindAllStringSubmatch(raw, -1)
-	total := 0
-	for _, m := range matches {
-		if len(m) < 2 {
-			continue
-		}
-		total += parseInt(m[1])
-	}
-	return total
 }

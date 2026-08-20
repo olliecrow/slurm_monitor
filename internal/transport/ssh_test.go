@@ -97,3 +97,19 @@ func TestIsRetryableRejectsPermanentSSHFailures(t *testing.T) {
 		}
 	}
 }
+
+func TestRunErrorDoesNotRepeatKnownExitStatus(t *testing.T) {
+	err := &RunError{
+		Target:   "ssh:cluster_alias",
+		Stderr:   "Permission denied (publickey)",
+		ExitCode: 255,
+		Err:      errors.New("exit status 255"),
+	}
+	got := err.Error()
+	if !strings.Contains(got, "[exit=255]") {
+		t.Fatalf("expected structured exit code, got %q", got)
+	}
+	if strings.Contains(got, "exit status 255") {
+		t.Fatalf("expected exit status not to be repeated, got %q", got)
+	}
+}

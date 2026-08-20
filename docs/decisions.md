@@ -44,7 +44,7 @@ References: `internal/app/app.go`, `internal/monitor/monitor.go`, `internal/tran
 
 ## Count array tasks and use Slurm TRES as the resource source
 
-Collapsed job-array rows undercount schedulable work. `squeue -r` expands tasks so queue and user job counts reflect task granularity.
+Collapsed job-array rows undercount schedulable work. `squeue -r` expands tasks so queue, partition, and user job counts reflect task granularity.
 
 CPU/GPU resource totals come from `tres-alloc`, which is the Slurm field for allocated or requested TRES. Some pending rows omit TRES detail, so the collector may use cached `scontrol show job` data for the affected root job. That fallback is limited to four probes per collection and one shared command-timeout budget so missing detail cannot create an unbounded poll.
 
@@ -56,6 +56,8 @@ References: `internal/slurm/collector.go`, `internal/slurm/collector_test.go`, `
 
 Node CPU load and free-memory values come directly from Slurm. They are not smoothed or interpolated because synthetic movement would misrepresent scheduler data.
 
+The aggregate `TOTAL` row keeps CPU and memory utilization percentages as `n/a` because allocation totals are not utilization totals. The adjacent allocation ratios remain visible.
+
 GPU percentage is allocation saturation (`GPUAlloc/GPUTotal`), not live device activity. The UI labels it `gpu alloc%`.
 
 Enforcement: parsers retain raw Slurm-derived values and availability flags; UI labels and tests distinguish allocation from utilization.
@@ -64,15 +66,17 @@ References: `internal/slurm/parse.go`, `internal/tui/model.go`, `docs/spec.md`.
 
 ## Keep the TUI focused, terminal-bounded, and non-interactive
 
-The display has three data views: node summary, queue summary, and per-user summary. It uses two stacked panels so these views remain visible without navigation.
+The display has node, queue, partition, user, and job views. It uses two stacked panels so these views remain visible without navigation. The combined queue panel shares its remaining height fairly across partition, user, and job sections.
+
+The job view groups array tasks only when root job, user, partition, and state match. This keeps large arrays readable without changing task-granular queue totals. Partition ordering surfaces pending pressure before current load. Job ordering surfaces pending GPU, running GPU, pending CPU, and running CPU work, then favors larger grouped jobs.
 
 Panel-content budgets determine visible rows. Hidden-row metadata is explicit, and node alerts plus the aggregate `TOTAL` row take priority over per-node rows. This prevents large clusters or small terminals from causing wrapping, scrolling, or silent loss of critical health information.
 
 The header distinguishes initial loading, connected operation, transient recovery, and permanent disconnection. A clock, refresh age, and status spinner show liveness even when cluster metrics are unchanged.
 
-Enforcement: one budget-aware render path handles normal and compact layouts; viewport tests cover resizing, clipping metadata, alerts, totals, and footer placement.
+Enforcement: one budget-aware render path handles normal and compact layouts; summary sorting is deterministic; viewport tests cover resizing, fair detail-section budgets, clipping metadata, alerts, totals, and footer placement.
 
-References: `internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`.
+References: `internal/slurm/summary_sort.go`, `internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`.
 
 ## Show CPU-job and GPU-job splits directly
 
