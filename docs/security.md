@@ -2,6 +2,7 @@
 
 ## Core rules
 - Never commit secrets, credentials, passwords, tokens, private keys, or confidential internal data.
+- Never commit personal email addresses or labelled phone numbers. Use reserved example domains in documentation and GitHub-provided no-reply addresses for Git identities.
 - Treat this repository as open-source-ready.
 - Keep authentication material in SSH config, SSH agent, environment, or local secret stores only.
 
@@ -26,11 +27,12 @@
 - Review diffs for accidental secret leakage before commit.
 - Repo-enforced checks:
   - `.pre-commit-config.yaml` runs `gitleaks` before commits.
-  - `commit-msg` hook blocks local absolute system paths and credential-like values in commit messages.
-  - `pre-push` hook scans outbound commit messages and outbound diffs for the same sensitive patterns.
-  - `.github/workflows/ci.yml` re-checks git history, commit messages, and PR title/body in CI.
-  - Policy self-tests verify placeholder handling, fallback behavior without `rg`, and redaction of detected content.
-  - Sensitive-text checks support both `rg` and `grep` so local/CI environments without `rg` still enforce policy.
+  - Local hooks block personal contact details, local absolute system paths, and credential-like values in staged files and commit messages.
+  - The commit hook requires a GitHub no-reply or reserved example address for Git author and committer metadata.
+  - The pre-push hook scans each outbound commit identity, message, and added line for the same patterns.
+  - `.github/workflows/ci.yml` applies the same checks to the exact push or pull request range and checks pull request title/body text.
+  - Policy self-tests verify allowed examples, personal-data detection, and redaction of detected content.
+  - Sensitive-text checks use portable extended `grep` expressions on macOS and Linux.
 
 ## Runtime safety posture
 - Monitor is strictly read-only.
