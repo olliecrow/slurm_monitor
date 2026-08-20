@@ -542,12 +542,14 @@ func pendingReasonHeaderLine(contentWidth int) string {
 
 func pendingReasonRowLine(reason slurm.PendingReasonSummary, contentWidth int) string {
 	reasonWidth, taskWidth, resourceWidth := pendingReasonColumnWidths(contentWidth)
-	return fmt.Sprintf("%-*s %*d %*d %*d", reasonWidth, truncateRunes(pendingReasonLabel(reason.Reason), reasonWidth), taskWidth, reason.Tasks, resourceWidth, reason.CPU, resourceWidth, reason.GPU)
+	return fmt.Sprintf("%-*s %*d %*d %*d", reasonWidth, truncatePendingReason(pendingReasonLabel(reason.Reason), reasonWidth), taskWidth, reason.Tasks, resourceWidth, reason.CPU, resourceWidth, reason.GPU)
 }
 
 func compactPendingReasonSummaryLine(reason slurm.PendingReasonSummary, contentWidth int) string {
 	resources := fmt.Sprintf("%s, %s, %s", countNoun(reason.Tasks, "task"), countNoun(reason.CPU, "CPU"), countNoun(reason.GPU, "GPU"))
-	return joinWithPaddingKeepRight(pendingReasonLabel(reason.Reason), resources, contentWidth)
+	labelWidth := max(0, contentWidth-lipgloss.Width(resources)-1)
+	label := truncatePendingReason(pendingReasonLabel(reason.Reason), labelWidth)
+	return joinWithPaddingKeepRight(label, resources, contentWidth)
 }
 
 func pendingReasonColumnWidths(contentWidth int) (int, int, int) {
@@ -587,6 +589,33 @@ func pendingReasonLabel(reason string) string {
 		return "Required node unavailable"
 	}
 	return reason
+}
+
+func truncatePendingReason(reason string, maxWidth int) string {
+	if maxWidth <= 0 || lipgloss.Width(reason) <= maxWidth {
+		return truncateRunes(reason, maxWidth)
+	}
+
+	truncated := truncateRunes(reason, maxWidth)
+	words := strings.Fields(strings.TrimSuffix(truncated, "…"))
+	if len(words) < 2 {
+		return truncated
+	}
+
+	words = words[:len(words)-1]
+	const trailingConnectors = " a an and are by for in is of on or the to with "
+	for len(words) > 1 {
+		last := strings.ToLower(strings.Trim(words[len(words)-1], ",.:;"))
+		if !strings.Contains(trailingConnectors, " "+last+" ") {
+			break
+		}
+		words = words[:len(words)-1]
+	}
+	candidate := strings.Join(words, " ") + "…"
+	if lipgloss.Width(candidate) >= maxWidth/2 {
+		return candidate
+	}
+	return truncated
 }
 
 func userQueueSummary(u slurm.UserSummary) slurm.QueueSummary {
