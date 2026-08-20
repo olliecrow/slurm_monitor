@@ -15,12 +15,11 @@ The tool should run for long periods with minimal operator interaction and provi
 - Local mode (default when no SSH target is provided).
 - Remote mode via SSH target (alias from SSH config or `user@host` style target).
 - Recovery behavior for transient SSH/network failures.
-- Five primary data views:
+- Four primary data views:
   - scheduler summary view (cluster-level job counts and CPU/GPU resource totals)
   - partition view (per-partition job counts and CPU/GPU resource totals)
   - user view (per-user job counts and CPU/GPU resource totals)
   - pending-reason view (scheduler reasons with affected task, CPU, and GPU demand)
-  - job view (top grouped root jobs with user, partition, state, task count, CPU, and GPU demand)
 - Queue labels must make it clear these are job or array-task counts, not held CPU or GPU resource totals.
 - Clear connectivity status indicators in the UI.
 
@@ -152,7 +151,7 @@ Per-reason fields:
 - blank or unavailable reasons appear as `<unknown>`.
 - default ordering surfaces GPU demand, CPU demand, then affected task count.
 
-### 5) Job view
+### Grouped job details (`--once` only)
 Per grouped-job fields:
 - root job ID
 - user
@@ -172,14 +171,15 @@ Per grouped-job fields:
 - Header includes a heartbeat clock and update age.
 - Header includes a status spinner so refresh/liveness is visible even when metrics are stable.
 - When the header is narrow, it removes lower-priority fields as complete units instead of cutting labels or values mid-word.
-- Body renders one scheduler-insights panel with summary, partition, user, pending-reason, and grouped-job sections.
+- Body renders one scheduler-insights panel with summary, partition, user, and pending-reason sections.
 - The queue summary uses one activity line on wide terminals and separate running and pending lines when the combined line does not fit.
 - Wide partition and user tables group plain-language running jobs, pending jobs, resources in use, and requested resources. Values identify CPU-only jobs, GPU jobs, CPUs, and GPUs explicitly.
-- Wide pending-reason and job tables give spare terminal width to reason text before truncating it.
-- Compact detail sections omit table headers and use self-describing rows so more data fits. Partition and user section titles identify their values as job counts, and each row labels running and pending CPU-only/GPU values; pending-reason and job rows include task, CPU, and GPU units. Full Slurm state names remain visible when they fit. Data is truncated only when the terminal width requires it.
+- Wide pending-reason tables give spare terminal width to reason text before truncating it.
+- Compact detail sections omit table headers and use self-describing rows so more data fits. Partition and user section titles identify their values as job counts, and each row labels running and pending CPU-only/GPU values; pending-reason rows include task, CPU, and GPU units. Data is truncated only when the terminal width requires it.
 - At 72x20 and larger, compact terminals preserve at least one data row from every active detail section. Smaller terminals preserve every active section title when space permits.
-- Partition, user, pending-reason, and job tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
+- Partition, user, and pending-reason tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
 - Row budgets are computed from panel content height and shared fairly across active detail sections.
+- The panel separates sections with blank lines when every active detail can still show at least one data row. Tight terminals remove spacing before data.
 - When rows are clipped, section headers must show deterministic plain-language metadata (for example `X shown · N hidden`).
 - When no rows fit in a panel budget, headers should still show the hidden-row count without `0 shown` phrasing (for example `N hidden`).
 - In worst-case global viewport clipping, the final visible row must show `... output clipped to terminal height ...`.
