@@ -58,7 +58,7 @@ The tool should run for long periods with minimal operator interaction and provi
 - `--no-color`: disable colored UI output.
 - `--compact`: compact layout for small terminal dimensions.
 - `--once`: collect one snapshot and print a text summary with queue job and resource totals, and top partition, user, pending-reason, and grouped-job rows.
-- `--duration <duration>`: optional auto-exit timer for TUI runs.
+- `--duration <duration>`: optional clean auto-exit timer for TUI runs, including while transient startup preflight retries are active.
 
 ## Startup Behavior
 
@@ -175,6 +175,7 @@ Per grouped-job fields:
 - The queue summary uses one activity line on wide terminals and separate running and pending lines when the combined line does not fit.
 - Wide partition and user tables group plain-language running jobs, pending jobs, resources in use, and requested resources. Values identify CPU-only jobs, GPU jobs, CPUs, and GPUs explicitly.
 - Wide pending-reason tables give spare terminal width to reason text before truncating it.
+- The TUI replaces stable common Slurm pending-reason codes with plain-language labels and preserves unknown reason text. The `--once` report keeps raw Slurm reason values for diagnostics.
 - Wide tables use the minimum width needed for their current labels and values instead of stretching columns across the terminal.
 - Compact detail sections omit table headers and use self-describing rows so more data fits. Partition and user section titles identify their values as job counts, and each row labels running and pending CPU-only/GPU values; pending-reason rows include task, CPU, and GPU units. Data is truncated only when the terminal width requires it.
 - At 72x20 and larger, compact terminals preserve at least one data row from every active detail section. Smaller terminals preserve every active section title when space permits.
