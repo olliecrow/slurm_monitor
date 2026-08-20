@@ -45,17 +45,12 @@ type styles struct {
 	dim        lipgloss.Style
 	panel      lipgloss.Style
 	tableHdr   lipgloss.Style
-	label      lipgloss.Style
 	value      lipgloss.Style
-	ok         lipgloss.Style
-	warn       lipgloss.Style
-	bad        lipgloss.Style
 	chip       lipgloss.Style
 	chipOK     lipgloss.Style
 	chipWarn   lipgloss.Style
 	chipBad    lipgloss.Style
 	errorLabel lipgloss.Style
-	accent     lipgloss.Style
 }
 
 type updateMsg struct {
@@ -95,17 +90,12 @@ func defaultStyles(noColor bool) styles {
 			dim:        lipgloss.NewStyle(),
 			panel:      basePanel,
 			tableHdr:   lipgloss.NewStyle().Bold(true),
-			label:      lipgloss.NewStyle().Bold(true),
 			value:      lipgloss.NewStyle().Bold(true),
-			ok:         lipgloss.NewStyle().Bold(true),
-			warn:       lipgloss.NewStyle().Bold(true),
-			bad:        lipgloss.NewStyle().Bold(true),
 			chip:       lipgloss.NewStyle().Bold(true),
 			chipOK:     lipgloss.NewStyle().Bold(true),
 			chipWarn:   lipgloss.NewStyle().Bold(true),
 			chipBad:    lipgloss.NewStyle().Bold(true),
 			errorLabel: lipgloss.NewStyle().Bold(true),
-			accent:     lipgloss.NewStyle().Bold(true),
 		}
 	}
 
@@ -114,17 +104,12 @@ func defaultStyles(noColor bool) styles {
 		dim:        lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
 		panel:      basePanel.BorderForeground(lipgloss.Color("61")),
 		tableHdr:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("60")).Padding(0, 1),
-		label:      lipgloss.NewStyle().Foreground(lipgloss.Color("109")),
 		value:      lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255")),
-		ok:         lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42")),
-		warn:       lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")),
-		bad:        lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("196")),
 		chip:       lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("238")).Padding(0, 1),
 		chipOK:     lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("28")).Padding(0, 1),
 		chipWarn:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("232")).Background(lipgloss.Color("220")).Padding(0, 1),
 		chipBad:    lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("160")).Padding(0, 1),
 		errorLabel: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203")),
-		accent:     lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("81")),
 	}
 }
 
@@ -197,51 +182,43 @@ func (m Model) View() string {
 	footer := m.styles.dim.Render("Ctrl+C to exit")
 	headerLines := lineCount(header)
 	footerLines := lineCount(footer)
-	separatorLines := 1
-	if m.height <= headerLines+footerLines+4 {
-		separatorLines = 0
-	}
-	bodyHeight := m.height - headerLines - footerLines - separatorLines
+	bodyHeight := m.height - headerLines - footerLines
 	if bodyHeight < 1 {
 		bodyHeight = 1
 	}
 
 	var body string
 	if m.snapshot == nil {
-		body = m.styles.panel.Width(max(20, m.width-6)).Render("waiting for first successful snapshot...")
+		body = m.styles.panel.Width(max(20, m.width-2)).Render("waiting for first successful snapshot...")
 		body = clipToHeight(body, bodyHeight)
 	} else {
 		body = m.renderMain(bodyHeight)
 	}
 
-	parts := []string{header}
-	if separatorLines > 0 {
-		parts = append(parts, "")
-	}
-	parts = append(parts, body)
+	parts := []string{header, body}
 	top := lipgloss.JoinVertical(lipgloss.Left, parts...)
 	joined := pinFooterToBottom(top, footer, m.height)
 	return clipToViewport(joined, viewWidth, m.height)
 }
 
 func (m Model) renderHeader(now time.Time) string {
-	statusText, _, statusChip := m.renderStatusText(now)
+	statusText, statusChip := m.renderStatusText(now)
 	pulse := pulseFrames[m.pulseIndex%len(pulseFrames)]
 	statusText = pulse + " " + statusText
-	ageText := "refresh: never"
+	ageText := "updated never"
 	if !m.lastSuccess.IsZero() {
-		ageText = "refresh: " + humanDuration(now.Sub(m.lastSuccess)) + " ago"
+		ageText = "updated " + humanDuration(now.Sub(m.lastSuccess)) + " ago"
 	}
 
-	title := m.styles.title.Render(" SLURM MONITOR ")
-	source := m.styles.label.Render("source: ") + m.styles.value.Render(m.source)
-	clock := m.styles.chip.Render("clock: " + now.Format("15:04:05"))
+	title := m.styles.title.Render("SLURM MONITOR")
+	source := m.styles.value.Render(m.source)
+	clock := m.styles.chip.Render(now.Format("15:04:05"))
 	age := m.styles.chip.Render(ageText)
 	right := statusChip.Render(statusText)
 	left := title
 	for _, candidate := range []string{
-		title + "  " + source + "  " + clock + " " + age,
-		title + "  " + clock + " " + age,
+		title + "  " + source + "  " + age + "  " + clock,
+		title + "  " + age + "  " + clock,
 		title + "  " + age,
 		title,
 	} {
@@ -258,28 +235,28 @@ func (m Model) renderHeader(now time.Time) string {
 	return line1 + "\n" + line2
 }
 
-func (m Model) renderStatusText(now time.Time) (string, lipgloss.Style, lipgloss.Style) {
+func (m Model) renderStatusText(now time.Time) (string, lipgloss.Style) {
 	if m.snapshot == nil && strings.TrimSpace(m.lastError) == "" {
-		return "loading", m.styles.warn, m.styles.chipWarn
+		return "loading", m.styles.chipWarn
 	}
 
 	switch m.state {
 	case monitor.StateConnected:
-		return "connected", m.styles.ok, m.styles.chipOK
+		return "connected", m.styles.chipOK
 	case monitor.StateDisconnected:
-		return "disconnected", m.styles.bad, m.styles.chipBad
+		return "disconnected", m.styles.chipBad
 	case monitor.StateDisconnectedRecovering:
 		next := ""
 		if !m.nextRetry.IsZero() && m.nextRetry.After(now) {
 			next = fmt.Sprintf(" (retry in %s)", humanDuration(m.nextRetry.Sub(now)))
 		}
-		return "disconnected, recovering" + next, m.styles.bad, m.styles.chipBad
+		return "disconnected, recovering" + next, m.styles.chipBad
 	default:
 		next := ""
 		if !m.nextRetry.IsZero() && m.nextRetry.After(now) {
 			next = fmt.Sprintf(" (retry in %s)", humanDuration(m.nextRetry.Sub(now)))
 		}
-		return "reconnecting" + next, m.styles.warn, m.styles.chipWarn
+		return "reconnecting" + next, m.styles.chipWarn
 	}
 }
 
@@ -287,7 +264,7 @@ func (m Model) renderMain(maxHeight int) string {
 	if m.snapshot == nil {
 		return ""
 	}
-	inner := max(20, m.width-6)
+	inner := max(20, m.width-2)
 	contentWidth := panelContentWidth(inner)
 	expanded := !m.compact && contentWidth >= groupedSummaryMinContentWidth(m.snapshot)
 	body := m.renderInsightsPanelWithBudget(panelContentHeight(maxHeight), expanded, contentWidth)
@@ -302,19 +279,12 @@ func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, c
 		return ""
 	}
 
-	q := m.snapshot.Queue
-	lines := []string{
-		m.sectionTitle("scheduler overview"),
-		schedulerSummaryHeaderLine(),
-		schedulerSummaryRowLine("running", q.RunningCPUJobs, q.RunningGPUJobs, q.ResourceLoad.RunningCPU, q.ResourceLoad.RunningGPU),
-		schedulerSummaryRowLine("pending", q.PendingCPUJobs, q.PendingGPUJobs, q.ResourceLoad.PendingCPU, q.ResourceLoad.PendingGPU),
-		fmt.Sprintf("other jobs: %d  |  total jobs: %d", q.Other, q.TotalJobs()),
-	}
+	lines := m.schedulerSummaryLines(m.snapshot.Queue, contentWidth)
 	detailCaps := []int{
-		detailLineCapacity(len(m.snapshot.Partitions)),
-		detailLineCapacity(len(m.snapshot.Users)),
-		detailLineCapacity(len(m.snapshot.PendingReasons)),
-		detailLineCapacity(len(m.snapshot.Jobs)),
+		detailLineCapacity(len(m.snapshot.Partitions), expanded),
+		detailLineCapacity(len(m.snapshot.Users), expanded),
+		detailLineCapacity(len(m.snapshot.PendingReasons), expanded),
+		detailLineCapacity(len(m.snapshot.Jobs), expanded),
 	}
 	activeDetailSections := 0
 	for _, cap := range detailCaps {
@@ -356,36 +326,30 @@ func (m Model) renderPendingReasonLinesWithBudget(rowBudget int, wide bool, cont
 	}
 	reasons := append([]slurm.PendingReasonSummary(nil), m.snapshot.PendingReasons...)
 	slurm.SortPendingReasonsForDisplay(reasons)
-	visibleRows := visibleRowsForBudget(len(reasons), rowBudget)
-	lines := []string{m.sectionTitle(viewTitle("why jobs are pending", len(reasons), visibleRows))}
-	if rowBudget == 1 {
-		return fitLinesToWidth(lines, contentWidth)
-	}
-	if rowBudget == 2 {
-		if visibleRows == 1 {
-			lines = append(lines, compactPendingReasonSummaryLine(reasons[0], contentWidth))
-		}
-		return fitLinesToWidth(lines, contentWidth)
-	}
-	if wide {
-		lines = append(lines, pendingReasonHeaderLine(contentWidth, true))
+	tableHeader := wide && rowBudget >= 3
+	visibleRows := visibleRowsForBudget(len(reasons), rowBudget, tableHeader)
+	lines := []string{m.sectionTitle(viewTitle("Why jobs are pending", len(reasons), visibleRows))}
+	if tableHeader {
+		lines = append(lines, pendingReasonHeaderLine(contentWidth))
 		for _, reason := range reasons[:visibleRows] {
-			lines = append(lines, pendingReasonRowLine(reason, contentWidth, true))
+			lines = append(lines, pendingReasonRowLine(reason, contentWidth))
 		}
 	} else {
-		lines = append(lines, pendingReasonHeaderLine(contentWidth, false))
 		for _, reason := range reasons[:visibleRows] {
-			lines = append(lines, pendingReasonRowLine(reason, contentWidth, false))
+			lines = append(lines, compactPendingReasonSummaryLine(reason, contentWidth))
 		}
 	}
 	return fitLinesToWidth(clipLines(lines, rowBudget), contentWidth)
 }
 
-func detailLineCapacity(rowCount int) int {
+func detailLineCapacity(rowCount int, expanded bool) int {
 	if rowCount == 0 {
 		return 0
 	}
-	return rowCount + 2
+	if expanded {
+		return rowCount + 2
+	}
+	return rowCount + 1
 }
 
 func allocateLineBudgets(total int, caps []int) []int {
@@ -410,25 +374,26 @@ func allocateLineBudgets(total int, caps []int) []int {
 	return budgets
 }
 
-func visibleRowsForBudget(totalRows, rowBudget int) int {
-	if totalRows == 0 || rowBudget <= 1 {
+func visibleRowsForBudget(totalRows, rowBudget int, tableHeader bool) int {
+	overhead := 1
+	if tableHeader {
+		overhead++
+	}
+	if totalRows == 0 || rowBudget <= overhead {
 		return 0
 	}
-	if rowBudget == 2 {
-		return min(totalRows, 1)
-	}
-	return min(totalRows, rowBudget-2)
+	return min(totalRows, rowBudget-overhead)
 }
 
 func viewTitle(name string, totalRows, visibleRows int) string {
 	hiddenRows := totalRows - visibleRows
 	if hiddenRows <= 0 {
-		return name
+		return fmt.Sprintf("%s · %d", name, totalRows)
 	}
 	if visibleRows == 0 {
-		return fmt.Sprintf("%s (%d hidden)", name, hiddenRows)
+		return fmt.Sprintf("%s · %d hidden", name, hiddenRows)
 	}
-	return fmt.Sprintf("%s (showing %d of %d; %d hidden)", name, visibleRows, totalRows, hiddenRows)
+	return fmt.Sprintf("%s · %d shown · %d hidden", name, visibleRows, hiddenRows)
 }
 
 func (m Model) renderPartitionLinesWithBudget(rowBudget int, wide bool, contentWidth int) []string {
@@ -437,26 +402,21 @@ func (m Model) renderPartitionLinesWithBudget(rowBudget int, wide bool, contentW
 	}
 	partitions := append([]slurm.PartitionSummary(nil), m.snapshot.Partitions...)
 	slurm.SortPartitionsForDisplay(partitions)
-	visibleRows := visibleRowsForBudget(len(partitions), rowBudget)
-	lines := []string{m.sectionTitle(viewTitle("partitions", len(partitions), visibleRows))}
-	if rowBudget == 1 {
-		return fitLinesToWidth(lines, contentWidth)
+	tableHeader := wide && rowBudget >= 3
+	visibleRows := visibleRowsForBudget(len(partitions), rowBudget, tableHeader)
+	title := "Partitions"
+	if !tableHeader {
+		title += " · job counts"
 	}
-	if rowBudget == 2 {
-		if visibleRows == 1 {
-			lines = append(lines, compactPartitionRowLine(partitions[0]))
-		}
-		return fitLinesToWidth(lines, contentWidth)
-	}
-	if wide {
+	lines := []string{m.sectionTitle(viewTitle(title, len(partitions), visibleRows))}
+	if tableHeader {
 		lines = append(lines, groupedSummaryHeaderLine("partition", contentWidth))
 		for _, partition := range partitions[:visibleRows] {
 			lines = append(lines, groupedSummaryRowLine(partition.Name, partition.Queue, contentWidth))
 		}
 	} else {
-		lines = append(lines, compactPartitionHeaderLine())
 		for _, partition := range partitions[:visibleRows] {
-			lines = append(lines, compactPartitionRowLine(partition))
+			lines = append(lines, compactGroupedSummaryRowLine(partition.Name, partition.Queue))
 		}
 	}
 	return fitLinesToWidth(clipLines(lines, rowBudget), contentWidth)
@@ -470,20 +430,16 @@ func (m Model) renderUserLinesWithBudget(rowBudget int, expanded bool, contentWi
 	slurm.SortUsersForDisplay(users)
 
 	totalUsers := len(users)
-	visibleRows := visibleRowsForBudget(totalUsers, rowBudget)
+	tableHeader := expanded && rowBudget >= 3
+	visibleRows := visibleRowsForBudget(totalUsers, rowBudget, tableHeader)
 	visibleUsers := users[:visibleRows]
-	lines := []string{m.sectionTitle(viewTitle("users", totalUsers, visibleRows))}
-	if rowBudget == 1 {
-		return fitLinesToWidth(lines, contentWidth)
+	title := "Users"
+	if !tableHeader {
+		title += " · job counts"
 	}
-	if rowBudget == 2 {
-		if len(visibleUsers) == 1 {
-			lines = append(lines, compactUserRowLine(visibleUsers[0]))
-		}
-		return fitLinesToWidth(lines, contentWidth)
-	}
+	lines := []string{m.sectionTitle(viewTitle(title, totalUsers, visibleRows))}
 
-	if expanded {
+	if tableHeader {
 		lines = append(lines, groupedSummaryHeaderLine("user", contentWidth))
 		for _, u := range visibleUsers {
 			lines = append(lines, groupedSummaryRowLine(u.User, userQueueSummary(u), contentWidth))
@@ -492,9 +448,8 @@ func (m Model) renderUserLinesWithBudget(rowBudget int, expanded bool, contentWi
 		return fitLinesToWidth(lines, contentWidth)
 	}
 
-	lines = append(lines, compactUserHeaderLine())
 	for _, u := range visibleUsers {
-		lines = append(lines, compactUserRowLine(u))
+		lines = append(lines, compactGroupedSummaryRowLine(u.User, userQueueSummary(u)))
 	}
 	lines = clipLines(lines, rowBudget)
 	return fitLinesToWidth(lines, contentWidth)
@@ -506,26 +461,17 @@ func (m Model) renderJobLinesWithBudget(rowBudget int, wide bool, contentWidth i
 	}
 	jobs := append([]slurm.JobSummary(nil), m.snapshot.Jobs...)
 	slurm.SortJobsForDisplay(jobs)
-	visibleRows := visibleRowsForBudget(len(jobs), rowBudget)
-	lines := []string{m.sectionTitle(viewTitle("jobs", len(jobs), visibleRows))}
-	if rowBudget == 1 {
-		return fitLinesToWidth(lines, contentWidth)
-	}
-	if rowBudget == 2 {
-		if visibleRows == 1 {
-			lines = append(lines, compactJobSummaryLine(jobs[0], contentWidth))
-		}
-		return fitLinesToWidth(lines, contentWidth)
-	}
-	if wide {
+	tableHeader := wide && rowBudget >= 3
+	visibleRows := visibleRowsForBudget(len(jobs), rowBudget, tableHeader)
+	lines := []string{m.sectionTitle(viewTitle("Jobs", len(jobs), visibleRows))}
+	if tableHeader {
 		lines = append(lines, wideJobHeaderLine(contentWidth))
 		for _, job := range jobs[:visibleRows] {
 			lines = append(lines, wideJobRowLine(job, contentWidth))
 		}
 	} else {
-		lines = append(lines, compactJobHeaderLine())
 		for _, job := range jobs[:visibleRows] {
-			lines = append(lines, compactJobRowLine(job))
+			lines = append(lines, compactJobSummaryLine(job, contentWidth))
 		}
 	}
 	return fitLinesToWidth(clipLines(lines, rowBudget), contentWidth)
@@ -585,13 +531,15 @@ func groupedSummaryColumnWidths(contentWidth int) (int, int) {
 	return groupedSummaryNameWidth, max(1, (contentWidth-groupedSummaryNameWidth-4)/4)
 }
 
-func compactPartitionHeaderLine() string {
-	return fmt.Sprintf("%-10s %12s %7s %16s %11s", "partition", "CPU-only run", "GPU run", "CPU-only pending", "GPU pending")
-}
-
-func compactPartitionRowLine(partition slurm.PartitionSummary) string {
-	q := partition.Queue
-	return fmt.Sprintf("%-10s %12d %7d %16d %11d", truncateRunes(partition.Name, 10), q.RunningCPUJobs, q.RunningGPUJobs, q.PendingCPUJobs, q.PendingGPUJobs)
+func compactGroupedSummaryRowLine(name string, q slurm.QueueSummary) string {
+	return fmt.Sprintf(
+		"%s: running %d CPU-only, %d GPU; pending %d CPU-only, %d GPU",
+		name,
+		q.RunningCPUJobs,
+		q.RunningGPUJobs,
+		q.PendingCPUJobs,
+		q.PendingGPUJobs,
+	)
 }
 
 func wideJobHeaderLine(contentWidth int) string {
@@ -609,15 +557,6 @@ func wideJobReasonWidth(contentWidth int) int {
 	return max(18, contentWidth-77)
 }
 
-func compactJobHeaderLine() string {
-	return fmt.Sprintf("%-10s %-9s %-9s %-11s %5s %5s %4s", "job ID", "user", "partition", "state", "tasks", "CPUs", "GPUs")
-}
-
-func compactJobRowLine(job slurm.JobSummary) string {
-	state := strings.ToUpper(strings.TrimSpace(job.State))
-	return fmt.Sprintf("%-10s %-9s %-9s %-11s %5d %5d %4d", truncateRunes(job.JobID, 10), truncateRunes(job.User, 9), truncateRunes(job.Partition, 9), truncateRunes(state, 11), job.Tasks, job.CPU, job.GPU)
-}
-
 func compactJobSummaryLine(job slurm.JobSummary, contentWidth int) string {
 	state := strings.ToUpper(strings.TrimSpace(job.State))
 	identity := fmt.Sprintf("job %s %s %s %s", job.JobID, job.User, job.Partition, state)
@@ -625,16 +564,13 @@ func compactJobSummaryLine(job slurm.JobSummary, contentWidth int) string {
 	return joinWithPaddingKeepRight(identity, resources, contentWidth)
 }
 
-func pendingReasonHeaderLine(contentWidth int, wide bool) string {
-	reasonWidth, taskWidth, resourceWidth := pendingReasonColumnWidths(contentWidth, wide)
-	if wide {
-		return fmt.Sprintf("%-*s %*s %*s %*s", reasonWidth, "reason", taskWidth, "affected tasks", resourceWidth, "requested CPUs", resourceWidth, "requested GPUs")
-	}
-	return fmt.Sprintf("%-*s %*s %*s %*s", reasonWidth, "reason", taskWidth, "tasks", resourceWidth, "CPUs", resourceWidth, "GPUs")
+func pendingReasonHeaderLine(contentWidth int) string {
+	reasonWidth, taskWidth, resourceWidth := pendingReasonColumnWidths(contentWidth)
+	return fmt.Sprintf("%-*s %*s %*s %*s", reasonWidth, "reason", taskWidth, "affected tasks", resourceWidth, "requested CPUs", resourceWidth, "requested GPUs")
 }
 
-func pendingReasonRowLine(reason slurm.PendingReasonSummary, contentWidth int, wide bool) string {
-	reasonWidth, taskWidth, resourceWidth := pendingReasonColumnWidths(contentWidth, wide)
+func pendingReasonRowLine(reason slurm.PendingReasonSummary, contentWidth int) string {
+	reasonWidth, taskWidth, resourceWidth := pendingReasonColumnWidths(contentWidth)
 	return fmt.Sprintf("%-*s %*d %*d %*d", reasonWidth, truncateRunes(reason.Reason, reasonWidth), taskWidth, reason.Tasks, resourceWidth, reason.CPU, resourceWidth, reason.GPU)
 }
 
@@ -643,30 +579,10 @@ func compactPendingReasonSummaryLine(reason slurm.PendingReasonSummary, contentW
 	return joinWithPaddingKeepRight(reason.Reason, resources, contentWidth)
 }
 
-func pendingReasonColumnWidths(contentWidth int, wide bool) (int, int, int) {
-	if wide {
-		const taskWidth = 14
-		const resourceWidth = 14
-		return max(18, contentWidth-taskWidth-2*resourceWidth-3), taskWidth, resourceWidth
-	}
-	const taskWidth = 7
-	const resourceWidth = 7
+func pendingReasonColumnWidths(contentWidth int) (int, int, int) {
+	const taskWidth = 14
+	const resourceWidth = 14
 	return max(18, contentWidth-taskWidth-2*resourceWidth-3), taskWidth, resourceWidth
-}
-
-func compactUserHeaderLine() string {
-	return fmt.Sprintf("%-10s %12s %7s %16s %11s", "user", "CPU-only run", "GPU run", "CPU-only pending", "GPU pending")
-}
-
-func compactUserRowLine(u slurm.UserSummary) string {
-	return fmt.Sprintf(
-		"%-10s %12d %7d %16d %11d",
-		truncateRunes(u.User, 10),
-		u.RunningCPUJobs,
-		u.RunningGPUJobs,
-		u.PendingCPUJobs,
-		u.PendingGPUJobs,
-	)
 }
 
 func userQueueSummary(u slurm.UserSummary) slurm.QueueSummary {
@@ -684,25 +600,29 @@ func userQueueSummary(u slurm.UserSummary) slurm.QueueSummary {
 	}
 }
 
-func schedulerSummaryHeaderLine() string {
-	return fmt.Sprintf("%-7s %13s %9s %8s %6s", "status", "CPU-only jobs", "GPU jobs", "CPUs", "GPUs")
+func (m Model) schedulerSummaryLines(q slurm.QueueSummary, contentWidth int) []string {
+	runningJobs := q.RunningCPUJobs + q.RunningGPUJobs
+	pendingJobs := q.PendingCPUJobs + q.PendingGPUJobs
+	title := fmt.Sprintf("Queue · %d jobs · %d running · %d pending", q.TotalJobs(), runningJobs, pendingJobs)
+	if q.Other > 0 {
+		title += fmt.Sprintf(" · %d other", q.Other)
+	}
+	running := schedulerActivityLine("Running", q.RunningCPUJobs, q.RunningGPUJobs, q.ResourceLoad.RunningCPU, q.ResourceLoad.RunningGPU)
+	pending := schedulerActivityLine("Pending", q.PendingCPUJobs, q.PendingGPUJobs, q.ResourceLoad.PendingCPU, q.ResourceLoad.PendingGPU)
+	lines := []string{m.sectionTitle(title)}
+	combined := running + "  │  " + pending
+	if lipgloss.Width(combined) <= contentWidth {
+		return append(lines, combined)
+	}
+	return append(lines, running, pending)
 }
 
-func schedulerSummaryRowLine(state string, cpuOnlyJobs, gpuJobs, cpu, gpu int) string {
-	return fmt.Sprintf("%-7s %13d %9d %8d %6d", state, cpuOnlyJobs, gpuJobs, cpu, gpu)
+func schedulerActivityLine(state string, cpuOnlyJobs, gpuJobs, cpu, gpu int) string {
+	return fmt.Sprintf("%s · %d CPU-only + %d GPU jobs · %d CPUs + %d GPUs", state, cpuOnlyJobs, gpuJobs, cpu, gpu)
 }
 
 func (m Model) sectionTitle(label string) string {
-	icon := "•"
-	switch {
-	case strings.HasPrefix(label, "scheduler overview"):
-		icon = "◍"
-	case strings.HasPrefix(label, "users"):
-		icon = "◒"
-	case strings.HasPrefix(label, "why jobs are pending"):
-		icon = "◇"
-	}
-	return m.styles.tableHdr.Render(icon + " " + label)
+	return m.styles.tableHdr.Render(label)
 }
 
 func stabilizedFrameWidth(width int) int {
