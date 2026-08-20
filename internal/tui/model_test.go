@@ -204,13 +204,30 @@ func TestQueuePanelShowsPartitionUserAndGroupedJobViews(t *testing.T) {
 func TestQueuePanelSharesTightBudgetAcrossAllDetailViews(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
-	m.snapshot.Partitions = []slurm.PartitionSummary{{Name: "gpu"}}
-	m.snapshot.Jobs = []slurm.JobSummary{{JobID: "3001", User: "alice", Partition: "gpu", State: "PENDING", Tasks: 2}}
+	m.snapshot.Partitions = []slurm.PartitionSummary{
+		{Name: "gpu", Queue: slurm.QueueSummary{PendingGPUJobs: 3}},
+		{Name: "cpu", Queue: slurm.QueueSummary{PendingCPUJobs: 2}},
+		{Name: "short", Queue: slurm.QueueSummary{RunningGPUJobs: 1}},
+	}
+	m.snapshot.Jobs = []slurm.JobSummary{
+		{JobID: "3001", User: "alice", Partition: "gpu", State: "PENDING", Tasks: 2, GPU: 2},
+		{JobID: "3002", User: "bob", Partition: "cpu", State: "PENDING", Tasks: 1, CPU: 8},
+		{JobID: "3003", User: "carol", Partition: "short", State: "RUNNING", Tasks: 1, GPU: 1},
+	}
 
 	out := m.renderQueuePanelWithBudget(13, true, 90)
 	for _, want := range []string{"partition view", "gpu", "user view", "alice", "job view", "3001"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected %q in tight combined insight panel, got: %q", want, out)
+		}
+	}
+	for _, want := range []string{
+		"partition view (top 1/3, +2 hidden)",
+		"user view (top 1/3, +2 hidden)",
+		"job view (top 1/3, +2 hidden)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected deterministic clipping metadata %q, got: %q", want, out)
 		}
 	}
 	if got := len(strings.Split(out, "\n")); got > 13 {
@@ -309,7 +326,7 @@ func TestUserLinesBudgetTwoRowsShowsOneUser(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 
-	lines := m.renderUserLinesWithBudget(10, 2, true, 80)
+	lines := m.renderUserLinesWithBudget(2, true, 80)
 	out := strings.Join(lines, "\n")
 	if !strings.Contains(out, "user view (top 1/3, +2 hidden)") {
 		t.Fatalf("expected one visible user in tight two-row budget, got: %q", out)
@@ -329,7 +346,7 @@ func TestWideUserColumnsStayAligned(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 
-	lines := m.renderUserLinesWithBudget(3, 5, true, 120)
+	lines := m.renderUserLinesWithBudget(5, true, 120)
 	if len(lines) < 3 {
 		t.Fatalf("expected header plus rows, got: %q", strings.Join(lines, "\n"))
 	}
@@ -374,7 +391,7 @@ func TestCompactUserColumnsStayAligned(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 
-	lines := m.renderUserLinesWithBudget(3, 5, false, 80)
+	lines := m.renderUserLinesWithBudget(5, false, 80)
 	if len(lines) < 3 {
 		t.Fatalf("expected compact header plus rows, got: %q", strings.Join(lines, "\n"))
 	}
@@ -392,7 +409,7 @@ func TestUserLinesBudgetOneRowUsesHiddenOnlyLabel(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 
-	lines := m.renderUserLinesWithBudget(10, 1, true, 80)
+	lines := m.renderUserLinesWithBudget(1, true, 80)
 	out := strings.Join(lines, "\n")
 	if !strings.Contains(out, "user view (+3 hidden)") {
 		t.Fatalf("expected hidden-only user label for one-row budget, got: %q", out)
@@ -521,7 +538,7 @@ func TestWideNodeTableShowsUntruncatedDrainState(t *testing.T) {
 func TestUserViewShowsHiddenCountWhenCapped(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
-	lines := m.renderUserLinesWithBudget(1, 3, true, 120)
+	lines := m.renderUserLinesWithBudget(3, true, 120)
 	out := strings.Join(lines, "\n")
 
 	if !strings.Contains(out, "user view (top 1/3, +2 hidden)") {

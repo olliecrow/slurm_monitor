@@ -321,12 +321,14 @@ func (m Model) renderQueuePanelWithBudget(contentHeight int, showDemand bool, co
 		m.queueStatusLine("other", q.Other),
 		m.queueStatusLine("total", q.TotalJobs()),
 	}
-	detailCounts := []int{len(m.snapshot.Partitions), len(m.snapshot.Users), len(m.snapshot.Jobs)}
-	detailCaps := make([]int, len(detailCounts))
+	detailCaps := []int{
+		detailLineCapacity(len(m.snapshot.Partitions)),
+		detailLineCapacity(len(m.snapshot.Users)),
+		detailLineCapacity(len(m.snapshot.Jobs)),
+	}
 	activeDetailSections := 0
-	for i, count := range detailCounts {
-		detailCaps[i] = detailLineCapacity(count)
-		if detailCaps[i] > 0 {
+	for _, cap := range detailCaps {
+		if cap > 0 {
 			activeDetailSections++
 		}
 	}
@@ -341,13 +343,13 @@ func (m Model) renderQueuePanelWithBudget(contentHeight int, showDemand bool, co
 
 	detailBudgets := allocateLineBudgets(contentHeight-len(lines), detailCaps)
 	if detailBudgets[0] > 0 {
-		lines = append(lines, m.renderPartitionLinesWithBudget(detailCounts[0], detailBudgets[0], showDemand, contentWidth)...)
+		lines = append(lines, m.renderPartitionLinesWithBudget(detailBudgets[0], showDemand, contentWidth)...)
 	}
 	if detailBudgets[1] > 0 {
-		lines = append(lines, m.renderUserLinesWithBudget(detailCounts[1], detailBudgets[1], showDemand, contentWidth)...)
+		lines = append(lines, m.renderUserLinesWithBudget(detailBudgets[1], showDemand, contentWidth)...)
 	}
 	if detailBudgets[2] > 0 {
-		lines = append(lines, m.renderJobLinesWithBudget(detailCounts[2], detailBudgets[2], contentWidth >= 70, contentWidth)...)
+		lines = append(lines, m.renderJobLinesWithBudget(detailBudgets[2], contentWidth >= 70, contentWidth)...)
 	}
 
 	lines = clipLines(lines, contentHeight)
@@ -384,14 +386,14 @@ func allocateLineBudgets(total int, caps []int) []int {
 	return budgets
 }
 
-func visibleRowsForBudget(totalRows, maxRows, rowBudget int) int {
-	if totalRows == 0 || maxRows <= 0 || rowBudget <= 1 {
+func visibleRowsForBudget(totalRows, rowBudget int) int {
+	if totalRows == 0 || rowBudget <= 1 {
 		return 0
 	}
 	if rowBudget == 2 {
-		return min(totalRows, min(maxRows, 1))
+		return min(totalRows, 1)
 	}
-	return min(totalRows, min(maxRows, rowBudget-2))
+	return min(totalRows, rowBudget-2)
 }
 
 func viewTitle(name string, totalRows, visibleRows int) string {
@@ -405,13 +407,13 @@ func viewTitle(name string, totalRows, visibleRows int) string {
 	return fmt.Sprintf("%s (top %d/%d, +%d hidden)", name, visibleRows, totalRows, hiddenRows)
 }
 
-func (m Model) renderPartitionLinesWithBudget(maxRows, rowBudget int, wide bool, contentWidth int) []string {
+func (m Model) renderPartitionLinesWithBudget(rowBudget int, wide bool, contentWidth int) []string {
 	if m.snapshot == nil || rowBudget <= 0 {
 		return nil
 	}
 	partitions := append([]slurm.PartitionSummary(nil), m.snapshot.Partitions...)
 	slurm.SortPartitionsForDisplay(partitions)
-	visibleRows := visibleRowsForBudget(len(partitions), maxRows, rowBudget)
+	visibleRows := visibleRowsForBudget(len(partitions), rowBudget)
 	lines := []string{m.sectionTitle(viewTitle("partition view", len(partitions), visibleRows))}
 	if rowBudget == 1 {
 		return fitLinesToWidth(lines, contentWidth)
@@ -436,7 +438,7 @@ func (m Model) renderPartitionLinesWithBudget(maxRows, rowBudget int, wide bool,
 	return fitLinesToWidth(clipLines(lines, rowBudget), contentWidth)
 }
 
-func (m Model) renderUserLinesWithBudget(maxRows, rowBudget int, showDemand bool, contentWidth int) []string {
+func (m Model) renderUserLinesWithBudget(rowBudget int, showDemand bool, contentWidth int) []string {
 	if m.snapshot == nil || rowBudget <= 0 {
 		return nil
 	}
@@ -444,10 +446,7 @@ func (m Model) renderUserLinesWithBudget(maxRows, rowBudget int, showDemand bool
 	slurm.SortUsersForDisplay(users)
 
 	totalUsers := len(users)
-	if maxRows < 0 {
-		maxRows = 0
-	}
-	visibleRows := visibleRowsForBudget(totalUsers, maxRows, rowBudget)
+	visibleRows := visibleRowsForBudget(totalUsers, rowBudget)
 	visibleUsers := users[:visibleRows]
 	lines := []string{m.sectionTitle(viewTitle("user view", totalUsers, visibleRows))}
 	if rowBudget == 1 {
@@ -477,13 +476,13 @@ func (m Model) renderUserLinesWithBudget(maxRows, rowBudget int, showDemand bool
 	return fitLinesToWidth(lines, contentWidth)
 }
 
-func (m Model) renderJobLinesWithBudget(maxRows, rowBudget int, wide bool, contentWidth int) []string {
+func (m Model) renderJobLinesWithBudget(rowBudget int, wide bool, contentWidth int) []string {
 	if m.snapshot == nil || rowBudget <= 0 {
 		return nil
 	}
 	jobs := append([]slurm.JobSummary(nil), m.snapshot.Jobs...)
 	slurm.SortJobsForDisplay(jobs)
-	visibleRows := visibleRowsForBudget(len(jobs), maxRows, rowBudget)
+	visibleRows := visibleRowsForBudget(len(jobs), rowBudget)
 	lines := []string{m.sectionTitle(viewTitle("job view", len(jobs), visibleRows))}
 	if rowBudget == 1 {
 		return fitLinesToWidth(lines, contentWidth)

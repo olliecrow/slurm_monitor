@@ -150,6 +150,30 @@ func TestParseQueueLinesBuildsPartitionAndGroupedJobSummaries(t *testing.T) {
 	}
 }
 
+func TestParseQueueLinesKeepsDifferentArrayTaskStatesSeparate(t *testing.T) {
+	raw := "" +
+		"4001_1|RUNNING|alice|gpu|4|16G|cpu=4,mem=16G,gres/gpu=1\n" +
+		"4001_2|PENDING|alice|gpu|4|16G|cpu=4,mem=16G,gres/gpu=1\n"
+
+	data, err := parseQueueLines(raw, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(data.Jobs) != 2 {
+		t.Fatalf("expected separate running and pending groups, got %d", len(data.Jobs))
+	}
+	states := make(map[string]int, len(data.Jobs))
+	for _, job := range data.Jobs {
+		if job.JobID != "4001" || job.Tasks != 1 {
+			t.Fatalf("unexpected mixed-state group: %+v", job)
+		}
+		states[job.State]++
+	}
+	if states["RUNNING"] != 1 || states["PENDING"] != 1 {
+		t.Fatalf("unexpected mixed-state groups: %v", states)
+	}
+}
+
 func TestParseMemFromTRES(t *testing.T) {
 	if got := parseMemMBFromTRES("cpu=8,mem=12G,billing=8"); got != 12288 {
 		t.Fatalf("unexpected mem parse: %d", got)
