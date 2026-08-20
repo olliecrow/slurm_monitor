@@ -71,8 +71,9 @@ type channelClosedMsg struct{}
 var pulseFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 const (
-	frameRightGutter = 1
-	viewportClipText = "... output clipped to terminal height ..."
+	frameRightGutter             = 1
+	expandedTableMinContentWidth = 104
+	viewportClipText             = "... output clipped to terminal height ..."
 )
 
 func NewModel(opts Options) Model {
@@ -288,7 +289,7 @@ func (m Model) renderMain(maxHeight int) string {
 	}
 	inner := max(20, m.width-6)
 	contentWidth := panelContentWidth(inner)
-	expanded := !m.compact && contentWidth >= 100
+	expanded := !m.compact && contentWidth >= expandedTableMinContentWidth
 	body := m.renderInsightsPanelWithBudget(panelContentHeight(maxHeight), expanded, contentWidth)
 	return clipToHeight(m.styles.panel.Width(inner).Render(body), maxHeight)
 }
