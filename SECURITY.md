@@ -9,7 +9,7 @@ GitHub vulnerability alerts and automated security fixes are enabled as the defa
 
 Please do not open a public GitHub issue for suspected vulnerabilities.
 
-Report security concerns privately to `me@olliecrow.io` and include:
+Use **Report a vulnerability** on this repository's GitHub Security tab and include:
 
 - repository name
 - affected version, commit, or environment
