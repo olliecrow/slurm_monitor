@@ -424,10 +424,10 @@ func (m Model) renderPartitionLinesWithBudget(rowBudget int, wide bool, contentW
 	}
 	lines := []string{m.sectionTitle(viewTitle(title, len(partitions), visibleRows))}
 	if tableHeader {
-		tableWidth := min(contentWidth, groupedSummaryMinContentWidth(m.snapshot))
-		lines = append(lines, groupedSummaryHeaderLine("partition", tableWidth))
+		metricWidths := groupedSummaryMetricWidths(m.snapshot)
+		lines = append(lines, groupedSummaryHeaderLine("partition", metricWidths))
 		for _, partition := range partitions[:visibleRows] {
-			lines = append(lines, groupedSummaryRowLine(partition.Name, partition.Queue, tableWidth))
+			lines = append(lines, groupedSummaryRowLine(partition.Name, partition.Queue, metricWidths))
 		}
 	} else {
 		for _, partition := range partitions[:visibleRows] {
@@ -455,10 +455,10 @@ func (m Model) renderUserLinesWithBudget(rowBudget int, expanded bool, contentWi
 	lines := []string{m.sectionTitle(viewTitle(title, totalUsers, visibleRows))}
 
 	if tableHeader {
-		tableWidth := min(contentWidth, groupedSummaryMinContentWidth(m.snapshot))
-		lines = append(lines, groupedSummaryHeaderLine("user", tableWidth))
+		metricWidths := groupedSummaryMetricWidths(m.snapshot)
+		lines = append(lines, groupedSummaryHeaderLine("user", metricWidths))
 		for _, u := range visibleUsers {
-			lines = append(lines, groupedSummaryRowLine(u.User, userQueueSummary(u), tableWidth))
+			lines = append(lines, groupedSummaryRowLine(u.User, userQueueSummary(u), metricWidths))
 		}
 		lines = clipLines(lines, rowBudget)
 		return fitLinesToWidth(lines, contentWidth)
@@ -471,66 +471,74 @@ func (m Model) renderUserLinesWithBudget(rowBudget int, expanded bool, contentWi
 	return fitLinesToWidth(lines, contentWidth)
 }
 
-func groupedSummaryHeaderLine(nameLabel string, contentWidth int) string {
-	nameWidth, metricWidth := groupedSummaryColumnWidths(contentWidth)
+func groupedSummaryHeaderLine(nameLabel string, metricWidths [4]int) string {
+	headings := groupedSummaryHeadings()
 	return fmt.Sprintf(
 		"%-*s %-*s %-*s %-*s %-*s",
-		nameWidth, truncateRunes(nameLabel, nameWidth),
-		metricWidth, truncateRunes("running jobs", metricWidth),
-		metricWidth, truncateRunes("pending jobs", metricWidth),
-		metricWidth, truncateRunes("resources in use", metricWidth),
-		metricWidth, truncateRunes("resources requested", metricWidth),
+		groupedSummaryNameWidth, truncateRunes(nameLabel, groupedSummaryNameWidth),
+		metricWidths[0], headings[0],
+		metricWidths[1], headings[1],
+		metricWidths[2], headings[2],
+		metricWidths[3], headings[3],
 	)
 }
 
-func groupedSummaryRowLine(name string, q slurm.QueueSummary, contentWidth int) string {
-	nameWidth, metricWidth := groupedSummaryColumnWidths(contentWidth)
+func groupedSummaryRowLine(name string, q slurm.QueueSummary, metricWidths [4]int) string {
 	metrics := groupedSummaryMetrics(q)
 	return fmt.Sprintf(
 		"%-*s %-*s %-*s %-*s %-*s",
-		nameWidth, truncateRunes(name, nameWidth),
-		metricWidth, truncateRunes(metrics[0], metricWidth),
-		metricWidth, truncateRunes(metrics[1], metricWidth),
-		metricWidth, truncateRunes(metrics[2], metricWidth),
-		metricWidth, truncateRunes(metrics[3], metricWidth),
+		groupedSummaryNameWidth, truncateRunes(name, groupedSummaryNameWidth),
+		metricWidths[0], metrics[0],
+		metricWidths[1], metrics[1],
+		metricWidths[2], metrics[2],
+		metricWidths[3], metrics[3],
 	)
 }
 
 func groupedSummaryMinContentWidth(snapshot *slurm.Snapshot) int {
-	metricWidth := lipgloss.Width("resources requested")
+	metricWidths := groupedSummaryMetricWidths(snapshot)
+	return groupedSummaryNameWidth + groupedSummaryColumnGaps + metricWidths[0] + metricWidths[1] + metricWidths[2] + metricWidths[3]
+}
+
+func groupedSummaryMetricWidths(snapshot *slurm.Snapshot) [4]int {
+	headings := groupedSummaryHeadings()
+	widths := [4]int{}
+	for i, heading := range headings {
+		widths[i] = lipgloss.Width(heading)
+	}
 	for _, partition := range snapshot.Partitions {
-		for _, metric := range groupedSummaryMetrics(partition.Queue) {
-			metricWidth = max(metricWidth, lipgloss.Width(metric))
+		for i, metric := range groupedSummaryMetrics(partition.Queue) {
+			widths[i] = max(widths[i], lipgloss.Width(metric))
 		}
 	}
 	for _, user := range snapshot.Users {
-		for _, metric := range groupedSummaryMetrics(userQueueSummary(user)) {
-			metricWidth = max(metricWidth, lipgloss.Width(metric))
+		for i, metric := range groupedSummaryMetrics(userQueueSummary(user)) {
+			widths[i] = max(widths[i], lipgloss.Width(metric))
 		}
 	}
-	return groupedSummaryNameWidth + groupedSummaryColumnGaps + 4*metricWidth
+	return widths
+}
+
+func groupedSummaryHeadings() [4]string {
+	return [4]string{"CPU-only jobs", "GPU jobs", "CPU cores (all jobs)", "GPUs"}
 }
 
 func groupedSummaryMetrics(q slurm.QueueSummary) [4]string {
 	return [4]string{
-		fmt.Sprintf("CPU-only %d, GPU %d", q.RunningCPUJobs, q.RunningGPUJobs),
-		fmt.Sprintf("CPU-only %d, GPU %d", q.PendingCPUJobs, q.PendingGPUJobs),
-		fmt.Sprintf("CPUs %d, GPUs %d", q.ResourceLoad.RunningCPU, q.ResourceLoad.RunningGPU),
-		fmt.Sprintf("CPUs %d, GPUs %d", q.ResourceLoad.PendingCPU, q.ResourceLoad.PendingGPU),
+		fmt.Sprintf("%d running, %d pending", q.RunningCPUJobs, q.PendingCPUJobs),
+		fmt.Sprintf("%d running, %d pending", q.RunningGPUJobs, q.PendingGPUJobs),
+		fmt.Sprintf("%d in use, %d requested", q.ResourceLoad.RunningCPU, q.ResourceLoad.PendingCPU),
+		fmt.Sprintf("%d in use, %d requested", q.ResourceLoad.RunningGPU, q.ResourceLoad.PendingGPU),
 	}
-}
-
-func groupedSummaryColumnWidths(contentWidth int) (int, int) {
-	return groupedSummaryNameWidth, max(1, (contentWidth-groupedSummaryNameWidth-groupedSummaryColumnGaps)/4)
 }
 
 func compactGroupedSummaryRowLine(name string, q slurm.QueueSummary) string {
 	return fmt.Sprintf(
-		"%s: running %d CPU-only, %d GPU; pending %d CPU-only, %d GPU",
+		"%s: CPU-only %d running, %d pending · GPU %d running, %d pending",
 		name,
 		q.RunningCPUJobs,
-		q.RunningGPUJobs,
 		q.PendingCPUJobs,
+		q.RunningGPUJobs,
 		q.PendingGPUJobs,
 	)
 }
@@ -640,18 +648,27 @@ func (m Model) schedulerSummaryLines(q slurm.QueueSummary, contentWidth int) []s
 	if q.Other > 0 {
 		title += fmt.Sprintf(" · %d other", q.Other)
 	}
-	running := schedulerActivityLine("Running", q.RunningCPUJobs, q.RunningGPUJobs, q.ResourceLoad.RunningCPU, q.ResourceLoad.RunningGPU)
-	pending := schedulerActivityLine("Pending", q.PendingCPUJobs, q.PendingGPUJobs, q.ResourceLoad.PendingCPU, q.ResourceLoad.PendingGPU)
 	lines := []string{m.sectionTitle(title)}
-	combined := running + "  │  " + pending
-	if lipgloss.Width(combined) <= contentWidth {
-		return append(lines, combined)
-	}
-	return append(lines, running, pending)
+	lines = append(lines, groupedQueueLines(
+		"Jobs",
+		fmt.Sprintf("CPU-only: %d running, %d pending", q.RunningCPUJobs, q.PendingCPUJobs),
+		fmt.Sprintf("GPU: %d running, %d pending", q.RunningGPUJobs, q.PendingGPUJobs),
+		contentWidth,
+	)...)
+	return append(lines, groupedQueueLines(
+		"Resources",
+		fmt.Sprintf("CPU cores: %d in use, %d requested", q.ResourceLoad.RunningCPU, q.ResourceLoad.PendingCPU),
+		fmt.Sprintf("GPUs: %d in use, %d requested", q.ResourceLoad.RunningGPU, q.ResourceLoad.PendingGPU),
+		contentWidth,
+	)...)
 }
 
-func schedulerActivityLine(state string, cpuOnlyJobs, gpuJobs, cpu, gpu int) string {
-	return fmt.Sprintf("%s · %d CPU-only + %d GPU jobs · %d CPUs + %d GPUs", state, cpuOnlyJobs, gpuJobs, cpu, gpu)
+func groupedQueueLines(label, cpuText, gpuText string, contentWidth int) []string {
+	combined := fmt.Sprintf("%s · %s  │  %s", label, cpuText, gpuText)
+	if lipgloss.Width(combined) <= contentWidth {
+		return []string{combined}
+	}
+	return []string{label + " · " + cpuText, strings.Repeat(" ", lipgloss.Width(label)+3) + gpuText}
 }
 
 func countNoun(count int, singular string) string {

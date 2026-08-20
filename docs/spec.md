@@ -115,7 +115,8 @@ Fields:
 - other jobs count
 - running CPU and GPU resource totals
 - pending CPU and GPU resource demand
-- concise running and pending activity lines that distinguish CPU-only jobs, GPU jobs, CPU resources, and GPU resources
+- separate job-category and resource lines: CPU-only and GPU job counts stay distinct from CPU-core and GPU totals
+- CPU-core totals include CPU cores assigned to both CPU-only and GPU jobs
 - counts include Slurm job arrays at array-task granularity (each array task counts as one job).
 
 ### 2) User view
@@ -172,12 +173,12 @@ Per grouped-job fields:
 - Header includes a status spinner so refresh/liveness is visible even when metrics are stable.
 - When the header is narrow, it removes lower-priority fields as complete units instead of cutting labels or values mid-word.
 - Body renders one scheduler-insights panel with summary, partition, user, and pending-reason sections.
-- The queue summary uses one activity line on wide terminals and separate running and pending lines when the combined line does not fit.
-- Wide partition and user tables group plain-language running jobs, pending jobs, resources in use, and requested resources. Values identify CPU-only jobs, GPU jobs, CPUs, and GPUs explicitly.
+- The queue summary separates job categories from resources. Wide terminals show CPU-only and GPU values on one job line and one resource line; narrow terminals split either line into complete CPU and GPU groups when required.
+- Wide partition and user tables use distinct columns for CPU-only jobs, GPU jobs, CPU cores, and GPUs. Each column shows running/in-use and pending/requested values together.
 - Wide pending-reason tables give spare terminal width to reason text before truncating it.
 - The TUI replaces stable common Slurm pending-reason codes with plain-language labels and preserves unknown reason text. Long prose reasons clip at a word boundary when space permits. The `--once` report keeps raw Slurm reason values for diagnostics.
 - Wide tables use the minimum width needed for their current labels and values instead of stretching columns across the terminal.
-- Compact detail sections omit table headers and use self-describing rows so more data fits. Partition and user section titles identify their values as job counts, and each row labels running and pending CPU-only/GPU values; pending-reason rows include task, CPU, and GPU units. Data is truncated only when the terminal width requires it.
+- Compact detail sections omit table headers and use self-describing rows so more data fits. Partition and user section titles identify their values as job counts, and each row shows the CPU-only group before the GPU group; pending-reason rows include task, CPU, and GPU units. Data is truncated only when the terminal width requires it.
 - At 72x20 and larger, compact terminals preserve at least one data row from every active detail section. Smaller terminals preserve every active section title when space permits.
 - Partition, user, and pending-reason tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
 - Row budgets are computed from panel content height and shared fairly across active detail sections.
