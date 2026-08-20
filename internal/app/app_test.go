@@ -55,8 +55,8 @@ func (s *scriptedTransport) Describe() string {
 
 func TestCheckSlurmAvailabilityMissingCommands(t *testing.T) {
 	tr := fakeTransport{
-		result: transport.RunResult{Stdout: " squeue scontrol"},
-		err:    errors.New("exit 7"),
+		result: transport.RunResult{Stdout: "login banner\n__SLURM_MONITOR_MISSING__ squeue scontrol\n"},
+		err:    &transport.RunError{ExitCode: 7, Err: errors.New("exit status 7")},
 	}
 	err := checkSlurmAvailability(context.Background(), tr, 2*time.Second)
 	if err == nil {
@@ -65,6 +65,32 @@ func TestCheckSlurmAvailabilityMissingCommands(t *testing.T) {
 	var missingErr *missingSlurmCommandsError
 	if !errors.As(err, &missingErr) {
 		t.Fatalf("expected missingSlurmCommandsError, got %T: %v", err, err)
+	}
+	if missingErr.missing != "squeue scontrol" {
+		t.Fatalf("unexpected missing-command list %q", missingErr.missing)
+	}
+}
+
+func TestCheckSlurmAvailabilityDoesNotTreatFailureOutputAsMissingCommands(t *testing.T) {
+	tr := fakeTransport{
+		result: transport.RunResult{Stdout: "remote login banner"},
+		err: &transport.RunError{
+			Stderr:   "Permission denied (publickey)",
+			ExitCode: 255,
+			Err:      errors.New("exit status 255"),
+		},
+	}
+
+	err := checkSlurmAvailability(context.Background(), tr, 2*time.Second)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	var missingErr *missingSlurmCommandsError
+	if errors.As(err, &missingErr) {
+		t.Fatalf("expected transport failure, got missing-command error: %v", err)
+	}
+	if strings.Contains(err.Error(), "remote login banner") {
+		t.Fatalf("transport error exposed stdout: %v", err)
 	}
 }
 
@@ -101,8 +127,8 @@ func TestAwaitSlurmAvailabilityStopsOnMissingCommands(t *testing.T) {
 	tr := &scriptedTransport{
 		responses: []transportResponse{
 			{
-				result: transport.RunResult{Stdout: " squeue scontrol"},
-				err:    errors.New("exit 7"),
+				result: transport.RunResult{Stdout: "__SLURM_MONITOR_MISSING__ squeue scontrol"},
+				err:    &transport.RunError{ExitCode: 7, Err: errors.New("exit status 7")},
 			},
 			{},
 		},
@@ -179,8 +205,8 @@ func TestRunOncePrintsQueueAndUserCPUAndGPUSplit(t *testing.T) {
 	raw := strings.Join([]string{
 		"NodeName=node001 State=IDLE CPUTot=64 CPUAlloc=32 CPULoad=16.00 RealMemory=256000 AllocMem=128000 FreeMem=96000 Partitions=main CfgTRES=cpu=64,mem=256000M,billing=64,gres/gpu=4 AllocTRES=cpu=32,mem=128000M,billing=32,gres/gpu=2",
 		"__SLURM_MONITOR_SPLIT__",
-		"1001|RUNNING|alice|8|20G|cpu=8,mem=20G,gres/gpu=1",
-		"1002|PENDING|alice|4|10G|cpu=4,mem=10G",
+		"1001|RUNNING|alice|gpu|8|20G|cpu=8,mem=20G,gres/gpu=1",
+		"1002|PENDING|alice|cpu|4|10G|cpu=4,mem=10G",
 	}, "\n")
 	collector := slurm.NewCollector(fakeTransport{
 		result: transport.RunResult{Stdout: raw},
@@ -200,6 +226,15 @@ func TestRunOncePrintsQueueAndUserCPUAndGPUSplit(t *testing.T) {
 	}
 	if !strings.Contains(out, "alice held_cpu=8 held_gpu=1 running_cpu_jobs=0 running_gpu_jobs=1 pending_cpu_jobs=1 pending_gpu_jobs=0 pending_cpu=4 pending_gpu=0") {
 		t.Fatalf("expected user held-resource and cpu/gpu job split in output, got: %q", out)
+	}
+	if !strings.Contains(out, "gpu running_cpu_jobs=0 running_gpu_jobs=1") || !strings.Contains(out, "cpu running_cpu_jobs=0 running_gpu_jobs=0 pending_cpu_jobs=1") {
+		t.Fatalf("expected partition insights in output, got: %q", out)
+	}
+	if !strings.Contains(out, "1001 user=alice partition=gpu state=RUNNING tasks=1 cpu=8 gpu=1") {
+		t.Fatalf("expected grouped job insights in output, got: %q", out)
+	}
+	if !strings.Contains(out, "partitions: shown=2 total=2") || !strings.Contains(out, "users: shown=1 total=1") || !strings.Contains(out, "jobs: shown=2 total=2 grouping=root+user+partition+state") {
+		t.Fatalf("expected explicit one-shot truncation and grouping metadata, got: %q", out)
 	}
 }
 

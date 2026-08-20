@@ -36,7 +36,7 @@ func (e *RunError) Error() string {
 	if s := strings.TrimSpace(e.Stderr); s != "" {
 		base += ": " + s
 	}
-	if e.Err != nil {
+	if e.Err != nil && e.ExitCode == 0 {
 		base += fmt.Sprintf(": %v", e.Err)
 	}
 	return base

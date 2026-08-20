@@ -38,7 +38,6 @@ func TestViewFitsViewportAcrossSizes(t *testing.T) {
 func TestUpdateStoresLatestSnapshot(t *testing.T) {
 	m := NewModel(Options{
 		Source:  "ssh:test",
-		Refresh: 2 * time.Second,
 		Updates: make(chan monitor.Update),
 	})
 	snap := sampleSnapshot()
@@ -102,7 +101,6 @@ func TestHeaderKeepsStatusVisibleAtNarrowWidth(t *testing.T) {
 func TestHeaderShowsLoadingBeforeFirstSnapshot(t *testing.T) {
 	m := NewModel(Options{
 		Source:  "ssh:test",
-		Refresh: 2 * time.Second,
 		Updates: make(chan monitor.Update),
 		NoColor: true,
 	})
@@ -183,6 +181,74 @@ func TestQueueSummaryRendersWithoutBars(t *testing.T) {
 	}
 }
 
+func TestQueuePanelShowsPartitionUserAndGroupedJobViews(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.snapshot.Partitions = []slurm.PartitionSummary{
+		{Name: "gpu", Queue: slurm.QueueSummary{PendingGPUJobs: 2}},
+		{Name: "cpu", Queue: slurm.QueueSummary{RunningCPUJobs: 3}},
+	}
+	m.snapshot.Jobs = []slurm.JobSummary{
+		{JobID: "3001", User: "alice", Partition: "gpu", State: "PENDING", Tasks: 12, CPU: 48, GPU: 12},
+		{JobID: "3002", User: "bob", Partition: "cpu", State: "RUNNING", Tasks: 1, CPU: 8},
+	}
+
+	out := m.renderQueuePanelWithBudget(22, true, 100)
+	for _, want := range []string{"partition view", "gpu", "user view", "alice", "job view", "3001", "tasks"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q in combined insight panel, got: %q", want, out)
+		}
+	}
+}
+
+func TestQueuePanelSharesTightBudgetAcrossAllDetailViews(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.snapshot.Partitions = []slurm.PartitionSummary{
+		{Name: "gpu", Queue: slurm.QueueSummary{PendingGPUJobs: 3}},
+		{Name: "cpu", Queue: slurm.QueueSummary{PendingCPUJobs: 2}},
+		{Name: "short", Queue: slurm.QueueSummary{RunningGPUJobs: 1}},
+	}
+	m.snapshot.Jobs = []slurm.JobSummary{
+		{JobID: "3001", User: "alice", Partition: "gpu", State: "PENDING", Tasks: 2, GPU: 2},
+		{JobID: "3002", User: "bob", Partition: "cpu", State: "PENDING", Tasks: 1, CPU: 8},
+		{JobID: "3003", User: "carol", Partition: "short", State: "RUNNING", Tasks: 1, GPU: 1},
+	}
+
+	out := m.renderQueuePanelWithBudget(13, true, 90)
+	for _, want := range []string{"partition view", "gpu", "user view", "alice", "job view", "3001"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q in tight combined insight panel, got: %q", want, out)
+		}
+	}
+	for _, want := range []string{
+		"partition view (top 1/3, +2 hidden)",
+		"user view (top 1/3, +2 hidden)",
+		"job view (top 1/3, +2 hidden)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected deterministic clipping metadata %q, got: %q", want, out)
+		}
+	}
+	if got := len(strings.Split(out, "\n")); got > 13 {
+		t.Fatalf("expected at most 13 lines, got %d", got)
+	}
+}
+
+func TestJobCompactStateLabelsAreUnambiguous(t *testing.T) {
+	tests := map[string]string{
+		"PENDING":     "PEND",
+		"RUNNING":     "RUN",
+		"COMPLETING":  "COMP",
+		"CONFIGURING": "CONF",
+	}
+	for state, want := range tests {
+		if got := shortJobState(state); got != want {
+			t.Fatalf("shortJobState(%q)=%q want=%q", state, got, want)
+		}
+	}
+}
+
 func TestQueueSummaryCountsStayAligned(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
@@ -224,6 +290,28 @@ func TestWideNodeTableUsesGPUAllocLabel(t *testing.T) {
 	}
 }
 
+func TestWideNodeTotalDoesNotLabelAllocationAsUtilization(t *testing.T) {
+	m := NewModel(Options{NoColor: true})
+	snap := sampleSnapshot()
+	m.snapshot = &snap
+	m.width = 180
+
+	out := m.renderNodeTableWithBudget(10, false, 176)
+	var totalFields []string
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "TOTAL") {
+			totalFields = strings.Fields(line)
+			break
+		}
+	}
+	if len(totalFields) != 7 {
+		t.Fatalf("unexpected TOTAL row fields: %v", totalFields)
+	}
+	if totalFields[2] != "n/a" || totalFields[4] != "n/a" {
+		t.Fatalf("expected aggregate CPU and memory utilization to be unavailable, got %v", totalFields)
+	}
+}
+
 func TestQueuePanelBudgetKeepsUserTitleWhenOnlyOneLineRemains(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
@@ -238,7 +326,7 @@ func TestUserLinesBudgetTwoRowsShowsOneUser(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 
-	lines := m.renderUserLinesWithBudget(10, 2, true, 80)
+	lines := m.renderUserLinesWithBudget(2, true, 80)
 	out := strings.Join(lines, "\n")
 	if !strings.Contains(out, "user view (top 1/3, +2 hidden)") {
 		t.Fatalf("expected one visible user in tight two-row budget, got: %q", out)
@@ -258,7 +346,7 @@ func TestWideUserColumnsStayAligned(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 
-	lines := m.renderUserLinesWithBudget(3, 5, true, 120)
+	lines := m.renderUserLinesWithBudget(5, true, 120)
 	if len(lines) < 3 {
 		t.Fatalf("expected header plus rows, got: %q", strings.Join(lines, "\n"))
 	}
@@ -303,7 +391,7 @@ func TestCompactUserColumnsStayAligned(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 
-	lines := m.renderUserLinesWithBudget(3, 5, false, 80)
+	lines := m.renderUserLinesWithBudget(5, false, 80)
 	if len(lines) < 3 {
 		t.Fatalf("expected compact header plus rows, got: %q", strings.Join(lines, "\n"))
 	}
@@ -321,7 +409,7 @@ func TestUserLinesBudgetOneRowUsesHiddenOnlyLabel(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 
-	lines := m.renderUserLinesWithBudget(10, 1, true, 80)
+	lines := m.renderUserLinesWithBudget(1, true, 80)
 	out := strings.Join(lines, "\n")
 	if !strings.Contains(out, "user view (+3 hidden)") {
 		t.Fatalf("expected hidden-only user label for one-row budget, got: %q", out)
@@ -450,7 +538,7 @@ func TestWideNodeTableShowsUntruncatedDrainState(t *testing.T) {
 func TestUserViewShowsHiddenCountWhenCapped(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
-	lines := m.renderUserLinesWithBudget(1, 3, true, 120)
+	lines := m.renderUserLinesWithBudget(3, true, 120)
 	out := strings.Join(lines, "\n")
 
 	if !strings.Contains(out, "user view (top 1/3, +2 hidden)") {
@@ -563,7 +651,6 @@ func seededModel() Model {
 	snap := sampleSnapshot()
 	m := NewModel(Options{
 		Source:  "ssh:cluster_alias",
-		Refresh: 2 * time.Second,
 		Updates: make(chan monitor.Update),
 	})
 	m.state = monitor.StateConnected
