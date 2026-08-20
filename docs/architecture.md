@@ -125,11 +125,13 @@ Optional metrics:
 
 All terminals:
 - top: connection header + last update/staleness
-- middle: scheduler-insights panel with summary, partition, user, pending-reason, and grouped-job sections
+- middle: scheduler-insights panel with a compact queue activity summary, then partition, user, pending-reason, and grouped-job sections
+- use the stabilized terminal width without an extra right margin
 - share available detail height fairly across active sections
 
 Compact terminals:
-- keep the same section order while reducing visible row/detail counts to fit height
+- keep the same section order and use self-describing rows without table headers
+- spend saved header space on additional visible data rows
 
 ## Error model
 - fatal startup errors:

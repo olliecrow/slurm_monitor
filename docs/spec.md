@@ -116,7 +116,7 @@ Fields:
 - other jobs count
 - running CPU and GPU resource totals
 - pending CPU and GPU resource demand
-- aligned running and pending rows for CPU-job count, GPU-job count, CPU resources, and GPU resources
+- concise running and pending activity lines that distinguish CPU-only jobs, GPU jobs, CPU resources, and GPU resources
 - counts include Slurm job arrays at array-task granularity (each array task counts as one job).
 
 ### 2) User view
@@ -169,18 +169,19 @@ Per grouped-job fields:
 - Dynamic resize handling for width/height changes.
 - Live updates without requiring restart.
 - Non-interactive display: no in-app controls or navigation; monitor-only rendering.
-- Header includes a heartbeat clock and refresh age.
+- Header includes a heartbeat clock and update age.
 - Header includes a status spinner so refresh/liveness is visible even when metrics are stable.
 - When the header is narrow, it removes lower-priority fields as complete units instead of cutting labels or values mid-word.
 - Body renders one scheduler-insights panel with summary, partition, user, pending-reason, and grouped-job sections.
+- The queue summary uses one activity line on wide terminals and separate running and pending lines when the combined line does not fit.
 - Wide partition and user tables group plain-language running jobs, pending jobs, resources in use, and requested resources. Values identify CPU-only jobs, GPU jobs, CPUs, and GPUs explicitly.
 - Wide pending-reason and job tables give spare terminal width to reason text before truncating it.
-- Compact tables use plain labels and full Slurm state names when they fit. A data row shown without its table header includes its task, CPU, and GPU units directly. Data is truncated only when the terminal width requires it.
+- Compact detail sections omit table headers and use self-describing rows so more data fits. Partition and user section titles identify their values as job counts, and each row labels running and pending CPU-only/GPU values; pending-reason and job rows include task, CPU, and GPU units. Full Slurm state names remain visible when they fit. Data is truncated only when the terminal width requires it.
 - At 72x20 and larger, compact terminals preserve at least one data row from every active detail section. Smaller terminals preserve every active section title when space permits.
 - Partition, user, pending-reason, and job tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
 - Row budgets are computed from panel content height and shared fairly across active detail sections.
-- When rows are clipped, section headers must show deterministic plain-language metadata (for example `showing X of Y; N hidden`).
-- When no rows fit in a panel budget, headers should still show the hidden-row count without `showing 0` phrasing (for example `N hidden`).
+- When rows are clipped, section headers must show deterministic plain-language metadata (for example `X shown · N hidden`).
+- When no rows fit in a panel budget, headers should still show the hidden-row count without `0 shown` phrasing (for example `N hidden`).
 - In worst-case global viewport clipping, the final visible row must show `... output clipped to terminal height ...`.
 - Connectivity indicator states:
   - loading
