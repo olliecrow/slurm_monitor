@@ -231,7 +231,7 @@ func TestRunOncePrintsQueueAndUserCPUAndGPUSplit(t *testing.T) {
 	if !strings.Contains(out, `1001 user=alice partition=gpu state=RUNNING reason="" tasks=1 cpu=8 gpu=1`) {
 		t.Fatalf("expected grouped job insights in output, got: %q", out)
 	}
-	if !strings.Contains(out, `pending_reasons: shown=1 total=1`) || !strings.Contains(out, `reason="Priority" jobs=1 cpu=4 gpu=0`) {
+	if !strings.Contains(out, `pending_reasons: shown=1 total=1`) || !strings.Contains(out, `reason="Priority" tasks=1 cpu=4 gpu=0`) {
 		t.Fatalf("expected pending-reason pressure in output, got: %q", out)
 	}
 	if strings.Contains(out, "nodes:") || strings.Contains(out, "totals:") {
