@@ -95,6 +95,16 @@ func TestParseQueueLinesRejectsMalformedRow(t *testing.T) {
 	}
 }
 
+func TestParseQueueLinesAcceptsTrailingDelimiter(t *testing.T) {
+	queue, _, err := parseQueueLines("1001|RUNNING|alice|8|20G|cpu=8,mem=20G,gres/gpu=1|", nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if queue.RunningGPUJobs != 1 || queue.ResourceLoad.RunningGPU != 1 {
+		t.Fatalf("unexpected GPU queue totals: jobs=%d resources=%d", queue.RunningGPUJobs, queue.ResourceLoad.RunningGPU)
+	}
+}
+
 func TestParseMemFromTRES(t *testing.T) {
 	if got := parseMemMBFromTRES("cpu=8,mem=12G,billing=8"); got != 12288 {
 		t.Fatalf("unexpected mem parse: %d", got)
@@ -116,15 +126,26 @@ func TestParseMemRequestMB(t *testing.T) {
 	}
 }
 
-func TestParseGPUReq(t *testing.T) {
-	if got := parseGPUReq("gres/gpu:2"); got != 2 {
-		t.Fatalf("unexpected gpu req: %d", got)
+func TestParseGPUCount(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want int
+	}{
+		{name: "generic gres", raw: "gres/gpu:2", want: 2},
+		{name: "typed gres", raw: "gres/gpu:a100:4,gres/gpu:h100:1", want: 5},
+		{name: "generic tres", raw: "cpu=8,mem=32G,gres/gpu=2", want: 2},
+		{name: "typed tres", raw: "gres/gpu:a100=4,gres/gpu:h100=1", want: 5},
+		{name: "generic total takes precedence over typed breakdown", raw: "gres/gpu=5,gres/gpu:a100=4,gres/gpu:h100=1", want: 5},
+		{name: "gpu accounting metrics are excluded", raw: "gres/gpumem=4096M,gres/gpuutil=100", want: 0},
+		{name: "allocation suffix", raw: "gres/gpu:2(IDX:0-1)", want: 2},
 	}
-	if got := parseGPUReq("gres/gpu:a100:4,gres/gpu:1"); got != 5 {
-		t.Fatalf("unexpected gpu req composite: %d", got)
-	}
-	if got := parseGPUReq("cpu=8,mem=32G,gres/gpu=2,gres/gpu:a100=4"); got != 6 {
-		t.Fatalf("unexpected gpu req from tres style string: %d", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := parseGPUCount(tt.raw); got != tt.want {
+				t.Fatalf("parseGPUCount(%q)=%d want=%d", tt.raw, got, tt.want)
+			}
+		})
 	}
 }
 

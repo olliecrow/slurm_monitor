@@ -55,8 +55,8 @@ func (s *scriptedTransport) Describe() string {
 
 func TestCheckSlurmAvailabilityMissingCommands(t *testing.T) {
 	tr := fakeTransport{
-		result: transport.RunResult{Stdout: " squeue scontrol"},
-		err:    errors.New("exit 7"),
+		result: transport.RunResult{Stdout: "login banner\n__SLURM_MONITOR_MISSING__ squeue scontrol\n"},
+		err:    &transport.RunError{ExitCode: 7, Err: errors.New("exit status 7")},
 	}
 	err := checkSlurmAvailability(context.Background(), tr, 2*time.Second)
 	if err == nil {
@@ -65,6 +65,32 @@ func TestCheckSlurmAvailabilityMissingCommands(t *testing.T) {
 	var missingErr *missingSlurmCommandsError
 	if !errors.As(err, &missingErr) {
 		t.Fatalf("expected missingSlurmCommandsError, got %T: %v", err, err)
+	}
+	if missingErr.missing != "squeue scontrol" {
+		t.Fatalf("unexpected missing-command list %q", missingErr.missing)
+	}
+}
+
+func TestCheckSlurmAvailabilityDoesNotTreatFailureOutputAsMissingCommands(t *testing.T) {
+	tr := fakeTransport{
+		result: transport.RunResult{Stdout: "remote login banner"},
+		err: &transport.RunError{
+			Stderr:   "Permission denied (publickey)",
+			ExitCode: 255,
+			Err:      errors.New("exit status 255"),
+		},
+	}
+
+	err := checkSlurmAvailability(context.Background(), tr, 2*time.Second)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	var missingErr *missingSlurmCommandsError
+	if errors.As(err, &missingErr) {
+		t.Fatalf("expected transport failure, got missing-command error: %v", err)
+	}
+	if strings.Contains(err.Error(), "remote login banner") {
+		t.Fatalf("transport error exposed stdout: %v", err)
 	}
 }
 
@@ -101,8 +127,8 @@ func TestAwaitSlurmAvailabilityStopsOnMissingCommands(t *testing.T) {
 	tr := &scriptedTransport{
 		responses: []transportResponse{
 			{
-				result: transport.RunResult{Stdout: " squeue scontrol"},
-				err:    errors.New("exit 7"),
+				result: transport.RunResult{Stdout: "__SLURM_MONITOR_MISSING__ squeue scontrol"},
+				err:    &transport.RunError{ExitCode: 7, Err: errors.New("exit status 7")},
 			},
 			{},
 		},

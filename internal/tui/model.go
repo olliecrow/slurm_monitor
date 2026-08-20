@@ -15,27 +15,21 @@ import (
 )
 
 type Options struct {
-	Source      string
-	Compact     bool
-	NoColor     bool
-	Refresh     time.Duration
-	MaxDuration time.Duration
-	Updates     <-chan monitor.Update
+	Source  string
+	Compact bool
+	NoColor bool
+	Updates <-chan monitor.Update
 }
 
 type Model struct {
-	source      string
-	compact     bool
-	noColor     bool
-	refresh     time.Duration
-	maxDuration time.Duration
-	updates     <-chan monitor.Update
+	source  string
+	compact bool
+	updates <-chan monitor.Update
 
 	width  int
 	height int
 
-	started time.Time
-	now     time.Time
+	now time.Time
 
 	state       monitor.State
 	lastError   string
@@ -84,16 +78,12 @@ const (
 
 func NewModel(opts Options) Model {
 	return Model{
-		source:      opts.Source,
-		compact:     opts.Compact,
-		noColor:     opts.NoColor,
-		refresh:     opts.Refresh,
-		maxDuration: opts.MaxDuration,
-		updates:     opts.Updates,
-		started:     time.Now(),
-		now:         time.Now(),
-		state:       monitor.StateReconnecting,
-		styles:      defaultStyles(opts.NoColor),
+		source:  opts.Source,
+		compact: opts.Compact,
+		updates: opts.Updates,
+		now:     time.Now(),
+		state:   monitor.StateReconnecting,
+		styles:  defaultStyles(opts.NoColor),
 	}
 }
 
@@ -183,9 +173,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.now = msg.now
 		if len(pulseFrames) > 0 {
 			m.pulseIndex = (m.pulseIndex + 1) % len(pulseFrames)
-		}
-		if m.maxDuration > 0 && m.now.Sub(m.started) >= m.maxDuration {
-			return m, tea.Quit
 		}
 		return m, tickCmd()
 	case channelClosedMsg:
@@ -550,21 +537,9 @@ func (m Model) renderNodeTableWithBudget(contentHeight int, compactLayout bool, 
 		))
 	}
 
-	var cpuPct, memPct, gpuPct string
-	if t.CPUTotal > 0 {
-		cpuPct = fmt.Sprintf("%.1f%%", float64(t.CPUAlloc)/float64(t.CPUTotal)*100.0)
-	} else {
-		cpuPct = "n/a"
-	}
-	if t.MemTotalMB > 0 {
-		memPct = fmt.Sprintf("%.1f%%", float64(t.MemAllocMB)/float64(t.MemTotalMB)*100.0)
-	} else {
-		memPct = "n/a"
-	}
+	gpuPct := "n/a"
 	if t.GPUTotal > 0 {
 		gpuPct = fmt.Sprintf("%.1f%%", float64(t.GPUAlloc)/float64(t.GPUTotal)*100.0)
-	} else {
-		gpuPct = "n/a"
 	}
 
 	totalLine := fmt.Sprintf(
@@ -573,9 +548,9 @@ func (m Model) renderNodeTableWithBudget(contentHeight int, compactLayout bool, 
 		"",
 		"",
 		uifmt.Ratio(t.CPUAlloc, t.CPUTotal),
-		cpuPct,
+		"n/a",
 		uifmt.MemPair(t.MemAllocMB, t.MemTotalMB),
-		memPct,
+		"n/a",
 		uifmt.Ratio(t.GPUAlloc, t.GPUTotal),
 		gpuPct,
 	)

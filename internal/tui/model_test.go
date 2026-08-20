@@ -38,7 +38,6 @@ func TestViewFitsViewportAcrossSizes(t *testing.T) {
 func TestUpdateStoresLatestSnapshot(t *testing.T) {
 	m := NewModel(Options{
 		Source:  "ssh:test",
-		Refresh: 2 * time.Second,
 		Updates: make(chan monitor.Update),
 	})
 	snap := sampleSnapshot()
@@ -102,7 +101,6 @@ func TestHeaderKeepsStatusVisibleAtNarrowWidth(t *testing.T) {
 func TestHeaderShowsLoadingBeforeFirstSnapshot(t *testing.T) {
 	m := NewModel(Options{
 		Source:  "ssh:test",
-		Refresh: 2 * time.Second,
 		Updates: make(chan monitor.Update),
 		NoColor: true,
 	})
@@ -221,6 +219,28 @@ func TestWideNodeTableUsesGPUAllocLabel(t *testing.T) {
 	out := m.renderNodeTableWithBudget(12, false, 140)
 	if !strings.Contains(out, "gpu alloc%") {
 		t.Fatalf("expected wide node table to label GPU percentage as allocation, got: %q", out)
+	}
+}
+
+func TestWideNodeTotalDoesNotLabelAllocationAsUtilization(t *testing.T) {
+	m := NewModel(Options{NoColor: true})
+	snap := sampleSnapshot()
+	m.snapshot = &snap
+	m.width = 180
+
+	out := m.renderNodeTableWithBudget(10, false, 176)
+	var totalFields []string
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "TOTAL") {
+			totalFields = strings.Fields(line)
+			break
+		}
+	}
+	if len(totalFields) != 7 {
+		t.Fatalf("unexpected TOTAL row fields: %v", totalFields)
+	}
+	if totalFields[2] != "n/a" || totalFields[4] != "n/a" {
+		t.Fatalf("expected aggregate CPU and memory utilization to be unavailable, got %v", totalFields)
 	}
 }
 
@@ -563,7 +583,6 @@ func seededModel() Model {
 	snap := sampleSnapshot()
 	m := NewModel(Options{
 		Source:  "ssh:cluster_alias",
-		Refresh: 2 * time.Second,
 		Updates: make(chan monitor.Update),
 	})
 	m.state = monitor.StateConnected

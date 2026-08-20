@@ -88,6 +88,15 @@ func TestParseArgsRejectExtraPositional(t *testing.T) {
 	}
 }
 
+func TestParseArgsValidatesPortRange(t *testing.T) {
+	if _, err := ParseArgs([]string{"--port", "65535", "cluster_alias"}); err != nil {
+		t.Fatalf("expected maximum TCP port to be valid, got %v", err)
+	}
+	if _, err := ParseArgs([]string{"--port", "65536", "cluster_alias"}); err == nil {
+		t.Fatal("expected out-of-range port error")
+	}
+}
+
 func TestParseArgsHelpRequested(t *testing.T) {
 	_, err := ParseArgs([]string{"--help"})
 	if err == nil {

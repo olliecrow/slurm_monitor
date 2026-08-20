@@ -170,8 +170,8 @@ func ParseArgs(args []string) (Config, error) {
 	if cfg.Duration < 0 {
 		return Config{}, fmt.Errorf("--duration must be >= 0")
 	}
-	if cfg.Port < 0 {
-		return Config{}, fmt.Errorf("--port must be >= 0")
+	if cfg.Port < 0 || cfg.Port > 65535 {
+		return Config{}, fmt.Errorf("--port must be between 0 and 65535")
 	}
 
 	if cfg.Mode == ModeLocal {

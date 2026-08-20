@@ -17,8 +17,8 @@ func TestCombinedCollectCommandExpandsArrayTasks(t *testing.T) {
 	if !strings.Contains(combinedCollectCommand, "squeue -h -r ") {
 		t.Fatalf("combined collect command must include squeue -r to expand arrays: %q", combinedCollectCommand)
 	}
-	if !strings.Contains(combinedCollectCommand, "tres-alloc") {
-		t.Fatalf("combined collect command must include tres-alloc for documented GPU totals: %q", combinedCollectCommand)
+	if !strings.Contains(combinedCollectCommand, "tres-alloc:|") {
+		t.Fatalf("combined collect command must include untruncated tres-alloc output: %q", combinedCollectCommand)
 	}
 	if strings.Contains(combinedCollectCommand, "%b") {
 		t.Fatalf("combined collect command must not rely on %%b for GPU totals: %q", combinedCollectCommand)
@@ -58,6 +58,13 @@ func TestFillPendingGPURequestCachePrunesStaleRoots(t *testing.T) {
 	}
 	if _, ok := c.pendingGPUCountByJobRoot["1001"]; ok {
 		t.Fatalf("expected stale root to be pruned")
+	}
+}
+
+func TestExtractPendingJobRootsAcceptsTrailingDelimiter(t *testing.T) {
+	roots := extractPendingJobRoots("2002_1|PENDING|alice|1|4G|N/A|")
+	if len(roots) != 1 || roots[0] != "2002" {
+		t.Fatalf("unexpected pending roots: %v", roots)
 	}
 }
 
