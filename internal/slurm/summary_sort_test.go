@@ -21,11 +21,12 @@ func TestSortJobsForDisplayPrioritizesWorkClassAndSize(t *testing.T) {
 		{JobID: "3", State: "PENDING", CPU: 100},
 		{JobID: "2", State: "RUNNING", CPU: 10, GPU: 8},
 		{JobID: "1", State: "PENDING", CPU: 4, GPU: 1},
+		{JobID: "5", State: "PENDING", CPU: 8, GPU: 2},
 		{JobID: "0", State: "SUSPENDED", CPU: 1000, GPU: 100},
 	}
 
 	SortJobsForDisplay(jobs)
-	want := []string{"1", "2", "3", "4", "0"}
+	want := []string{"5", "1", "2", "3", "4", "0"}
 	for i := range want {
 		if jobs[i].JobID != want[i] {
 			t.Fatalf("unexpected job order at %d: got %s want %s", i, jobs[i].JobID, want[i])

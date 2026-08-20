@@ -8,7 +8,7 @@ func SortPartitionsForDisplay(partitions []PartitionSummary) {
 	sort.Slice(partitions, func(i, j int) bool {
 		a := partitions[i].Queue
 		b := partitions[j].Queue
-		comparisons := [][2]int{
+		comparisons := [...][2]int{
 			{a.PendingGPUJobs, b.PendingGPUJobs},
 			{a.ResourceLoad.PendingGPU, b.ResourceLoad.PendingGPU},
 			{a.PendingCPUJobs, b.PendingCPUJobs},
@@ -32,8 +32,9 @@ func SortPartitionsForDisplay(partitions []PartitionSummary) {
 func SortJobsForDisplay(jobs []JobSummary) {
 	sort.Slice(jobs, func(i, j int) bool {
 		a, b := jobs[i], jobs[j]
-		if jobDisplayRank(a) != jobDisplayRank(b) {
-			return jobDisplayRank(a) < jobDisplayRank(b)
+		aRank, bRank := jobDisplayRank(a), jobDisplayRank(b)
+		if aRank != bRank {
+			return aRank < bRank
 		}
 		if a.GPU != b.GPU {
 			return a.GPU > b.GPU
