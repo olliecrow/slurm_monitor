@@ -66,6 +66,7 @@ func IsRetryable(err error) bool {
 			"host key verification failed",
 			"remote host identification has changed",
 			"no such identity file",
+			"can't open user config file",
 			"bad configuration option",
 			"could not resolve hostname",
 			"sh: not found",
