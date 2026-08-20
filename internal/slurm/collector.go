@@ -14,8 +14,9 @@ const (
 	// Use -r so job arrays are expanded one task per line; this keeps queue/user
 	// counts and requested/allocated CPU/GPU demand accurate for large arrays.
 	// Use tres-alloc instead of %b so GPU demand comes from Slurm's documented
-	// TRES view for both running and pending jobs.
-	combinedCollectCommand = `scontrol show node -o && echo "__SLURM_MONITOR_SPLIT__" && squeue -h -r -O "JobID:|,State:|,UserName:|,NumCPUs:|,MinMemory:|,tres-alloc"`
+	// TRES view for both running and pending jobs. The trailing suffix also
+	// prevents squeue -O from truncating tres-alloc to its 20-character default.
+	combinedCollectCommand = `scontrol show node -o && echo "__SLURM_MONITOR_SPLIT__" && squeue -h -r -O "JobID:|,State:|,UserName:|,NumCPUs:|,MinMemory:|,tres-alloc:|"`
 
 	maxPendingGPUProbesPerCollect = 4
 )
@@ -114,7 +115,7 @@ func (c *Collector) jobRootRequestsGPU(ctx context.Context, root string) (int, e
 		return 0, err
 	}
 	reqTRES := extractReqTRES(raw)
-	return parseGPUReq(reqTRES), nil
+	return parseGPUCount(reqTRES), nil
 }
 
 func extractPendingJobRoots(queueRaw string) []string {
@@ -125,7 +126,7 @@ func extractPendingJobRoots(queueRaw string) []string {
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "|", 6)
+		parts := splitQueueRow(line)
 		if len(parts) < 6 {
 			continue
 		}

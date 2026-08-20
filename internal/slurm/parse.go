@@ -10,7 +10,7 @@ import (
 )
 
 var numPrefixRe = regexp.MustCompile(`^-?\d+`)
-var gpuReqRe = regexp.MustCompile(`gpu(?::[a-zA-Z0-9_-]+)?[:=]([0-9]+)`)
+var gpuResourceRe = regexp.MustCompile(`^(gres/)?gpu(?::([^:=,()]+))?[:=]([0-9]+)`)
 
 func parseNodeLines(raw string) ([]Node, error) {
 	lines := strings.Split(raw, "\n")
@@ -89,7 +89,7 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (Queue
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "|", 6)
+		parts := splitQueueRow(line)
 		if len(parts) < 6 {
 			return QueueSummary{}, nil, fmt.Errorf("queue row %d: expected 6 fields, got %d", lineIndex+1, len(parts))
 		}
@@ -108,7 +108,7 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (Queue
 		}
 
 		stateClass := classifyQueueState(state)
-		gpuReq := parseGPUReq(gresReq)
+		gpuReq := parseGPUCount(gresReq)
 		isGPUJob := gpuReq > 0
 
 		switch stateClass {
@@ -153,9 +153,14 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (Queue
 	for _, v := range users {
 		outUsers = append(outUsers, *v)
 	}
-	SortUsersForDisplay(outUsers)
 
 	return queue, outUsers, nil
+}
+
+func splitQueueRow(line string) []string {
+	line = strings.TrimSpace(line)
+	line = strings.TrimSuffix(line, "|")
+	return strings.SplitN(line, "|", 6)
 }
 
 func rootJobID(jobID string) string {
@@ -292,23 +297,27 @@ func parseGPUCount(tres string) int {
 	if tres == "" {
 		return 0
 	}
-	total := 0
+	genericTotal := 0
+	typedTotal := 0
+	hasGeneric := false
 	for _, part := range strings.Split(tres, ",") {
 		part = strings.TrimSpace(part)
-		if part == "" {
+		matches := gpuResourceRe.FindStringSubmatch(part)
+		if len(matches) != 4 {
 			continue
 		}
-		kv := strings.SplitN(part, "=", 2)
-		if len(kv) != 2 {
+		count := parseInt(matches[3])
+		if matches[2] != "" {
+			typedTotal += count
 			continue
 		}
-		key := strings.TrimSpace(kv[0])
-		if !strings.HasPrefix(key, "gres/gpu") {
-			continue
-		}
-		total += parseInt(strings.TrimSpace(kv[1]))
+		hasGeneric = true
+		genericTotal += count
 	}
-	return total
+	if hasGeneric {
+		return genericTotal
+	}
+	return typedTotal
 }
 
 func parseMemMBFromTRES(tres string) int {
@@ -386,19 +395,4 @@ func parseMemRequestMB(raw string, cpuCount int) int {
 		return megabytes * cpuCount
 	}
 	return megabytes
-}
-
-func parseGPUReq(raw string) int {
-	if raw == "" || raw == "N/A" {
-		return 0
-	}
-	matches := gpuReqRe.FindAllStringSubmatch(raw, -1)
-	total := 0
-	for _, m := range matches {
-		if len(m) < 2 {
-			continue
-		}
-		total += parseInt(m[1])
-	}
-	return total
 }

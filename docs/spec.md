@@ -120,6 +120,7 @@ Per-node fields:
 
 Aggregate row:
 - totals across all collected nodes, including rows hidden by terminal clipping.
+- CPU and memory utilization percentages show `n/a`; their adjacent allocation ratios remain available, and allocation is never relabeled as utilization.
 
 ### 2) Queue summary view
 Fields:

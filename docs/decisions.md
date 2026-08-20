@@ -56,6 +56,8 @@ References: `internal/slurm/collector.go`, `internal/slurm/collector_test.go`, `
 
 Node CPU load and free-memory values come directly from Slurm. They are not smoothed or interpolated because synthetic movement would misrepresent scheduler data.
 
+The aggregate `TOTAL` row keeps CPU and memory utilization percentages as `n/a` because allocation totals are not utilization totals. The adjacent allocation ratios remain visible.
+
 GPU percentage is allocation saturation (`GPUAlloc/GPUTotal`), not live device activity. The UI labels it `gpu alloc%`.
 
 Enforcement: parsers retain raw Slurm-derived values and availability flags; UI labels and tests distinguish allocation from utilization.

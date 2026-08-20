@@ -67,12 +67,10 @@ func Run(cfg config.Config) error {
 	go loop.Run(ctx, updates)
 
 	model := tui.NewModel(tui.Options{
-		Source:      tr.Describe(),
-		Compact:     cfg.Compact,
-		NoColor:     cfg.NoColor,
-		Refresh:     cfg.Refresh,
-		MaxDuration: cfg.Duration,
-		Updates:     updates,
+		Source:  tr.Describe(),
+		Compact: cfg.Compact,
+		NoColor: cfg.NoColor,
+		Updates: updates,
 	})
 
 	prog := tea.NewProgram(model, tea.WithAltScreen())
@@ -101,20 +99,31 @@ func buildTransport(cfg config.Config) (transport.Transport, error) {
 }
 
 func checkSlurmAvailability(ctx context.Context, tr transport.Transport, timeout time.Duration) error {
-	const checkCmd = `missing=""; for c in squeue scontrol; do if ! command -v "$c" >/dev/null 2>&1; then missing="$missing $c"; fi; done; if [ -n "$missing" ]; then echo "$missing"; exit 7; fi`
+	const missingMarker = "__SLURM_MONITOR_MISSING__"
+	const checkCmd = `missing=""; for c in squeue scontrol; do if ! command -v "$c" >/dev/null 2>&1; then missing="$missing $c"; fi; done; if [ -n "$missing" ]; then printf '__SLURM_MONITOR_MISSING__%s\n' "$missing"; exit 7; fi`
 
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	res, err := tr.Run(checkCtx, checkCmd)
 	if err != nil {
-		if missing := strings.TrimSpace(res.Stdout); missing != "" {
+		var runErr *transport.RunError
+		if errors.As(err, &runErr) && runErr.ExitCode == 7 {
+			missing := ""
+			for _, line := range strings.Split(res.Stdout, "\n") {
+				if value, ok := strings.CutPrefix(strings.TrimSpace(line), missingMarker); ok {
+					missing = strings.TrimSpace(value)
+					break
+				}
+			}
+			if missing == "" {
+				return fmt.Errorf("Slurm capability check failed without a missing-command list on %s: %w", tr.Describe(), err)
+			}
 			return &missingSlurmCommandsError{
 				source:  tr.Describe(),
 				missing: missing,
 			}
 		}
-		var runErr *transport.RunError
 		if errors.As(err, &runErr) && runErr.Timeout {
 			return fmt.Errorf("Slurm capability check timed out on %s; consider increasing --command-timeout: %w", tr.Describe(), err)
 		}

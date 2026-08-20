@@ -28,7 +28,7 @@
   - `.pre-commit-config.yaml` runs `gitleaks` before commits.
   - `commit-msg` hook blocks local absolute system paths and credential-like values in commit messages.
   - `pre-push` hook scans outbound commit messages and outbound diffs for the same sensitive patterns.
-  - `.github/workflows/security-policy.yml` re-checks git history, commit messages, and PR title/body in CI.
+  - `.github/workflows/ci.yml` re-checks git history, commit messages, and PR title/body in CI.
   - Policy self-tests verify placeholder handling, fallback behavior without `rg`, and redaction of detected content.
   - Sensitive-text checks support both `rg` and `grep` so local/CI environments without `rg` still enforce policy.
 
