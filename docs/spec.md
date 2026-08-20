@@ -15,11 +15,13 @@ The tool should run for long periods with minimal operator interaction and provi
 - Local mode (default when no SSH target is provided).
 - Remote mode via SSH target (alias from SSH config or `user@host` style target).
 - Recovery behavior for transient SSH/network failures.
-- Three primary data views:
+- Five primary data views:
   - node summary view (per-node rows + aggregate totals)
   - queue summary view (cluster-level CPU-job/GPU-job split for running and pending jobs)
+  - partition view (per-partition CPU-job/GPU-job split for running and pending jobs)
   - user view (per-user CPU-job/GPU-job split for running and pending jobs)
-  - queue labels must make it clear these are job or array-task counts, not held CPU or GPU resource totals
+  - job view (top grouped root jobs with user, partition, state, task count, CPU, and GPU demand)
+- Queue labels must make it clear these are job or array-task counts, not held CPU or GPU resource totals.
 - Clear connectivity status indicators in the UI.
 
 ### Out of scope
@@ -56,7 +58,7 @@ The tool should run for long periods with minimal operator interaction and provi
 - `--port <int>`: optional SSH port override.
 - `--no-color`: disable colored UI output.
 - `--compact`: compact layout for small terminal dimensions.
-- `--once`: collect one snapshot and print a text summary with node totals, queue job counts, queue resource totals, and top user rows.
+- `--once`: collect one snapshot and print a text summary with node totals, queue job and resource totals, and top partition, user, and grouped-job rows.
 - `--duration <duration>`: optional auto-exit timer for TUI runs.
 
 ## Startup Behavior
@@ -144,6 +146,27 @@ Per-user fields:
 - job-type counts include Slurm job arrays at array-task granularity.
 - default user ordering should keep the biggest current holders near the top, with pending demand used as a tie-breaker.
 
+### 4) Partition view
+Per-partition fields:
+- partition name
+- running CPU-job count
+- running GPU-job count
+- pending CPU-job count
+- pending GPU-job count
+- counts and resource totals use the same task-granular rules as the queue summary.
+- default ordering surfaces pending GPU pressure, pending CPU pressure, then current GPU and CPU load.
+
+### 5) Job view
+Per grouped-job fields:
+- root job ID
+- user
+- partition
+- state
+- matching array-task count
+- total requested or allocated CPU and GPU resources across those tasks
+- array tasks are grouped only when root job, user, partition, and state match.
+- default ordering surfaces pending GPU work, running GPU work, pending CPU work, then running CPU work; larger grouped jobs sort first within each class.
+
 ## TUI Behavior
 - Full-screen layout.
 - Dynamic resize handling for width/height changes.
@@ -154,9 +177,9 @@ Per-user fields:
 - Header intentionally omits node-health alert badges; `DOWN`/`DRAIN` alerts are shown directly in the node summary panel.
 - Body renders two vertically stacked panels in fixed order:
   - node summary
-  - combined queue panel (queue summary section + user view section)
+  - combined queue panel (queue summary, partition, user, and job sections)
 - Compact terminals reduce row/detail density but keep the same two-panel vertical order.
-- Node and user tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
+- Node, partition, user, and job tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
 - Row budgets are computed from per-panel content height (not just global terminal height) so mandatory lines remain visible under tight layouts.
 - When rows are clipped, section headers must show deterministic truncation metadata (for example `top X/Y, +N hidden`).
 - When no rows fit in a panel budget, headers should still show hidden-row metadata without `top 0/...` phrasing (for example `+N hidden`).

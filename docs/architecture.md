@@ -47,7 +47,9 @@ Implementations:
 Collectors produce typed data for a `Snapshot`:
 - `[]Node`
 - `QueueSummary`
+- `[]PartitionSummary`
 - `[]UserSummary`
+- `[]JobSummary`
 
 Design principles:
 - one combined node-and-queue command per poll tick, using `squeue -r` and `tres-alloc`
@@ -61,7 +63,8 @@ Responsibilities:
 - compute totals and derived percentages
 - preserve raw values + display values (`n/a` where unavailable)
 - track freshness timestamps
-- aggregate queue and user job splits for CPU jobs and GPU jobs in running and pending states
+- aggregate queue, partition, and user job splits for CPU jobs and GPU jobs in running and pending states
+- group matching array tasks by root job, user, partition, and state for bounded job insights
 
 ### 5) TUI runtime
 Responsibilities:
@@ -127,7 +130,7 @@ Optional metrics:
 All terminals:
 - top: connection header + last update/staleness
 - middle: node summary panel
-- bottom: combined queue panel (queue summary section + user summary section)
+- bottom: combined queue panel (queue summary, partition, user, and grouped-job sections)
 - when any node is `DOWN` or `DRAIN`, render a node-health alert line at the top of the node summary panel
 - keep node-health alerts out of the header to reduce top-line noise and keep clock/status readability
 

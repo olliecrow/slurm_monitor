@@ -16,8 +16,8 @@ Give you a clear live view of cluster health and queue state without running any
 ## What you experience as a user
 
 1. Run the tool locally on a cluster node, or remotely over SSH.
-2. See a live terminal user interface (TUI) with node summary and queue views.
-3. Track CPU-job and GPU-job splits in the queue and user views.
+2. See a live terminal user interface (TUI) with node, partition, user, and job insights.
+3. Track CPU-job and GPU-job splits for the cluster, each partition, and each user.
 4. Keep monitoring through transient SSH or network failures, with automatic retries.
 5. On very large clusters, tables show a capped top slice with explicit `+N hidden` indicators to stay terminal-stable.
 
@@ -122,7 +122,7 @@ Run one-shot collection.
 go run ./cmd/slurm-monitor --once cluster_alias
 ```
 
-`--once` prints node totals, queue job counts, queue resource totals, and top user rows with held CPU/GPU plus job splits.
+`--once` prints node totals, queue job and resource totals, top partition and user rows, and grouped root jobs. Array-task counts stay task-granular; the job list groups matching tasks to stay useful on large arrays.
 
 ## Doctor output example
 
@@ -179,7 +179,7 @@ dry-run only: no local or remote commands were executed.
 
 - Read-only monitor only; it does not support queue mutation actions.
 - Remote mode requires working OpenSSH access and remote Slurm command availability.
-- Very large clusters are intentionally summarized in capped top slices per panel.
+- Very large clusters are intentionally summarized in capped top slices with explicit hidden-row counts.
 
 ## Completion command
 

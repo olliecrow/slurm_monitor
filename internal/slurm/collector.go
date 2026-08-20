@@ -16,7 +16,7 @@ const (
 	// Use tres-alloc instead of %b so GPU demand comes from Slurm's documented
 	// TRES view for both running and pending jobs. The trailing suffix also
 	// prevents squeue -O from truncating tres-alloc to its 20-character default.
-	combinedCollectCommand = `scontrol show node -o && echo "__SLURM_MONITOR_SPLIT__" && squeue -h -r -O "JobID:|,State:|,UserName:|,NumCPUs:|,MinMemory:|,tres-alloc:|"`
+	combinedCollectCommand = `scontrol show node -o && echo "__SLURM_MONITOR_SPLIT__" && squeue -h -r -O "JobID:|,State:|,UserName:|,Partition:|,NumCPUs:|,MinMemory:|,tres-alloc:|"`
 
 	maxPendingGPUProbesPerCollect = 4
 )
@@ -53,15 +53,17 @@ func (c *Collector) Collect(ctx context.Context) (Snapshot, error) {
 	probeCtx, cancelProbes := context.WithTimeout(ctx, c.commandTimeout)
 	c.fillPendingGPURequestCache(probeCtx, queueRaw)
 	cancelProbes()
-	queue, users, err := parseQueueLines(queueRaw, c.pendingGPUCountByJobRoot)
+	queueData, err := parseQueueLines(queueRaw, c.pendingGPUCountByJobRoot)
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("parse queue: %w", err)
 	}
 
 	return Snapshot{
 		Nodes:       nodes,
-		Queue:       queue,
-		Users:       users,
+		Queue:       queueData.Queue,
+		Partitions:  queueData.Partitions,
+		Users:       queueData.Users,
+		Jobs:        queueData.Jobs,
 		CollectedAt: time.Now(),
 	}, nil
 }
@@ -127,14 +129,14 @@ func extractPendingJobRoots(queueRaw string) []string {
 			continue
 		}
 		parts := splitQueueRow(line)
-		if len(parts) < 6 {
+		if len(parts) < 7 {
 			continue
 		}
 		state := strings.ToUpper(strings.TrimSpace(parts[1]))
 		if !strings.Contains(state, "PENDING") {
 			continue
 		}
-		tresAlloc := strings.TrimSpace(parts[5])
+		tresAlloc := strings.TrimSpace(parts[6])
 		if tresAlloc != "" && !strings.EqualFold(tresAlloc, "N/A") {
 			continue
 		}
