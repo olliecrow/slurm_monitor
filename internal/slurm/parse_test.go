@@ -174,8 +174,10 @@ func TestParseGPUCount(t *testing.T) {
 	}{
 		{name: "generic gres", raw: "gres/gpu:2", want: 2},
 		{name: "typed gres", raw: "gres/gpu:a100:4,gres/gpu:h100:1", want: 5},
+		{name: "numeric typed gres", raw: "gres/gpu:5090:4", want: 4},
 		{name: "generic tres", raw: "cpu=8,mem=32G,gres/gpu=2", want: 2},
 		{name: "typed tres", raw: "gres/gpu:a100=4,gres/gpu:h100=1", want: 5},
+		{name: "numeric typed tres", raw: "gres/gpu:5090=4", want: 4},
 		{name: "generic total takes precedence over typed breakdown", raw: "gres/gpu=5,gres/gpu:a100=4,gres/gpu:h100=1", want: 5},
 		{name: "gpu accounting metrics are excluded", raw: "gres/gpumem=4096M,gres/gpuutil=100", want: 0},
 		{name: "allocation suffix", raw: "gres/gpu:2(IDX:0-1)", want: 2},
@@ -265,13 +267,13 @@ func TestParseQueueLinesAggregatesPendingReasons(t *testing.T) {
 	for _, reason := range data.PendingReasons {
 		got[reason.Reason] = reason
 	}
-	if got["Resources"] != (PendingReasonSummary{Reason: "Resources", Jobs: 2, CPU: 8, GPU: 2}) {
+	if got["Resources"] != (PendingReasonSummary{Reason: "Resources", Tasks: 2, CPU: 8, GPU: 2}) {
 		t.Fatalf("unexpected Resources summary: %+v", got["Resources"])
 	}
-	if got["Priority"] != (PendingReasonSummary{Reason: "Priority", Jobs: 1, CPU: 8}) {
+	if got["Priority"] != (PendingReasonSummary{Reason: "Priority", Tasks: 1, CPU: 8}) {
 		t.Fatalf("unexpected Priority summary: %+v", got["Priority"])
 	}
-	if got["<unknown>"].Jobs != 1 || len(got) != 3 {
+	if got["<unknown>"].Tasks != 1 || len(got) != 3 {
 		t.Fatalf("unexpected reason summaries: %+v", got)
 	}
 }

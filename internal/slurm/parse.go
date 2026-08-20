@@ -95,7 +95,7 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (queue
 				reasonSummary = &PendingReasonSummary{Reason: reason}
 				pendingReasons[reason] = reasonSummary
 			}
-			reasonSummary.Jobs++
+			reasonSummary.Tasks++
 			reasonSummary.CPU += cpuReq
 			reasonSummary.GPU += gpuReq
 		}

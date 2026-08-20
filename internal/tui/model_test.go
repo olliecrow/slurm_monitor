@@ -164,10 +164,19 @@ func TestSchedulerSummaryRendersJobsAndResourceDemand(t *testing.T) {
 	if strings.Contains(out, "█") || strings.Contains(out, "░") {
 		t.Fatalf("expected scheduler summary without bar glyphs, got: %q", out)
 	}
-	for _, want := range []string{"running cpu jobs", "running gpu jobs", "pending cpu jobs", "pending gpu jobs", "other", "total", "running resources", "pending demand", "cpu=96", "gpu=8"} {
+	for _, want := range []string{
+		schedulerSummaryHeaderLine(),
+		schedulerSummaryRowLine("running", 14, 28, 640, 38),
+		schedulerSummaryRowLine("pending", 2, 3, 96, 8),
+		"other jobs=1  total jobs=48",
+	} {
 		if !strings.Contains(out, want) {
-			t.Fatalf("expected scheduler summary label %q in output, got: %q", want, out)
+			t.Fatalf("expected scheduler summary row %q in output, got: %q", want, out)
 		}
+	}
+	lines := strings.Split(out, "\n")
+	if len(lines) < 6 || !strings.Contains(lines[5], "partition view") {
+		t.Fatalf("expected five-line scheduler summary before partition view, got: %q", out)
 	}
 }
 
@@ -183,8 +192,8 @@ func TestInsightsPanelShowsAllDetailViews(t *testing.T) {
 		{JobID: "3002", User: "bob", Partition: "cpu", State: "RUNNING", Tasks: 1, CPU: 8},
 	}
 	m.snapshot.PendingReasons = []slurm.PendingReasonSummary{
-		{Reason: "Resources", Jobs: 12, CPU: 48, GPU: 12},
-		{Reason: "Priority", Jobs: 2, CPU: 8},
+		{Reason: "Resources", Tasks: 12, CPU: 48, GPU: 12},
+		{Reason: "Priority", Tasks: 2, CPU: 8},
 	}
 
 	out := m.renderInsightsPanelWithBudget(28, true, 100)
@@ -209,9 +218,9 @@ func TestInsightsPanelSharesTightBudgetAcrossAllDetailViews(t *testing.T) {
 		{JobID: "3003", User: "carol", Partition: "short", State: "RUNNING", Tasks: 1, GPU: 1},
 	}
 	m.snapshot.PendingReasons = []slurm.PendingReasonSummary{
-		{Reason: "Resources", Jobs: 3, GPU: 3},
-		{Reason: "Priority", Jobs: 2, CPU: 16},
-		{Reason: "Dependency", Jobs: 1, CPU: 4},
+		{Reason: "Resources", Tasks: 3, GPU: 3},
+		{Reason: "Priority", Tasks: 2, CPU: 16},
+		{Reason: "Dependency", Tasks: 1, CPU: 4},
 	}
 
 	out := m.renderInsightsPanelWithBudget(17, true, 90)
@@ -249,45 +258,26 @@ func TestJobCompactStateLabelsAreUnambiguous(t *testing.T) {
 	}
 }
 
-func TestQueueSummaryCountsStayAligned(t *testing.T) {
-	m := seededModel()
-	m.styles = defaultStyles(true)
-	m.snapshot.Queue = slurm.QueueSummary{
-		RunningCPUJobs: 5,
-		RunningGPUJobs: 40,
-		PendingCPUJobs: 1,
-		PendingGPUJobs: 55,
-		Other:          0,
+func TestSchedulerSummaryColumnsStayAligned(t *testing.T) {
+	if got, want := schedulerSummaryHeaderLine(), "state   cpuJobs gpuJobs      cpu    gpu"; got != want {
+		t.Fatalf("scheduler header=%q want=%q", got, want)
 	}
-
-	lines := []string{
-		m.queueStatusLine("running cpu jobs", m.snapshot.Queue.RunningCPUJobs),
-		m.queueStatusLine("running gpu jobs", m.snapshot.Queue.RunningGPUJobs),
-		m.queueStatusLine("pending cpu jobs", m.snapshot.Queue.PendingCPUJobs),
-		m.queueStatusLine("pending gpu jobs", m.snapshot.Queue.PendingGPUJobs),
-		m.queueStatusLine("other", m.snapshot.Queue.Other),
-		m.queueStatusLine("total", m.snapshot.Queue.TotalJobs()),
+	if got, want := schedulerSummaryRowLine("running", 5, 40, 1234, 55), "running       5      40     1234     55"; got != want {
+		t.Fatalf("running row=%q want=%q", got, want)
 	}
-
-	start := lastDigitIndex(lines[0])
-	if start < 0 {
-		t.Fatalf("expected first count in %q", lines[0])
-	}
-	for _, line := range lines[1:] {
-		if got := lastDigitIndex(line); got != start {
-			t.Fatalf("count column mismatch: first=%d got=%d line=%q all=%q", start, got, line, strings.Join(lines, "\n"))
-		}
+	if got, want := schedulerSummaryRowLine("pending", 1, 55, 98765, 100), "pending       1      55    98765    100"; got != want {
+		t.Fatalf("pending row=%q want=%q", got, want)
 	}
 }
 
-func TestInsightsPanelBudgetKeepsEachDetailTitle(t *testing.T) {
+func TestInsightsPanelBudgetKeepsOneRowFromEachDetailView(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 
 	out := m.renderInsightsPanelWithBudget(13, true, 90)
-	for _, want := range []string{"partition view", "user view", "pending reasons", "job view"} {
+	for _, want := range []string{"partition view", "gpu", "user view", "alice", "pending reasons", "Resources", "job view", "3001"} {
 		if !strings.Contains(out, want) {
-			t.Fatalf("expected %q title when scheduler budget is tight, got: %q", want, out)
+			t.Fatalf("expected %q in compact insight budget, got: %q", want, out)
 		}
 	}
 }
@@ -435,10 +425,31 @@ func TestCompactViewKeepsCompactJobColumnsAndResourceSummary(t *testing.T) {
 	if strings.Contains(out, "heldCPU") || strings.Contains(out, "heldGPU") {
 		t.Fatalf("expected compact view to hide held-resource columns, got: %q", out)
 	}
-	for _, want := range []string{"rCJ", "rGJ", "pCJ", "pGJ", "running resources", "pending demand"} {
+	for _, want := range []string{"rCJ", "rGJ", "pCJ", "pGJ", "cpuJobs", "gpuJobs", "running", "pending", "other jobs=", "total jobs="} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected compact view to include %q, got: %q", want, out)
 		}
+	}
+}
+
+func TestCompactStandardViewportShowsEveryDetailView(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.width = 72
+	m.height = 20
+	m.snapshot.Partitions = []slurm.PartitionSummary{{Name: "part-row"}}
+	m.snapshot.Users = []slurm.UserSummary{{User: "user-row"}}
+	m.snapshot.PendingReasons = []slurm.PendingReasonSummary{{Reason: "reason-row", Tasks: 1}}
+	m.snapshot.Jobs = []slurm.JobSummary{{JobID: "job-row", User: "user-row", Partition: "part-row", State: "PENDING", Tasks: 1}}
+
+	out := m.View()
+	for _, want := range []string{"part-row", "user-row", "reason-row", "job-row"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected compact 72x20 view to include %q, got: %q", want, out)
+		}
+	}
+	if strings.Contains(out, viewportClipText) {
+		t.Fatalf("did not expect global viewport clipping at 72x20, got: %q", out)
 	}
 }
 
@@ -601,8 +612,8 @@ func sampleSnapshot() slurm.Snapshot {
 			{User: "carol", RunningCPU: 180, RunningGPU: 6, RunningCPUJobs: 2, RunningGPUJobs: 4, PendingGPUJobs: 1, PendingCPU: 16, PendingMemMB: 32000, PendingGPU: 1},
 		},
 		PendingReasons: []slurm.PendingReasonSummary{
-			{Reason: "Resources", Jobs: 3, CPU: 64, GPU: 8},
-			{Reason: "Priority", Jobs: 2, CPU: 32},
+			{Reason: "Resources", Tasks: 3, CPU: 64, GPU: 8},
+			{Reason: "Priority", Tasks: 2, CPU: 32},
 		},
 		Jobs: []slurm.JobSummary{
 			{JobID: "3001", User: "alice", Partition: "gpu", State: "PENDING", Reason: "Resources", Tasks: 3, CPU: 64, GPU: 8},
@@ -650,16 +661,6 @@ func assertColumnHasValue(t *testing.T, header string, row string, label string,
 	if segment == "" {
 		t.Fatalf("expected value under %q column, row=%q", label, row)
 	}
-}
-
-func lastDigitIndex(s string) int {
-	out := -1
-	for i, r := range s {
-		if r >= '0' && r <= '9' {
-			out = i
-		}
-	}
-	return out
 }
 
 func equalStrings(a, b []string) bool {

@@ -116,7 +116,7 @@ Fields:
 - other jobs count
 - running CPU and GPU resource totals
 - pending CPU and GPU resource demand
-- aligned label/count rows for running CPU/running GPU/pending CPU/pending GPU/other/total
+- aligned running and pending rows for CPU-job count, GPU-job count, CPU resources, and GPU resources
 - counts include Slurm job arrays at array-task granularity (each array task counts as one job).
 
 ### 2) User view
@@ -172,7 +172,7 @@ Per grouped-job fields:
 - Header includes a heartbeat clock and refresh age.
 - Header includes a status spinner so refresh/liveness is visible even when metrics are stable.
 - Body renders one scheduler-insights panel with summary, partition, user, pending-reason, and grouped-job sections.
-- Compact terminals reduce row/detail density while preserving every active section title.
+- At 72x20 and larger, compact terminals preserve at least one data row from every active detail section. Smaller terminals preserve every active section title when space permits.
 - Partition, user, pending-reason, and job tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
 - Row budgets are computed from panel content height and shared fairly across active detail sections.
 - When rows are clipped, section headers must show deterministic truncation metadata (for example `top X/Y, +N hidden`).

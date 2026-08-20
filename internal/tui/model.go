@@ -292,14 +292,10 @@ func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, c
 	q := m.snapshot.Queue
 	lines := []string{
 		m.sectionTitle("scheduler summary"),
-		m.queueStatusLine("running cpu jobs", q.RunningCPUJobs),
-		m.queueStatusLine("running gpu jobs", q.RunningGPUJobs),
-		m.queueStatusLine("pending cpu jobs", q.PendingCPUJobs),
-		m.queueStatusLine("pending gpu jobs", q.PendingGPUJobs),
-		m.queueStatusLine("other", q.Other),
-		m.queueStatusLine("total", q.TotalJobs()),
-		m.queueResourceLine("running resources", q.ResourceLoad.RunningCPU, q.ResourceLoad.RunningGPU),
-		m.queueResourceLine("pending demand", q.ResourceLoad.PendingCPU, q.ResourceLoad.PendingGPU),
+		schedulerSummaryHeaderLine(),
+		schedulerSummaryRowLine("running", q.RunningCPUJobs, q.RunningGPUJobs, q.ResourceLoad.RunningCPU, q.ResourceLoad.RunningGPU),
+		schedulerSummaryRowLine("pending", q.PendingCPUJobs, q.PendingGPUJobs, q.ResourceLoad.PendingCPU, q.ResourceLoad.PendingGPU),
+		fmt.Sprintf("other jobs=%d  total jobs=%d", q.Other, q.TotalJobs()),
 	}
 	detailCaps := []int{
 		detailLineCapacity(len(m.snapshot.Partitions)),
@@ -591,19 +587,19 @@ func wideUserRowLine(u slurm.UserSummary) string {
 }
 
 func widePendingReasonHeaderLine() string {
-	return fmt.Sprintf("%-30s %7s %8s %8s", "reason", "jobs", "cpu", "gpu")
+	return fmt.Sprintf("%-30s %7s %8s %8s", "reason", "tasks", "cpu", "gpu")
 }
 
 func widePendingReasonRowLine(reason slurm.PendingReasonSummary) string {
-	return fmt.Sprintf("%-30s %7d %8d %8d", truncateRunes(reason.Reason, 30), reason.Jobs, reason.CPU, reason.GPU)
+	return fmt.Sprintf("%-30s %7d %8d %8d", truncateRunes(reason.Reason, 30), reason.Tasks, reason.CPU, reason.GPU)
 }
 
 func compactPendingReasonHeaderLine() string {
-	return fmt.Sprintf("%-18s %5s %6s %5s", "reason", "jobs", "cpu", "gpu")
+	return fmt.Sprintf("%-18s %5s %6s %5s", "reason", "tasks", "cpu", "gpu")
 }
 
 func compactPendingReasonRowLine(reason slurm.PendingReasonSummary) string {
-	return fmt.Sprintf("%-18s %5d %6d %5d", truncateRunes(reason.Reason, 18), reason.Jobs, reason.CPU, reason.GPU)
+	return fmt.Sprintf("%-18s %5d %6d %5d", truncateRunes(reason.Reason, 18), reason.Tasks, reason.CPU, reason.GPU)
 }
 
 func compactUserHeaderLine() string {
@@ -621,13 +617,12 @@ func compactUserRowLine(u slurm.UserSummary) string {
 	)
 }
 
-func (m Model) queueStatusLine(label string, value int) string {
-	return m.styles.label.Render(fmt.Sprintf("%-16s", label)) + "  " + m.styles.value.Render(fmt.Sprintf("%5d", value))
+func schedulerSummaryHeaderLine() string {
+	return fmt.Sprintf("%-7s %7s %7s %8s %6s", "state", "cpuJobs", "gpuJobs", "cpu", "gpu")
 }
 
-func (m Model) queueResourceLine(label string, cpu, gpu int) string {
-	resources := fmt.Sprintf("cpu=%d  gpu=%d", cpu, gpu)
-	return m.styles.label.Render(fmt.Sprintf("%-16s", label)) + "  " + m.styles.value.Render(resources)
+func schedulerSummaryRowLine(state string, cpuJobs, gpuJobs, cpu, gpu int) string {
+	return fmt.Sprintf("%-7s %7d %7d %8d %6d", state, cpuJobs, gpuJobs, cpu, gpu)
 }
 
 func (m Model) sectionTitle(label string) string {
