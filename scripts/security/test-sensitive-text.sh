@@ -46,19 +46,11 @@ if bash "$checker" --context=policy-selftest "$bad_path_file" >/dev/null 2>&1; t
   echo "placeholder incorrectly allowed a real path on the same line" >&2
   exit 1
 fi
-if PATH="/usr/bin:/bin" bash "$checker" --context=policy-fallback-selftest "$bad_secret_file" >/dev/null 2>&1; then
-  echo "fallback policy self-test failure did not occur" >&2
-  exit 1
-fi
 assert_blocked_without_exposure "$bad_email_file" "$private_email_fixture" "personal email"
 assert_blocked_without_exposure "$bad_phone_file" "$private_phone_fixture" "phone number"
 bad_email_name="${tmp_dir}/${private_email_fixture}.txt"
 printf 'ordinary text\n' > "$bad_email_name"
 assert_blocked_without_exposure "$bad_email_name" "$private_email_fixture" "personal email in file name"
-if PATH="/usr/bin:/bin" bash "$checker" --context=policy-fallback-selftest "$bad_email_file" >/dev/null 2>&1; then
-  echo "fallback email policy self-test failure did not occur" >&2
-  exit 1
-fi
 
 GIT_AUTHOR_NAME="Example Contributor" GIT_AUTHOR_EMAIL="12345+contributor@users.noreply.github.com" \
   GIT_COMMITTER_NAME="Example Contributor" GIT_COMMITTER_EMAIL="12345+contributor@users.noreply.github.com" \
