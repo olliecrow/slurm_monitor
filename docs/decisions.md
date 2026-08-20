@@ -58,11 +58,11 @@ The display has queue summary, partition, user, and pending-reason sections. It 
 
 The interactive display omits individual jobs because partition, user, and pending-reason aggregates explain scheduler pressure with less churn and visual noise. The `--once` report retains grouped root jobs for detailed non-interactive diagnostics. Partition ordering surfaces pending pressure before current load. Pending-reason ordering surfaces the largest GPU and CPU demand.
 
-The queue summary uses two lines when both activity groups fit together and three lines otherwise. It states total, running, pending, and non-zero other job counts, then shows CPU-only jobs, GPU jobs, CPUs, and GPUs for running and pending work.
+The queue summary states total, running, pending, and non-zero other job counts. It then separates job categories from resources: one group compares CPU-only and GPU jobs, and one group compares CPU cores and GPUs. Each group splits into complete CPU and GPU lines when terminal width requires it. CPU-core totals cover both CPU-only and GPU jobs.
 
 The TUI translates stable common Slurm pending-reason codes into plain language and preserves unknown reason text. Long prose reasons clip at a word boundary when space permits, without changing fixed table-label clipping. The `--once` report keeps raw reason values for diagnostics and downstream parsing. Compact pending-reason details use singular task and resource labels only for one.
 
-Wide partition and user tables group running jobs, pending jobs, resources in use, and requested resources under plain-language labels instead of abbreviated metric names. Wide tables use only the width required by their current labels and values, while pending-reason tables expand as needed for reason text. Compact detail sections remove table headers and use self-describing rows with explicit CPU-only/GPU job or task/CPU/GPU units.
+Wide partition and user tables use separate CPU-only job, GPU job, CPU-core, and GPU columns. Each job column keeps running and pending counts together; each resource column keeps in-use and requested totals together. This prevents job categories from being confused with resource types. Wide tables use only the width required by their current labels and values, while pending-reason tables expand as needed for reason text. Compact detail sections remove table headers and keep CPU-only and GPU job groups distinct in each self-describing row.
 
 Panel-content budgets determine visible rows, and the panel fills the body above the footer even when all data fits. Blank lines separate sections when every active detail can still show at least one data row; tight terminals use that space for data first. The short queue summary and headerless compact details leave enough space for every active detail section to show at least one data row at 72x20, while common queues show multiple rows. Hidden-row metadata uses `X shown · N hidden`, and smaller terminals keep every active detail section title when space permits. This prevents large queues or small terminals from causing wrapping, scrolling, or silent loss of scheduler context.
 
@@ -74,7 +74,7 @@ References: `internal/slurm/summary_sort.go`, `internal/tui/model.go`, `internal
 
 ## Show CPU-job and GPU-job splits directly
 
-Running and pending counts are separated into CPU-job and GPU-job columns. Explicit job wording prevents the counts from being mistaken for CPU or GPU resource totals.
+Running and pending counts are grouped into distinct CPU-only-job and GPU-job columns. CPU-core and GPU resource columns remain separate because GPU jobs also use CPU cores. Explicit job wording prevents job counts from being mistaken for resource totals.
 
 Per-user ordering favors current GPU and CPU holders, then current job counts, pending GPU/CPU demand, pending job counts, pending memory, and username. This keeps active large holders visible when the terminal clips rows while retaining deterministic tie-breakers.
 
