@@ -171,12 +171,16 @@ Per grouped-job fields:
 - Non-interactive display: no in-app controls or navigation; monitor-only rendering.
 - Header includes a heartbeat clock and refresh age.
 - Header includes a status spinner so refresh/liveness is visible even when metrics are stable.
+- When the header is narrow, it removes lower-priority fields as complete units instead of cutting labels or values mid-word.
 - Body renders one scheduler-insights panel with summary, partition, user, pending-reason, and grouped-job sections.
+- Wide partition and user tables group plain-language running jobs, pending jobs, resources in use, and requested resources. Values identify CPU-only jobs, GPU jobs, CPUs, and GPUs explicitly.
+- Wide pending-reason and job tables give spare terminal width to reason text before truncating it.
+- Compact tables use plain labels and full Slurm state names when they fit. A data row shown without its table header includes its task, CPU, and GPU units directly. Data is truncated only when the terminal width requires it.
 - At 72x20 and larger, compact terminals preserve at least one data row from every active detail section. Smaller terminals preserve every active section title when space permits.
 - Partition, user, pending-reason, and job tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
 - Row budgets are computed from panel content height and shared fairly across active detail sections.
-- When rows are clipped, section headers must show deterministic truncation metadata (for example `top X/Y, +N hidden`).
-- When no rows fit in a panel budget, headers should still show hidden-row metadata without `top 0/...` phrasing (for example `+N hidden`).
+- When rows are clipped, section headers must show deterministic plain-language metadata (for example `showing X of Y; N hidden`).
+- When no rows fit in a panel budget, headers should still show the hidden-row count without `showing 0` phrasing (for example `N hidden`).
 - In worst-case global viewport clipping, the final visible row must show `... output clipped to terminal height ...`.
 - Connectivity indicator states:
   - loading

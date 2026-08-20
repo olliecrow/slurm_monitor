@@ -232,11 +232,23 @@ func (m Model) renderHeader(now time.Time) string {
 		ageText = "refresh: " + humanDuration(now.Sub(m.lastSuccess)) + " ago"
 	}
 
-	left := m.styles.title.Render(" SLURM MONITOR ") + "  " +
-		m.styles.label.Render("source: ") + m.styles.value.Render(m.source) + "  " +
-		m.styles.chip.Render("clock: "+now.Format("15:04:05")) + " " +
-		m.styles.chip.Render(ageText)
+	title := m.styles.title.Render(" SLURM MONITOR ")
+	source := m.styles.label.Render("source: ") + m.styles.value.Render(m.source)
+	clock := m.styles.chip.Render("clock: " + now.Format("15:04:05"))
+	age := m.styles.chip.Render(ageText)
 	right := statusChip.Render(statusText)
+	left := title
+	for _, candidate := range []string{
+		title + "  " + source + "  " + clock + " " + age,
+		title + "  " + clock + " " + age,
+		title + "  " + age,
+		title,
+	} {
+		if lipgloss.Width(candidate)+1+lipgloss.Width(right) <= m.width {
+			left = candidate
+			break
+		}
+	}
 	line1 := joinWithPaddingKeepRight(left, right, m.width)
 	if m.lastError == "" {
 		return line1
@@ -276,7 +288,7 @@ func (m Model) renderMain(maxHeight int) string {
 	}
 	inner := max(20, m.width-6)
 	contentWidth := panelContentWidth(inner)
-	expanded := !m.compact && contentWidth >= 84
+	expanded := !m.compact && contentWidth >= 100
 	body := m.renderInsightsPanelWithBudget(panelContentHeight(maxHeight), expanded, contentWidth)
 	return clipToHeight(m.styles.panel.Width(inner).Render(body), maxHeight)
 }
@@ -291,11 +303,11 @@ func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, c
 
 	q := m.snapshot.Queue
 	lines := []string{
-		m.sectionTitle("scheduler summary"),
+		m.sectionTitle("scheduler overview"),
 		schedulerSummaryHeaderLine(),
 		schedulerSummaryRowLine("running", q.RunningCPUJobs, q.RunningGPUJobs, q.ResourceLoad.RunningCPU, q.ResourceLoad.RunningGPU),
 		schedulerSummaryRowLine("pending", q.PendingCPUJobs, q.PendingGPUJobs, q.ResourceLoad.PendingCPU, q.ResourceLoad.PendingGPU),
-		fmt.Sprintf("other jobs=%d  total jobs=%d", q.Other, q.TotalJobs()),
+		fmt.Sprintf("other jobs: %d  |  total jobs: %d", q.Other, q.TotalJobs()),
 	}
 	detailCaps := []int{
 		detailLineCapacity(len(m.snapshot.Partitions)),
@@ -329,7 +341,7 @@ func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, c
 		lines = append(lines, m.renderPendingReasonLinesWithBudget(detailBudgets[2], expanded, contentWidth)...)
 	}
 	if detailBudgets[3] > 0 {
-		lines = append(lines, m.renderJobLinesWithBudget(detailBudgets[3], contentWidth >= 88, contentWidth)...)
+		lines = append(lines, m.renderJobLinesWithBudget(detailBudgets[3], expanded, contentWidth)...)
 	}
 
 	lines = clipLines(lines, contentHeight)
@@ -344,25 +356,25 @@ func (m Model) renderPendingReasonLinesWithBudget(rowBudget int, wide bool, cont
 	reasons := append([]slurm.PendingReasonSummary(nil), m.snapshot.PendingReasons...)
 	slurm.SortPendingReasonsForDisplay(reasons)
 	visibleRows := visibleRowsForBudget(len(reasons), rowBudget)
-	lines := []string{m.sectionTitle(viewTitle("pending reasons", len(reasons), visibleRows))}
+	lines := []string{m.sectionTitle(viewTitle("why jobs are pending", len(reasons), visibleRows))}
 	if rowBudget == 1 {
 		return fitLinesToWidth(lines, contentWidth)
 	}
 	if rowBudget == 2 {
 		if visibleRows == 1 {
-			lines = append(lines, compactPendingReasonRowLine(reasons[0]))
+			lines = append(lines, compactPendingReasonSummaryLine(reasons[0], contentWidth))
 		}
 		return fitLinesToWidth(lines, contentWidth)
 	}
 	if wide {
-		lines = append(lines, widePendingReasonHeaderLine())
+		lines = append(lines, pendingReasonHeaderLine(contentWidth, true))
 		for _, reason := range reasons[:visibleRows] {
-			lines = append(lines, widePendingReasonRowLine(reason))
+			lines = append(lines, pendingReasonRowLine(reason, contentWidth, true))
 		}
 	} else {
-		lines = append(lines, compactPendingReasonHeaderLine())
+		lines = append(lines, pendingReasonHeaderLine(contentWidth, false))
 		for _, reason := range reasons[:visibleRows] {
-			lines = append(lines, compactPendingReasonRowLine(reason))
+			lines = append(lines, pendingReasonRowLine(reason, contentWidth, false))
 		}
 	}
 	return fitLinesToWidth(clipLines(lines, rowBudget), contentWidth)
@@ -413,9 +425,9 @@ func viewTitle(name string, totalRows, visibleRows int) string {
 		return name
 	}
 	if visibleRows == 0 {
-		return fmt.Sprintf("%s (+%d hidden)", name, hiddenRows)
+		return fmt.Sprintf("%s (%d hidden)", name, hiddenRows)
 	}
-	return fmt.Sprintf("%s (top %d/%d, +%d hidden)", name, visibleRows, totalRows, hiddenRows)
+	return fmt.Sprintf("%s (showing %d of %d; %d hidden)", name, visibleRows, totalRows, hiddenRows)
 }
 
 func (m Model) renderPartitionLinesWithBudget(rowBudget int, wide bool, contentWidth int) []string {
@@ -425,7 +437,7 @@ func (m Model) renderPartitionLinesWithBudget(rowBudget int, wide bool, contentW
 	partitions := append([]slurm.PartitionSummary(nil), m.snapshot.Partitions...)
 	slurm.SortPartitionsForDisplay(partitions)
 	visibleRows := visibleRowsForBudget(len(partitions), rowBudget)
-	lines := []string{m.sectionTitle(viewTitle("partition view", len(partitions), visibleRows))}
+	lines := []string{m.sectionTitle(viewTitle("partitions", len(partitions), visibleRows))}
 	if rowBudget == 1 {
 		return fitLinesToWidth(lines, contentWidth)
 	}
@@ -436,9 +448,9 @@ func (m Model) renderPartitionLinesWithBudget(rowBudget int, wide bool, contentW
 		return fitLinesToWidth(lines, contentWidth)
 	}
 	if wide {
-		lines = append(lines, widePartitionHeaderLine())
+		lines = append(lines, groupedSummaryHeaderLine("partition", contentWidth))
 		for _, partition := range partitions[:visibleRows] {
-			lines = append(lines, widePartitionRowLine(partition))
+			lines = append(lines, groupedSummaryRowLine(partition.Name, partition.Queue, contentWidth))
 		}
 	} else {
 		lines = append(lines, compactPartitionHeaderLine())
@@ -459,7 +471,7 @@ func (m Model) renderUserLinesWithBudget(rowBudget int, expanded bool, contentWi
 	totalUsers := len(users)
 	visibleRows := visibleRowsForBudget(totalUsers, rowBudget)
 	visibleUsers := users[:visibleRows]
-	lines := []string{m.sectionTitle(viewTitle("user view", totalUsers, visibleRows))}
+	lines := []string{m.sectionTitle(viewTitle("users", totalUsers, visibleRows))}
 	if rowBudget == 1 {
 		return fitLinesToWidth(lines, contentWidth)
 	}
@@ -471,9 +483,9 @@ func (m Model) renderUserLinesWithBudget(rowBudget int, expanded bool, contentWi
 	}
 
 	if expanded {
-		lines = append(lines, wideUserHeaderLine())
+		lines = append(lines, groupedSummaryHeaderLine("user", contentWidth))
 		for _, u := range visibleUsers {
-			lines = append(lines, wideUserRowLine(u))
+			lines = append(lines, groupedSummaryRowLine(u.User, userQueueSummary(u), contentWidth))
 		}
 		lines = clipLines(lines, rowBudget)
 		return fitLinesToWidth(lines, contentWidth)
@@ -494,20 +506,20 @@ func (m Model) renderJobLinesWithBudget(rowBudget int, wide bool, contentWidth i
 	jobs := append([]slurm.JobSummary(nil), m.snapshot.Jobs...)
 	slurm.SortJobsForDisplay(jobs)
 	visibleRows := visibleRowsForBudget(len(jobs), rowBudget)
-	lines := []string{m.sectionTitle(viewTitle("job view", len(jobs), visibleRows))}
+	lines := []string{m.sectionTitle(viewTitle("jobs", len(jobs), visibleRows))}
 	if rowBudget == 1 {
 		return fitLinesToWidth(lines, contentWidth)
 	}
 	if rowBudget == 2 {
 		if visibleRows == 1 {
-			lines = append(lines, compactJobRowLine(jobs[0]))
+			lines = append(lines, compactJobSummaryLine(jobs[0], contentWidth))
 		}
 		return fitLinesToWidth(lines, contentWidth)
 	}
 	if wide {
-		lines = append(lines, wideJobHeaderLine())
+		lines = append(lines, wideJobHeaderLine(contentWidth))
 		for _, job := range jobs[:visibleRows] {
-			lines = append(lines, wideJobRowLine(job))
+			lines = append(lines, wideJobRowLine(job, contentWidth))
 		}
 	} else {
 		lines = append(lines, compactJobHeaderLine())
@@ -518,97 +530,115 @@ func (m Model) renderJobLinesWithBudget(rowBudget int, wide bool, contentWidth i
 	return fitLinesToWidth(clipLines(lines, rowBudget), contentWidth)
 }
 
-func widePartitionHeaderLine() string {
-	return fmt.Sprintf("%-12s %7s %7s %8s %8s %7s %8s %7s %8s", "partition", "runCPUj", "runGPUj", "pendCPUj", "pendGPUj", "runCPU", "pendCPU", "runGPU", "pendGPU")
+func groupedSummaryHeaderLine(nameLabel string, contentWidth int) string {
+	nameWidth, metricWidth := groupedSummaryColumnWidths(contentWidth)
+	return fmt.Sprintf(
+		"%-*s %-*s %-*s %-*s %-*s",
+		nameWidth, truncateRunes(nameLabel, nameWidth),
+		metricWidth, truncateRunes("running jobs", metricWidth),
+		metricWidth, truncateRunes("pending jobs", metricWidth),
+		metricWidth, truncateRunes("resources in use", metricWidth),
+		metricWidth, truncateRunes("resources requested", metricWidth),
+	)
 }
 
-func widePartitionRowLine(partition slurm.PartitionSummary) string {
-	q := partition.Queue
-	return fmt.Sprintf("%-12s %7d %7d %8d %8d %7d %8d %7d %8d", truncateRunes(partition.Name, 12), q.RunningCPUJobs, q.RunningGPUJobs, q.PendingCPUJobs, q.PendingGPUJobs, q.ResourceLoad.RunningCPU, q.ResourceLoad.PendingCPU, q.ResourceLoad.RunningGPU, q.ResourceLoad.PendingGPU)
+func groupedSummaryRowLine(name string, q slurm.QueueSummary, contentWidth int) string {
+	nameWidth, metricWidth := groupedSummaryColumnWidths(contentWidth)
+	runningJobs := fmt.Sprintf("CPU-only %d, GPU %d", q.RunningCPUJobs, q.RunningGPUJobs)
+	pendingJobs := fmt.Sprintf("CPU-only %d, GPU %d", q.PendingCPUJobs, q.PendingGPUJobs)
+	runningResources := fmt.Sprintf("CPUs %d, GPUs %d", q.ResourceLoad.RunningCPU, q.ResourceLoad.RunningGPU)
+	pendingResources := fmt.Sprintf("CPUs %d, GPUs %d", q.ResourceLoad.PendingCPU, q.ResourceLoad.PendingGPU)
+	return fmt.Sprintf(
+		"%-*s %-*s %-*s %-*s %-*s",
+		nameWidth, truncateRunes(name, nameWidth),
+		metricWidth, truncateRunes(runningJobs, metricWidth),
+		metricWidth, truncateRunes(pendingJobs, metricWidth),
+		metricWidth, truncateRunes(runningResources, metricWidth),
+		metricWidth, truncateRunes(pendingResources, metricWidth),
+	)
+}
+
+func groupedSummaryColumnWidths(contentWidth int) (int, int) {
+	const nameWidth = 16
+	return nameWidth, max(1, (contentWidth-nameWidth-4)/4)
 }
 
 func compactPartitionHeaderLine() string {
-	return fmt.Sprintf("%-10s %4s %4s %4s %4s", "partition", "rCJ", "rGJ", "pCJ", "pGJ")
+	return fmt.Sprintf("%-10s %12s %7s %16s %11s", "partition", "CPU-only run", "GPU run", "CPU-only pending", "GPU pending")
 }
 
 func compactPartitionRowLine(partition slurm.PartitionSummary) string {
 	q := partition.Queue
-	return fmt.Sprintf("%-10s %4d %4d %4d %4d", truncateRunes(partition.Name, 10), q.RunningCPUJobs, q.RunningGPUJobs, q.PendingCPUJobs, q.PendingGPUJobs)
+	return fmt.Sprintf("%-10s %12d %7d %16d %11d", truncateRunes(partition.Name, 10), q.RunningCPUJobs, q.RunningGPUJobs, q.PendingCPUJobs, q.PendingGPUJobs)
 }
 
-func wideJobHeaderLine() string {
-	return fmt.Sprintf("%-12s %-13s %-10s %-7s %-18s %5s %7s %5s", "job", "user", "partition", "state", "reason", "tasks", "cpu", "gpu")
+func wideJobHeaderLine(contentWidth int) string {
+	reasonWidth := wideJobReasonWidth(contentWidth)
+	return fmt.Sprintf("%-11s %-14s %-12s %-12s %-*s %7s %7s %7s", "job ID", "user", "partition", "state", reasonWidth, "reason", "tasks", "CPUs", "GPUs")
 }
 
-func wideJobRowLine(job slurm.JobSummary) string {
-	return fmt.Sprintf("%-12s %-13s %-10s %-7s %-18s %5d %7d %5d", truncateRunes(job.JobID, 12), truncateRunes(job.User, 13), truncateRunes(job.Partition, 10), truncateRunes(job.State, 7), truncateRunes(job.Reason, 18), job.Tasks, job.CPU, job.GPU)
+func wideJobRowLine(job slurm.JobSummary, contentWidth int) string {
+	reasonWidth := wideJobReasonWidth(contentWidth)
+	state := strings.ToUpper(strings.TrimSpace(job.State))
+	return fmt.Sprintf("%-11s %-14s %-12s %-12s %-*s %7d %7d %7d", truncateRunes(job.JobID, 11), truncateRunes(job.User, 14), truncateRunes(job.Partition, 12), truncateRunes(state, 12), reasonWidth, truncateRunes(job.Reason, reasonWidth), job.Tasks, job.CPU, job.GPU)
+}
+
+func wideJobReasonWidth(contentWidth int) int {
+	return max(18, contentWidth-77)
 }
 
 func compactJobHeaderLine() string {
-	return fmt.Sprintf("%-10s %-10s %-8s %-4s %5s %5s %4s", "job", "user", "queue", "st", "tasks", "cpu", "gpu")
+	return fmt.Sprintf("%-10s %-9s %-9s %-11s %5s %5s %4s", "job ID", "user", "partition", "state", "tasks", "CPUs", "GPUs")
 }
 
 func compactJobRowLine(job slurm.JobSummary) string {
-	return fmt.Sprintf("%-10s %-10s %-8s %-4s %5d %5d %4d", truncateRunes(job.JobID, 10), truncateRunes(job.User, 10), truncateRunes(job.Partition, 8), shortJobState(job.State), job.Tasks, job.CPU, job.GPU)
+	state := strings.ToUpper(strings.TrimSpace(job.State))
+	return fmt.Sprintf("%-10s %-9s %-9s %-11s %5d %5d %4d", truncateRunes(job.JobID, 10), truncateRunes(job.User, 9), truncateRunes(job.Partition, 9), truncateRunes(state, 11), job.Tasks, job.CPU, job.GPU)
 }
 
-func shortJobState(state string) string {
-	switch slurmState := strings.ToUpper(strings.TrimSpace(state)); {
-	case strings.Contains(slurmState, "PENDING"):
-		return "PEND"
-	case strings.Contains(slurmState, "RUNNING"):
-		return "RUN"
-	case strings.Contains(slurmState, "COMPLETING"):
-		return "COMP"
-	case strings.Contains(slurmState, "CONFIGURING"):
-		return "CONF"
-	default:
-		return truncateRunes(slurmState, 4)
+func compactJobSummaryLine(job slurm.JobSummary, contentWidth int) string {
+	state := strings.ToUpper(strings.TrimSpace(job.State))
+	identity := fmt.Sprintf("job %s %s %s %s", job.JobID, job.User, job.Partition, state)
+	resources := fmt.Sprintf("%d tasks, %d CPUs, %d GPUs", job.Tasks, job.CPU, job.GPU)
+	return joinWithPaddingKeepRight(identity, resources, contentWidth)
+}
+
+func pendingReasonHeaderLine(contentWidth int, wide bool) string {
+	reasonWidth, taskWidth, resourceWidth := pendingReasonColumnWidths(contentWidth, wide)
+	if wide {
+		return fmt.Sprintf("%-*s %*s %*s %*s", reasonWidth, "reason", taskWidth, "affected tasks", resourceWidth, "requested CPUs", resourceWidth, "requested GPUs")
 	}
+	return fmt.Sprintf("%-*s %*s %*s %*s", reasonWidth, "reason", taskWidth, "tasks", resourceWidth, "CPUs", resourceWidth, "GPUs")
 }
 
-func wideUserHeaderLine() string {
-	return fmt.Sprintf("%-12s %7s %7s %8s %8s %7s %8s %7s %8s", "user", "runCPUj", "runGPUj", "pendCPUj", "pendGPUj", "runCPU", "pendCPU", "runGPU", "pendGPU")
+func pendingReasonRowLine(reason slurm.PendingReasonSummary, contentWidth int, wide bool) string {
+	reasonWidth, taskWidth, resourceWidth := pendingReasonColumnWidths(contentWidth, wide)
+	return fmt.Sprintf("%-*s %*d %*d %*d", reasonWidth, truncateRunes(reason.Reason, reasonWidth), taskWidth, reason.Tasks, resourceWidth, reason.CPU, resourceWidth, reason.GPU)
 }
 
-func wideUserRowLine(u slurm.UserSummary) string {
-	return fmt.Sprintf(
-		"%-12s %7d %7d %8d %8d %7d %8d %7d %8d",
-		truncateRunes(u.User, 12),
-		u.RunningCPUJobs,
-		u.RunningGPUJobs,
-		u.PendingCPUJobs,
-		u.PendingGPUJobs,
-		u.RunningCPU,
-		u.PendingCPU,
-		u.RunningGPU,
-		u.PendingGPU,
-	)
+func compactPendingReasonSummaryLine(reason slurm.PendingReasonSummary, contentWidth int) string {
+	resources := fmt.Sprintf("%d tasks, %d CPUs, %d GPUs", reason.Tasks, reason.CPU, reason.GPU)
+	return joinWithPaddingKeepRight(reason.Reason, resources, contentWidth)
 }
 
-func widePendingReasonHeaderLine() string {
-	return fmt.Sprintf("%-30s %7s %8s %8s", "reason", "tasks", "cpu", "gpu")
-}
-
-func widePendingReasonRowLine(reason slurm.PendingReasonSummary) string {
-	return fmt.Sprintf("%-30s %7d %8d %8d", truncateRunes(reason.Reason, 30), reason.Tasks, reason.CPU, reason.GPU)
-}
-
-func compactPendingReasonHeaderLine() string {
-	return fmt.Sprintf("%-18s %5s %6s %5s", "reason", "tasks", "cpu", "gpu")
-}
-
-func compactPendingReasonRowLine(reason slurm.PendingReasonSummary) string {
-	return fmt.Sprintf("%-18s %5d %6d %5d", truncateRunes(reason.Reason, 18), reason.Tasks, reason.CPU, reason.GPU)
+func pendingReasonColumnWidths(contentWidth int, wide bool) (int, int, int) {
+	if wide {
+		const taskWidth = 14
+		const resourceWidth = 14
+		return max(18, contentWidth-taskWidth-2*resourceWidth-3), taskWidth, resourceWidth
+	}
+	const taskWidth = 7
+	const resourceWidth = 7
+	return max(18, contentWidth-taskWidth-2*resourceWidth-3), taskWidth, resourceWidth
 }
 
 func compactUserHeaderLine() string {
-	return fmt.Sprintf("%-10s %4s %4s %4s %4s", "user", "rCJ", "rGJ", "pCJ", "pGJ")
+	return fmt.Sprintf("%-10s %12s %7s %16s %11s", "user", "CPU-only run", "GPU run", "CPU-only pending", "GPU pending")
 }
 
 func compactUserRowLine(u slurm.UserSummary) string {
 	return fmt.Sprintf(
-		"%-10s %4d %4d %4d %4d",
+		"%-10s %12d %7d %16d %11d",
 		truncateRunes(u.User, 10),
 		u.RunningCPUJobs,
 		u.RunningGPUJobs,
@@ -617,22 +647,37 @@ func compactUserRowLine(u slurm.UserSummary) string {
 	)
 }
 
-func schedulerSummaryHeaderLine() string {
-	return fmt.Sprintf("%-7s %7s %7s %8s %6s", "state", "cpuJobs", "gpuJobs", "cpu", "gpu")
+func userQueueSummary(u slurm.UserSummary) slurm.QueueSummary {
+	return slurm.QueueSummary{
+		RunningCPUJobs: u.RunningCPUJobs,
+		RunningGPUJobs: u.RunningGPUJobs,
+		PendingCPUJobs: u.PendingCPUJobs,
+		PendingGPUJobs: u.PendingGPUJobs,
+		ResourceLoad: slurm.ResourceTotals{
+			RunningCPU: u.RunningCPU,
+			RunningGPU: u.RunningGPU,
+			PendingCPU: u.PendingCPU,
+			PendingGPU: u.PendingGPU,
+		},
+	}
 }
 
-func schedulerSummaryRowLine(state string, cpuJobs, gpuJobs, cpu, gpu int) string {
-	return fmt.Sprintf("%-7s %7d %7d %8d %6d", state, cpuJobs, gpuJobs, cpu, gpu)
+func schedulerSummaryHeaderLine() string {
+	return fmt.Sprintf("%-7s %13s %9s %8s %6s", "status", "CPU-only jobs", "GPU jobs", "CPUs", "GPUs")
+}
+
+func schedulerSummaryRowLine(state string, cpuOnlyJobs, gpuJobs, cpu, gpu int) string {
+	return fmt.Sprintf("%-7s %13d %9d %8d %6d", state, cpuOnlyJobs, gpuJobs, cpu, gpu)
 }
 
 func (m Model) sectionTitle(label string) string {
 	icon := "•"
 	switch {
-	case strings.HasPrefix(label, "scheduler summary"):
+	case strings.HasPrefix(label, "scheduler overview"):
 		icon = "◍"
-	case strings.HasPrefix(label, "user view"):
+	case strings.HasPrefix(label, "users"):
 		icon = "◒"
-	case strings.HasPrefix(label, "pending reasons"):
+	case strings.HasPrefix(label, "why jobs are pending"):
 		icon = "◇"
 	}
 	return m.styles.tableHdr.Render(icon + " " + label)
