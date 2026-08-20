@@ -105,7 +105,7 @@ func HelpText() string {
 	b.WriteString("\nExamples:\n")
 	b.WriteString("  slurm-monitor\n")
 	b.WriteString("  slurm-monitor cluster_alias\n")
-	b.WriteString("  slurm-monitor user@cluster.example.org --refresh 1s\n")
+	b.WriteString("  slurm-monitor --refresh 1s user@cluster.example.org\n")
 	b.WriteString("  slurm-monitor --once cluster_alias\n")
 	b.WriteString("  slurm-monitor --duration 30m cluster_alias\n")
 	b.WriteString("  slurm-monitor doctor cluster_alias\n")

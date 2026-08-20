@@ -36,17 +36,26 @@ Give you a clear live view of cluster health and queue state without running any
 - Outbound pushes are blocked locally when new commit messages or patches contain sensitive patterns.
 - Pull request titles/descriptions are checked in CI for the same policy.
 
-Set up hooks locally.
+Install [pre-commit](https://pre-commit.com/#install), then set up the repository hooks.
 
 ```bash
-python3 -m pip install --user pre-commit
-pre-commit install --hook-type pre-commit --hook-type commit-msg --hook-type pre-push
+pre-commit install
 ```
 
-Run checks manually.
+Run all configured hooks manually.
 
 ```bash
 pre-commit run --all-files
+```
+
+Run the Go development checks.
+
+```bash
+gofmt -l .
+go mod verify
+go test ./...
+go test -race ./...
+go vet ./...
 ```
 
 ## Quick start
