@@ -76,6 +76,9 @@ func (l *Loop) Run(ctx context.Context, updates chan<- Update) {
 			}
 			continue
 		}
+		if ctx.Err() != nil {
+			return
+		}
 
 		failures++
 		if !transport.IsRetryable(err) {
