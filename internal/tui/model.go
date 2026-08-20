@@ -71,9 +71,9 @@ type channelClosedMsg struct{}
 var pulseFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 const (
-	frameRightGutter             = 1
-	expandedTableMinContentWidth = 104
-	viewportClipText             = "... output clipped to terminal height ..."
+	frameRightGutter        = 1
+	groupedSummaryNameWidth = 16
+	viewportClipText        = "... output clipped to terminal height ..."
 )
 
 func NewModel(opts Options) Model {
@@ -289,7 +289,7 @@ func (m Model) renderMain(maxHeight int) string {
 	}
 	inner := max(20, m.width-6)
 	contentWidth := panelContentWidth(inner)
-	expanded := !m.compact && contentWidth >= expandedTableMinContentWidth
+	expanded := !m.compact && contentWidth >= groupedSummaryMinContentWidth(m.snapshot)
 	body := m.renderInsightsPanelWithBudget(panelContentHeight(maxHeight), expanded, contentWidth)
 	return clipToHeight(m.styles.panel.Width(inner).Render(body), maxHeight)
 }
@@ -545,23 +545,44 @@ func groupedSummaryHeaderLine(nameLabel string, contentWidth int) string {
 
 func groupedSummaryRowLine(name string, q slurm.QueueSummary, contentWidth int) string {
 	nameWidth, metricWidth := groupedSummaryColumnWidths(contentWidth)
-	runningJobs := fmt.Sprintf("CPU-only %d, GPU %d", q.RunningCPUJobs, q.RunningGPUJobs)
-	pendingJobs := fmt.Sprintf("CPU-only %d, GPU %d", q.PendingCPUJobs, q.PendingGPUJobs)
-	runningResources := fmt.Sprintf("CPUs %d, GPUs %d", q.ResourceLoad.RunningCPU, q.ResourceLoad.RunningGPU)
-	pendingResources := fmt.Sprintf("CPUs %d, GPUs %d", q.ResourceLoad.PendingCPU, q.ResourceLoad.PendingGPU)
+	metrics := groupedSummaryMetrics(q)
 	return fmt.Sprintf(
 		"%-*s %-*s %-*s %-*s %-*s",
 		nameWidth, truncateRunes(name, nameWidth),
-		metricWidth, truncateRunes(runningJobs, metricWidth),
-		metricWidth, truncateRunes(pendingJobs, metricWidth),
-		metricWidth, truncateRunes(runningResources, metricWidth),
-		metricWidth, truncateRunes(pendingResources, metricWidth),
+		metricWidth, truncateRunes(metrics[0], metricWidth),
+		metricWidth, truncateRunes(metrics[1], metricWidth),
+		metricWidth, truncateRunes(metrics[2], metricWidth),
+		metricWidth, truncateRunes(metrics[3], metricWidth),
 	)
 }
 
+func groupedSummaryMinContentWidth(snapshot *slurm.Snapshot) int {
+	const columnGaps = 4
+	metricWidth := lipgloss.Width("resources requested")
+	for _, partition := range snapshot.Partitions {
+		for _, metric := range groupedSummaryMetrics(partition.Queue) {
+			metricWidth = max(metricWidth, lipgloss.Width(metric))
+		}
+	}
+	for _, user := range snapshot.Users {
+		for _, metric := range groupedSummaryMetrics(userQueueSummary(user)) {
+			metricWidth = max(metricWidth, lipgloss.Width(metric))
+		}
+	}
+	return groupedSummaryNameWidth + columnGaps + 4*metricWidth
+}
+
+func groupedSummaryMetrics(q slurm.QueueSummary) [4]string {
+	return [4]string{
+		fmt.Sprintf("CPU-only %d, GPU %d", q.RunningCPUJobs, q.RunningGPUJobs),
+		fmt.Sprintf("CPU-only %d, GPU %d", q.PendingCPUJobs, q.PendingGPUJobs),
+		fmt.Sprintf("CPUs %d, GPUs %d", q.ResourceLoad.RunningCPU, q.ResourceLoad.RunningGPU),
+		fmt.Sprintf("CPUs %d, GPUs %d", q.ResourceLoad.PendingCPU, q.ResourceLoad.PendingGPU),
+	}
+}
+
 func groupedSummaryColumnWidths(contentWidth int) (int, int) {
-	const nameWidth = 16
-	return nameWidth, max(1, (contentWidth-nameWidth-4)/4)
+	return groupedSummaryNameWidth, max(1, (contentWidth-groupedSummaryNameWidth-4)/4)
 }
 
 func compactPartitionHeaderLine() string {
