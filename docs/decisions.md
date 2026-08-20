@@ -54,13 +54,15 @@ References: `internal/slurm/collector.go`, `internal/slurm/collector_test.go`, `
 
 ## Keep the TUI focused, terminal-bounded, and non-interactive
 
-The display has scheduler summary, partition, user, pending-reason, and job views. It uses one full-height panel so scheduler insights remain visible without navigation. The panel shares its remaining height fairly across all active detail sections.
+The display has scheduler overview, partition, user, pending-reason, and job sections. It uses one full-height panel so scheduler insights remain visible without navigation. The panel shares its remaining height fairly across all active detail sections.
 
 The job view groups array tasks only when root job, user, partition, state, and pending reason match. This keeps large arrays readable without changing task-granular queue totals. Partition ordering surfaces pending pressure before current load. Pending-reason ordering surfaces the largest GPU and CPU demand. Job ordering surfaces pending GPU, running GPU, pending CPU, and running CPU work, then favors larger grouped jobs.
 
-Panel-content budgets determine visible rows. The compact five-line scheduler table leaves enough space for every active detail section to show at least one data row at 72x20. Hidden-row metadata is explicit, and smaller terminals keep every active detail section title when space permits. This prevents large queues or small terminals from causing wrapping, scrolling, or silent loss of scheduler context.
+Wide partition and user tables group running jobs, pending jobs, resources in use, and requested resources under plain-language labels instead of abbreviated metric names. Wide pending-reason and job tables give spare width to reason text. Compact tables keep full state names and use shorter plain labels only where width requires them.
 
-The header distinguishes initial loading, connected operation, transient recovery, and permanent disconnection. A clock, refresh age, and status spinner show liveness even when cluster metrics are unchanged.
+Panel-content budgets determine visible rows. The compact five-line scheduler table leaves enough space for every active detail section to show at least one data row at 72x20. Hidden-row metadata uses `showing X of Y; N hidden`, and smaller terminals keep every active detail section title when space permits. This prevents large queues or small terminals from causing wrapping, scrolling, or silent loss of scheduler context.
+
+The header distinguishes initial loading, connected operation, transient recovery, and permanent disconnection. A clock, refresh age, and status spinner show liveness even when cluster metrics are unchanged. Narrow headers remove the source and then the clock as complete fields when needed, rather than showing partial values.
 
 Enforcement: one budget-aware render path handles normal and compact layouts; summary sorting is deterministic; viewport tests cover resizing, fair detail-section budgets, clipping metadata, and footer placement.
 

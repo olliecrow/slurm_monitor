@@ -15,9 +15,9 @@ Give you a clear live view of scheduler activity and queue pressure without runn
 
 1. Run the tool locally on a cluster node, or remotely over SSH.
 2. See a live terminal user interface (TUI) with cluster, partition, user, pending-reason, and job insights.
-3. Compare job counts and CPU/GPU resource pressure for the cluster, each partition, and each user.
+3. Compare CPU-only jobs, GPU jobs, and CPU/GPU resource pressure with plain-language grouped columns.
 4. Keep monitoring through transient SSH or network failures, with automatic retries.
-5. On very large clusters, tables show a capped top slice with explicit `+N hidden` indicators to stay terminal-stable.
+5. On very large clusters, tables state how many rows are shown and hidden so the terminal stays stable.
 
 ## Requirements
 
