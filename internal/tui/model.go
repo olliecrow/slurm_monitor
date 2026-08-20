@@ -11,7 +11,6 @@ import (
 
 	"github.com/olliecrow/slurm_monitor/internal/monitor"
 	"github.com/olliecrow/slurm_monitor/internal/slurm"
-	"github.com/olliecrow/slurm_monitor/internal/uifmt"
 )
 
 type Options struct {
@@ -277,35 +276,14 @@ func (m Model) renderMain(maxHeight int) string {
 	}
 	inner := max(20, m.width-6)
 	contentWidth := panelContentWidth(inner)
-	compactLayout := m.compact || m.width < 118 || maxHeight < 18
-
-	queueTarget := max(9, maxHeight/2)
-	nodeTarget := maxHeight - queueTarget
-	if nodeTarget < 6 {
-		nodeTarget = 6
-		queueTarget = maxHeight - nodeTarget
-	}
-	if queueTarget < 6 {
-		queueTarget = 6
-		nodeTarget = max(3, maxHeight-queueTarget)
-	}
-
-	showDemandCols := contentWidth >= 62
-	queueBodyHeight := panelContentHeight(queueTarget)
-	queueBody := m.renderQueuePanelWithBudget(queueBodyHeight, showDemandCols, contentWidth)
-	queuePanel := m.styles.panel.Width(inner).Render(queueBody)
-
-	nodeBodyHeight := panelContentHeight(nodeTarget)
-	nodeBody := m.renderNodeTableWithBudget(nodeBodyHeight, compactLayout, contentWidth)
-	nodePanel := m.styles.panel.Width(inner).Render(nodeBody)
-
-	body := lipgloss.JoinVertical(lipgloss.Left, nodePanel, queuePanel)
-	return clipToHeight(body, maxHeight)
+	expanded := !m.compact && contentWidth >= 84
+	body := m.renderInsightsPanelWithBudget(panelContentHeight(maxHeight), expanded, contentWidth)
+	return clipToHeight(m.styles.panel.Width(inner).Render(body), maxHeight)
 }
 
-func (m Model) renderQueuePanelWithBudget(contentHeight int, showDemand bool, contentWidth int) string {
+func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, contentWidth int) string {
 	if m.snapshot == nil {
-		return "queue summary\n(no data)"
+		return "scheduler insights\n(no data)"
 	}
 	if contentHeight <= 0 {
 		return ""
@@ -313,17 +291,20 @@ func (m Model) renderQueuePanelWithBudget(contentHeight int, showDemand bool, co
 
 	q := m.snapshot.Queue
 	lines := []string{
-		m.sectionTitle("queue summary"),
+		m.sectionTitle("scheduler summary"),
 		m.queueStatusLine("running cpu jobs", q.RunningCPUJobs),
 		m.queueStatusLine("running gpu jobs", q.RunningGPUJobs),
 		m.queueStatusLine("pending cpu jobs", q.PendingCPUJobs),
 		m.queueStatusLine("pending gpu jobs", q.PendingGPUJobs),
 		m.queueStatusLine("other", q.Other),
 		m.queueStatusLine("total", q.TotalJobs()),
+		m.queueResourceLine("running resources", q.ResourceLoad.RunningCPU, q.ResourceLoad.RunningGPU),
+		m.queueResourceLine("pending demand", q.ResourceLoad.PendingCPU, q.ResourceLoad.PendingGPU),
 	}
 	detailCaps := []int{
 		detailLineCapacity(len(m.snapshot.Partitions)),
 		detailLineCapacity(len(m.snapshot.Users)),
+		detailLineCapacity(len(m.snapshot.PendingReasons)),
 		detailLineCapacity(len(m.snapshot.Jobs)),
 	}
 	activeDetailSections := 0
@@ -336,25 +317,59 @@ func (m Model) renderQueuePanelWithBudget(contentHeight int, showDemand bool, co
 	if reservedDetailLines < 0 {
 		reservedDetailLines = 0
 	}
-	queueBudget := contentHeight - reservedDetailLines
-	if len(lines) > queueBudget {
-		lines = clipLines(lines, queueBudget)
+	summaryBudget := contentHeight - reservedDetailLines
+	if len(lines) > summaryBudget {
+		lines = clipLines(lines, summaryBudget)
 	}
 
 	detailBudgets := allocateLineBudgets(contentHeight-len(lines), detailCaps)
 	if detailBudgets[0] > 0 {
-		lines = append(lines, m.renderPartitionLinesWithBudget(detailBudgets[0], showDemand, contentWidth)...)
+		lines = append(lines, m.renderPartitionLinesWithBudget(detailBudgets[0], expanded, contentWidth)...)
 	}
 	if detailBudgets[1] > 0 {
-		lines = append(lines, m.renderUserLinesWithBudget(detailBudgets[1], showDemand, contentWidth)...)
+		lines = append(lines, m.renderUserLinesWithBudget(detailBudgets[1], expanded, contentWidth)...)
 	}
 	if detailBudgets[2] > 0 {
-		lines = append(lines, m.renderJobLinesWithBudget(detailBudgets[2], contentWidth >= 70, contentWidth)...)
+		lines = append(lines, m.renderPendingReasonLinesWithBudget(detailBudgets[2], expanded, contentWidth)...)
+	}
+	if detailBudgets[3] > 0 {
+		lines = append(lines, m.renderJobLinesWithBudget(detailBudgets[3], contentWidth >= 88, contentWidth)...)
 	}
 
 	lines = clipLines(lines, contentHeight)
 	lines = fitLinesToWidth(lines, contentWidth)
 	return strings.Join(lines, "\n")
+}
+
+func (m Model) renderPendingReasonLinesWithBudget(rowBudget int, wide bool, contentWidth int) []string {
+	if m.snapshot == nil || rowBudget <= 0 {
+		return nil
+	}
+	reasons := append([]slurm.PendingReasonSummary(nil), m.snapshot.PendingReasons...)
+	slurm.SortPendingReasonsForDisplay(reasons)
+	visibleRows := visibleRowsForBudget(len(reasons), rowBudget)
+	lines := []string{m.sectionTitle(viewTitle("pending reasons", len(reasons), visibleRows))}
+	if rowBudget == 1 {
+		return fitLinesToWidth(lines, contentWidth)
+	}
+	if rowBudget == 2 {
+		if visibleRows == 1 {
+			lines = append(lines, compactPendingReasonRowLine(reasons[0]))
+		}
+		return fitLinesToWidth(lines, contentWidth)
+	}
+	if wide {
+		lines = append(lines, widePendingReasonHeaderLine())
+		for _, reason := range reasons[:visibleRows] {
+			lines = append(lines, widePendingReasonRowLine(reason))
+		}
+	} else {
+		lines = append(lines, compactPendingReasonHeaderLine())
+		for _, reason := range reasons[:visibleRows] {
+			lines = append(lines, compactPendingReasonRowLine(reason))
+		}
+	}
+	return fitLinesToWidth(clipLines(lines, rowBudget), contentWidth)
 }
 
 func detailLineCapacity(rowCount int) int {
@@ -438,7 +453,7 @@ func (m Model) renderPartitionLinesWithBudget(rowBudget int, wide bool, contentW
 	return fitLinesToWidth(clipLines(lines, rowBudget), contentWidth)
 }
 
-func (m Model) renderUserLinesWithBudget(rowBudget int, showDemand bool, contentWidth int) []string {
+func (m Model) renderUserLinesWithBudget(rowBudget int, expanded bool, contentWidth int) []string {
 	if m.snapshot == nil || rowBudget <= 0 {
 		return nil
 	}
@@ -459,7 +474,7 @@ func (m Model) renderUserLinesWithBudget(rowBudget int, showDemand bool, content
 		return fitLinesToWidth(lines, contentWidth)
 	}
 
-	if showDemand {
+	if expanded {
 		lines = append(lines, wideUserHeaderLine())
 		for _, u := range visibleUsers {
 			lines = append(lines, wideUserRowLine(u))
@@ -508,12 +523,12 @@ func (m Model) renderJobLinesWithBudget(rowBudget int, wide bool, contentWidth i
 }
 
 func widePartitionHeaderLine() string {
-	return fmt.Sprintf("%-12s %10s %10s  %10s  %10s", "partition", "runningCPU", "runningGPU", "pendingCPU", "pendingGPU")
+	return fmt.Sprintf("%-12s %7s %7s %8s %8s %7s %8s %7s %8s", "partition", "runCPUj", "runGPUj", "pendCPUj", "pendGPUj", "runCPU", "pendCPU", "runGPU", "pendGPU")
 }
 
 func widePartitionRowLine(partition slurm.PartitionSummary) string {
 	q := partition.Queue
-	return fmt.Sprintf("%-12s %10d %10d  %10d  %10d", truncateRunes(partition.Name, 12), q.RunningCPUJobs, q.RunningGPUJobs, q.PendingCPUJobs, q.PendingGPUJobs)
+	return fmt.Sprintf("%-12s %7d %7d %8d %8d %7d %8d %7d %8d", truncateRunes(partition.Name, 12), q.RunningCPUJobs, q.RunningGPUJobs, q.PendingCPUJobs, q.PendingGPUJobs, q.ResourceLoad.RunningCPU, q.ResourceLoad.PendingCPU, q.ResourceLoad.RunningGPU, q.ResourceLoad.PendingGPU)
 }
 
 func compactPartitionHeaderLine() string {
@@ -526,11 +541,11 @@ func compactPartitionRowLine(partition slurm.PartitionSummary) string {
 }
 
 func wideJobHeaderLine() string {
-	return fmt.Sprintf("%-12s %-13s %-10s %-7s %5s %7s %5s", "job", "user", "partition", "state", "tasks", "cpu", "gpu")
+	return fmt.Sprintf("%-12s %-13s %-10s %-7s %-18s %5s %7s %5s", "job", "user", "partition", "state", "reason", "tasks", "cpu", "gpu")
 }
 
 func wideJobRowLine(job slurm.JobSummary) string {
-	return fmt.Sprintf("%-12s %-13s %-10s %-7s %5d %7d %5d", truncateRunes(job.JobID, 12), truncateRunes(job.User, 13), truncateRunes(job.Partition, 10), truncateRunes(job.State, 7), job.Tasks, job.CPU, job.GPU)
+	return fmt.Sprintf("%-12s %-13s %-10s %-7s %-18s %5d %7d %5d", truncateRunes(job.JobID, 12), truncateRunes(job.User, 13), truncateRunes(job.Partition, 10), truncateRunes(job.State, 7), truncateRunes(job.Reason, 18), job.Tasks, job.CPU, job.GPU)
 }
 
 func compactJobHeaderLine() string {
@@ -557,18 +572,38 @@ func shortJobState(state string) string {
 }
 
 func wideUserHeaderLine() string {
-	return fmt.Sprintf("%-12s %10s %10s  %10s  %10s", "user", "runningCPU", "runningGPU", "pendingCPU", "pendingGPU")
+	return fmt.Sprintf("%-12s %7s %7s %8s %8s %7s %8s %7s %8s", "user", "runCPUj", "runGPUj", "pendCPUj", "pendGPUj", "runCPU", "pendCPU", "runGPU", "pendGPU")
 }
 
 func wideUserRowLine(u slurm.UserSummary) string {
 	return fmt.Sprintf(
-		"%-12s %10d %10d  %10d  %10d",
+		"%-12s %7d %7d %8d %8d %7d %8d %7d %8d",
 		truncateRunes(u.User, 12),
 		u.RunningCPUJobs,
 		u.RunningGPUJobs,
 		u.PendingCPUJobs,
 		u.PendingGPUJobs,
+		u.RunningCPU,
+		u.PendingCPU,
+		u.RunningGPU,
+		u.PendingGPU,
 	)
+}
+
+func widePendingReasonHeaderLine() string {
+	return fmt.Sprintf("%-30s %7s %8s %8s", "reason", "jobs", "cpu", "gpu")
+}
+
+func widePendingReasonRowLine(reason slurm.PendingReasonSummary) string {
+	return fmt.Sprintf("%-30s %7d %8d %8d", truncateRunes(reason.Reason, 30), reason.Jobs, reason.CPU, reason.GPU)
+}
+
+func compactPendingReasonHeaderLine() string {
+	return fmt.Sprintf("%-18s %5s %6s %5s", "reason", "jobs", "cpu", "gpu")
+}
+
+func compactPendingReasonRowLine(reason slurm.PendingReasonSummary) string {
+	return fmt.Sprintf("%-18s %5d %6d %5d", truncateRunes(reason.Reason, 18), reason.Jobs, reason.CPU, reason.GPU)
 }
 
 func compactUserHeaderLine() string {
@@ -586,161 +621,24 @@ func compactUserRowLine(u slurm.UserSummary) string {
 	)
 }
 
-func (m Model) renderNodeTableWithBudget(contentHeight int, compactLayout bool, contentWidth int) string {
-	if m.snapshot == nil || contentHeight <= 0 {
-		return ""
-	}
-	const (
-		compactRowFmt = "%-14s %-9s %-10s %-9s %-13s %-13s"
-		wideRowFmt    = "%-12s %-14s %-14s %-10s %-6s %-13s %-6s %-10s %-6s"
-	)
-
-	compact := m.compact || m.width < 122
-	if compactLayout && m.width < 132 {
-		compact = true
-	}
-	nodes := m.snapshot.Nodes
-	totalNodes := len(nodes)
-
-	alert, hasAlert := nodeStateAlert(m.snapshot)
-	mandatoryLines := 2 // title + total
-	if hasAlert {
-		mandatoryLines++
-	}
-	remainingAfterMandatory := contentHeight - mandatoryLines
-	showHeader := remainingAfterMandatory > 0
-	visibleRows := 0
-	if showHeader {
-		visibleRows = min(totalNodes, remainingAfterMandatory-1)
-	}
-	hiddenNodes := totalNodes - visibleRows
-
-	title := "node summary"
-	if hiddenNodes > 0 {
-		title = fmt.Sprintf("node summary (top %d/%d, +%d hidden)", visibleRows, totalNodes, hiddenNodes)
-	}
-
-	t := m.snapshot.Totals()
-	lines := []string{m.sectionTitle(title)}
-	if hasAlert {
-		lines = append(lines, m.styles.bad.Render(alert))
-	}
-
-	if compact {
-		if showHeader {
-			lines = append(lines, fmt.Sprintf(compactRowFmt, "node", "part", "state", "cpu", "mem", "gpu"))
-		}
-		for i := 0; i < visibleRows; i++ {
-			n := nodes[i]
-			lines = append(lines, fmt.Sprintf(
-				compactRowFmt,
-				truncateRunes(n.Name, 14),
-				truncateRunes(n.Partition, 9),
-				truncateRunes(n.State, 10),
-				uifmt.Ratio(n.CPUAlloc, n.CPUTotal),
-				uifmt.MemPair(n.MemAllocMB, n.MemTotalMB),
-				uifmt.Ratio(n.GPUAlloc, n.GPUTotal),
-			))
-		}
-		totalLine := fmt.Sprintf(
-			compactRowFmt,
-			"TOTAL",
-			"",
-			"",
-			uifmt.Ratio(t.CPUAlloc, t.CPUTotal),
-			uifmt.MemPair(t.MemAllocMB, t.MemTotalMB),
-			uifmt.Ratio(t.GPUAlloc, t.GPUTotal),
-		)
-		lines = append(lines, m.styles.accent.Render(totalLine))
-		lines = clipLines(lines, contentHeight)
-		lines = fitLinesToWidth(lines, contentWidth)
-		return strings.Join(lines, "\n")
-	}
-
-	if showHeader {
-		lines = append(lines, fmt.Sprintf(
-			wideRowFmt,
-			"node", "partition", "state", "cpu", "cpu%", "mem", "mem%", "gpu", "gpu alloc%",
-		))
-	}
-	for i := 0; i < visibleRows; i++ {
-		n := nodes[i]
-		lines = append(lines, fmt.Sprintf(
-			wideRowFmt,
-			truncateRunes(n.Name, 12),
-			truncateRunes(n.Partition, 14),
-			truncateRunes(n.State, 14),
-			uifmt.Ratio(n.CPUAlloc, n.CPUTotal),
-			uifmt.Percent(n.CPUUtil, n.HasCPU),
-			uifmt.MemPair(n.MemAllocMB, n.MemTotalMB),
-			uifmt.Percent(n.MemUtil, n.HasMem),
-			uifmt.Ratio(n.GPUAlloc, n.GPUTotal),
-			uifmt.Percent(n.GPUUtil, n.HasGPU),
-		))
-	}
-
-	gpuPct := "n/a"
-	if t.GPUTotal > 0 {
-		gpuPct = fmt.Sprintf("%.1f%%", float64(t.GPUAlloc)/float64(t.GPUTotal)*100.0)
-	}
-
-	totalLine := fmt.Sprintf(
-		wideRowFmt,
-		"TOTAL",
-		"",
-		"",
-		uifmt.Ratio(t.CPUAlloc, t.CPUTotal),
-		"n/a",
-		uifmt.MemPair(t.MemAllocMB, t.MemTotalMB),
-		"n/a",
-		uifmt.Ratio(t.GPUAlloc, t.GPUTotal),
-		gpuPct,
-	)
-	lines = append(lines, m.styles.accent.Render(totalLine))
-	lines = clipLines(lines, contentHeight)
-	lines = fitLinesToWidth(lines, contentWidth)
-	return strings.Join(lines, "\n")
-}
-
-func nodeStateAlert(snap *slurm.Snapshot) (string, bool) {
-	if snap == nil || len(snap.Nodes) == 0 {
-		return "", false
-	}
-	var down, drain int
-	for _, n := range snap.Nodes {
-		state := strings.ToUpper(n.State)
-		if strings.Contains(state, "DOWN") {
-			down++
-		}
-		if strings.Contains(state, "DRAIN") {
-			drain++
-		}
-	}
-	switch {
-	case down > 0 && drain > 0:
-		return fmt.Sprintf("node alert: down=%d drain=%d", down, drain), true
-	case down > 0:
-		return fmt.Sprintf("node alert: down=%d", down), true
-	case drain > 0:
-		return fmt.Sprintf("node alert: drain=%d", drain), true
-	default:
-		return "", false
-	}
-}
-
 func (m Model) queueStatusLine(label string, value int) string {
 	return m.styles.label.Render(fmt.Sprintf("%-16s", label)) + "  " + m.styles.value.Render(fmt.Sprintf("%5d", value))
+}
+
+func (m Model) queueResourceLine(label string, cpu, gpu int) string {
+	resources := fmt.Sprintf("cpu=%d  gpu=%d", cpu, gpu)
+	return m.styles.label.Render(fmt.Sprintf("%-16s", label)) + "  " + m.styles.value.Render(resources)
 }
 
 func (m Model) sectionTitle(label string) string {
 	icon := "•"
 	switch {
-	case strings.HasPrefix(label, "node summary"):
-		icon = "◌"
-	case strings.HasPrefix(label, "queue summary"):
+	case strings.HasPrefix(label, "scheduler summary"):
 		icon = "◍"
 	case strings.HasPrefix(label, "user view"):
 		icon = "◒"
+	case strings.HasPrefix(label, "pending reasons"):
+		icon = "◇"
 	}
 	return m.styles.tableHdr.Render(icon + " " + label)
 }

@@ -52,29 +52,17 @@ Enforcement: the collector command includes `squeue -r` and `tres-alloc`; tests 
 
 References: `internal/slurm/collector.go`, `internal/slurm/collector_test.go`, `internal/slurm/parse.go`.
 
-## Preserve source metric semantics
-
-Node CPU load and free-memory values come directly from Slurm. They are not smoothed or interpolated because synthetic movement would misrepresent scheduler data.
-
-The aggregate `TOTAL` row keeps CPU and memory utilization percentages as `n/a` because allocation totals are not utilization totals. The adjacent allocation ratios remain visible.
-
-GPU percentage is allocation saturation (`GPUAlloc/GPUTotal`), not live device activity. The UI labels it `gpu alloc%`.
-
-Enforcement: parsers retain raw Slurm-derived values and availability flags; UI labels and tests distinguish allocation from utilization.
-
-References: `internal/slurm/parse.go`, `internal/tui/model.go`, `docs/spec.md`.
-
 ## Keep the TUI focused, terminal-bounded, and non-interactive
 
-The display has node, queue, partition, user, and job views. It uses two stacked panels so these views remain visible without navigation. The combined queue panel shares its remaining height fairly across partition, user, and job sections.
+The display has scheduler summary, partition, user, pending-reason, and job views. It uses one full-height panel so scheduler insights remain visible without navigation. The panel shares its remaining height fairly across all active detail sections.
 
-The job view groups array tasks only when root job, user, partition, and state match. This keeps large arrays readable without changing task-granular queue totals. Partition ordering surfaces pending pressure before current load. Job ordering surfaces pending GPU, running GPU, pending CPU, and running CPU work, then favors larger grouped jobs.
+The job view groups array tasks only when root job, user, partition, state, and pending reason match. This keeps large arrays readable without changing task-granular queue totals. Partition ordering surfaces pending pressure before current load. Pending-reason ordering surfaces the largest GPU and CPU demand. Job ordering surfaces pending GPU, running GPU, pending CPU, and running CPU work, then favors larger grouped jobs.
 
-Panel-content budgets determine visible rows. Hidden-row metadata is explicit, and node alerts plus the aggregate `TOTAL` row take priority over per-node rows. This prevents large clusters or small terminals from causing wrapping, scrolling, or silent loss of critical health information.
+Panel-content budgets determine visible rows. Hidden-row metadata is explicit, and every active detail section keeps a title under tight height constraints. This prevents large queues or small terminals from causing wrapping, scrolling, or silent loss of scheduler context.
 
 The header distinguishes initial loading, connected operation, transient recovery, and permanent disconnection. A clock, refresh age, and status spinner show liveness even when cluster metrics are unchanged.
 
-Enforcement: one budget-aware render path handles normal and compact layouts; summary sorting is deterministic; viewport tests cover resizing, fair detail-section budgets, clipping metadata, alerts, totals, and footer placement.
+Enforcement: one budget-aware render path handles normal and compact layouts; summary sorting is deterministic; viewport tests cover resizing, fair detail-section budgets, clipping metadata, and footer placement.
 
 References: `internal/slurm/summary_sort.go`, `internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`.
 
@@ -84,7 +72,7 @@ Running and pending counts are separated into CPU-job and GPU-job columns. Expli
 
 Per-user ordering favors current GPU and CPU holders, then current job counts, pending GPU/CPU demand, pending job counts, pending memory, and username. This keeps active large holders visible when the terminal clips rows while retaining deterministic tie-breakers.
 
-Held CPU/GPU totals remain in `--once` output but not in the TUI user table, where they would make the layout too wide.
+Running and pending CPU/GPU totals appear in expanded partition and user tables. Compact tables retain the four job-count columns. `--once` prints all counts and resource totals.
 
 Enforcement: the parser stores the four canonical job counts; aggregate totals are derived from them rather than stored separately.
 
