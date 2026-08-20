@@ -74,7 +74,7 @@ func HelpText() string {
 	fs := newFlagSet(&cfg)
 
 	var b strings.Builder
-	b.WriteString("slurm-monitor: resilient, read-only Slurm queue/node monitor\n\n")
+	b.WriteString("slurm-monitor: resilient, read-only Slurm scheduler monitor\n\n")
 	b.WriteString("Usage:\n")
 	b.WriteString("  slurm-monitor [flags] [ssh-target]\n")
 	b.WriteString("  slurm-monitor doctor [flags] [ssh-target]\n")

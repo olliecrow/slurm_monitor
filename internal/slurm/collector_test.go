@@ -10,35 +10,24 @@ import (
 	"github.com/olliecrow/slurm_monitor/internal/transport"
 )
 
-func TestCombinedCollectCommandExpandsArrayTasks(t *testing.T) {
-	if strings.Contains(combinedCollectCommand, ";") {
-		t.Fatalf("combined collect command must stop after a failed read: %q", combinedCollectCommand)
+func TestQueueCollectCommandExpandsArrayTasksAndIncludesReasons(t *testing.T) {
+	if strings.Contains(queueCollectCommand, "scontrol show node") {
+		t.Fatalf("queue collect command must not collect nodes: %q", queueCollectCommand)
 	}
-	if !strings.Contains(combinedCollectCommand, "squeue -h -r ") {
-		t.Fatalf("combined collect command must include squeue -r to expand arrays: %q", combinedCollectCommand)
+	if !strings.Contains(queueCollectCommand, "squeue -h -r ") {
+		t.Fatalf("queue collect command must include squeue -r to expand arrays: %q", queueCollectCommand)
 	}
-	if !strings.Contains(combinedCollectCommand, "tres-alloc:|") {
-		t.Fatalf("combined collect command must include untruncated tres-alloc output: %q", combinedCollectCommand)
+	if !strings.Contains(queueCollectCommand, "tres-alloc:|") {
+		t.Fatalf("queue collect command must include untruncated tres-alloc output: %q", queueCollectCommand)
 	}
-	if !strings.Contains(combinedCollectCommand, "Partition:|") {
-		t.Fatalf("combined collect command must include partition data: %q", combinedCollectCommand)
+	if !strings.Contains(queueCollectCommand, "Partition:|") {
+		t.Fatalf("queue collect command must include partition data: %q", queueCollectCommand)
 	}
-	if strings.Contains(combinedCollectCommand, "%b") {
-		t.Fatalf("combined collect command must not rely on %%b for GPU totals: %q", combinedCollectCommand)
+	if !strings.Contains(queueCollectCommand, "Reason:|") {
+		t.Fatalf("queue collect command must include untruncated pending reasons: %q", queueCollectCommand)
 	}
-}
-
-func TestSplitCombinedOutput(t *testing.T) {
-	raw := "node-a\n__SLURM_MONITOR_SPLIT__\n1001|PENDING|alice|cpu|1|4G|N/A"
-	nodes, queue, err := splitCombinedOutput(raw)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if nodes != "node-a" {
-		t.Fatalf("unexpected nodes payload: %q", nodes)
-	}
-	if queue != "1001|PENDING|alice|cpu|1|4G|N/A" {
-		t.Fatalf("unexpected queue payload: %q", queue)
+	if strings.Contains(queueCollectCommand, "%b") {
+		t.Fatalf("queue collect command must not rely on %%b for GPU totals: %q", queueCollectCommand)
 	}
 }
 
@@ -50,7 +39,7 @@ func TestFillPendingGPURequestCachePrunesStaleRoots(t *testing.T) {
 		},
 	}
 
-	queueRaw := "2002_1|PENDING|alice|cpu|1|4G|N/A"
+	queueRaw := "2002_1|PENDING|alice|cpu|1|4G|N/A|Priority"
 	c.fillPendingGPURequestCache(context.Background(), queueRaw)
 
 	if len(c.pendingGPUCountByJobRoot) != 1 {
@@ -65,7 +54,7 @@ func TestFillPendingGPURequestCachePrunesStaleRoots(t *testing.T) {
 }
 
 func TestExtractPendingJobRootsAcceptsTrailingDelimiter(t *testing.T) {
-	roots := extractPendingJobRoots("2002_1|PENDING|alice|cpu|1|4G|N/A|")
+	roots := extractPendingJobRoots("2002_1|PENDING|alice|cpu|1|4G|N/A|Priority|")
 	if len(roots) != 1 || roots[0] != "2002" {
 		t.Fatalf("unexpected pending roots: %v", roots)
 	}
@@ -86,10 +75,10 @@ func (t *probeCountingTransport) Describe() string {
 
 func TestFillPendingGPURequestCacheOnlyProbesMissingDetailsWithinLimit(t *testing.T) {
 	var lines []string
-	lines = append(lines, "1|PENDING|alice|gpu|1|4G|cpu=1,mem=4G,gres/gpu=1")
-	lines = append(lines, "2|PENDING|alice|cpu|1|4G|cpu=1,mem=4G")
+	lines = append(lines, "1|PENDING|alice|gpu|1|4G|cpu=1,mem=4G,gres/gpu=1|Resources")
+	lines = append(lines, "2|PENDING|alice|cpu|1|4G|cpu=1,mem=4G|Priority")
 	for i := 3; i < 3+maxPendingGPUProbesPerCollect+4; i++ {
-		lines = append(lines, fmt.Sprintf("%d|PENDING|alice|gpu|1|4G|N/A", i))
+		lines = append(lines, fmt.Sprintf("%d|PENDING|alice|gpu|1|4G|N/A|Resources", i))
 	}
 
 	tr := &probeCountingTransport{}
