@@ -15,7 +15,7 @@ const (
 	// counts and requested/allocated CPU/GPU demand accurate for large arrays.
 	// Use tres-alloc instead of %b so GPU demand comes from Slurm's documented
 	// TRES view for both running and pending jobs.
-	combinedCollectCommand = `scontrol show node -o; echo "__SLURM_MONITOR_SPLIT__"; squeue -h -r -O "JobID:|,State:|,UserName:|,NumCPUs:|,MinMemory:|,tres-alloc"`
+	combinedCollectCommand = `scontrol show node -o && echo "__SLURM_MONITOR_SPLIT__" && squeue -h -r -O "JobID:|,State:|,UserName:|,NumCPUs:|,MinMemory:|,tres-alloc"`
 
 	maxPendingGPUProbesPerCollect = 4
 )
@@ -52,7 +52,10 @@ func (c *Collector) Collect(ctx context.Context) (Snapshot, error) {
 	probeCtx, cancelProbes := context.WithTimeout(ctx, c.commandTimeout)
 	c.fillPendingGPURequestCache(probeCtx, queueRaw)
 	cancelProbes()
-	queue, users := parseQueueLines(queueRaw, c.pendingGPUCountByJobRoot)
+	queue, users, err := parseQueueLines(queueRaw, c.pendingGPUCountByJobRoot)
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("parse queue: %w", err)
+	}
 
 	return Snapshot{
 		Nodes:       nodes,

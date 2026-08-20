@@ -82,12 +82,18 @@ func TestIsRetryableRecognizesTransientSSHFailures(t *testing.T) {
 }
 
 func TestIsRetryableRejectsPermanentSSHFailures(t *testing.T) {
-	err := &RunError{
-		Stderr:   "Permission denied (publickey)",
-		ExitCode: 255,
-		Err:      errors.New("exit status 255"),
+	tests := []string{
+		"Permission denied (publickey)",
+		"Can't open user config file /path/to/config: No such file or directory",
 	}
-	if IsRetryable(err) {
-		t.Fatalf("expected auth failure to be non-retryable")
+	for _, stderr := range tests {
+		err := &RunError{
+			Stderr:   stderr,
+			ExitCode: 255,
+			Err:      errors.New("exit status 255"),
+		}
+		if IsRetryable(err) {
+			t.Fatalf("expected permanent ssh failure %q to be non-retryable", stderr)
+		}
 	}
 }
