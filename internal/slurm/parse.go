@@ -2,9 +2,7 @@ package slurm
 
 import (
 	"fmt"
-	"math"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -12,78 +10,12 @@ import (
 var numPrefixRe = regexp.MustCompile(`^-?\d+`)
 var gpuResourceRe = regexp.MustCompile(`^(gres/)?gpu(?::([^:=,()]+))?[:=]([0-9]+)`)
 
-func parseNodeLines(raw string) ([]Node, error) {
-	lines := strings.Split(raw, "\n")
-	out := make([]Node, 0, len(lines))
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		node, err := parseNodeLine(line)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, node)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].Name < out[j].Name
-	})
-	return out, nil
-}
-
-func parseNodeLine(line string) (Node, error) {
-	fields := parseKVLine(line)
-	name := fields["NodeName"]
-	if name == "" {
-		return Node{}, fmt.Errorf("missing NodeName in line: %s", line)
-	}
-
-	cpuAlloc := parseInt(fields["CPUAlloc"])
-	cpuTotal := parseInt(fields["CPUTot"])
-	memAlloc := parseInt(fields["AllocMem"])
-	memTotal := parseInt(fields["RealMemory"])
-
-	if memAlloc == 0 {
-		memAlloc = parseMemMBFromTRES(fields["AllocTRES"])
-	}
-
-	cpuUtil, hasCPU := parseCPUUtil(fields["CPULoad"], cpuTotal)
-	memUtil, hasMem := parseMemUtil(fields["FreeMem"], memTotal)
-
-	gpuAlloc := parseGPUCount(fields["AllocTRES"])
-	gpuTotal := parseGPUCount(fields["CfgTRES"])
-	gpuUtil, hasGPU := allocUtilPct(gpuAlloc, gpuTotal)
-
-	state := cleanNodeState(fields["State"])
-	if state == "" {
-		state = "UNKNOWN"
-	}
-
-	return Node{
-		Name:       name,
-		State:      state,
-		Partition:  fields["Partitions"],
-		CPUAlloc:   cpuAlloc,
-		CPUTotal:   cpuTotal,
-		CPUUtil:    cpuUtil,
-		HasCPU:     hasCPU,
-		MemAllocMB: memAlloc,
-		MemTotalMB: memTotal,
-		MemUtil:    memUtil,
-		HasMem:     hasMem,
-		GPUAlloc:   gpuAlloc,
-		GPUTotal:   gpuTotal,
-		GPUUtil:    gpuUtil,
-		HasGPU:     hasGPU,
-	}, nil
-}
-
 type queueData struct {
-	Queue      QueueSummary
-	Partitions []PartitionSummary
-	Users      []UserSummary
-	Jobs       []JobSummary
+	Queue          QueueSummary
+	Partitions     []PartitionSummary
+	Users          []UserSummary
+	PendingReasons []PendingReasonSummary
+	Jobs           []JobSummary
 }
 
 type jobSummaryKey struct {
@@ -91,12 +23,14 @@ type jobSummaryKey struct {
 	user      string
 	partition string
 	state     string
+	reason    string
 }
 
 func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (queueData, error) {
 	lines := strings.Split(raw, "\n")
 	users := make(map[string]*UserSummary)
 	partitions := make(map[string]*PartitionSummary)
+	pendingReasons := make(map[string]*PendingReasonSummary)
 	jobs := make(map[jobSummaryKey]*JobSummary)
 	var queue QueueSummary
 
@@ -106,8 +40,8 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (queue
 			continue
 		}
 		parts := splitQueueRow(line)
-		if len(parts) < 7 {
-			return queueData{}, fmt.Errorf("queue row %d: expected 7 fields, got %d", lineIndex+1, len(parts))
+		if len(parts) < 8 {
+			return queueData{}, fmt.Errorf("queue row %d: expected 8 fields, got %d", lineIndex+1, len(parts))
 		}
 		jobID := strings.TrimSpace(parts[0])
 		state := strings.ToUpper(strings.TrimSpace(parts[1]))
@@ -116,6 +50,7 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (queue
 		cpuReq := parseInt(strings.TrimSpace(parts[4]))
 		memReq := strings.TrimSpace(parts[5])
 		gresReq := strings.TrimSpace(parts[6])
+		reason := strings.TrimSpace(parts[7])
 		if jobID == "" {
 			jobID = "<unknown>"
 		}
@@ -138,6 +73,9 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (queue
 		isGPUJob := gpuReq > 0
 		memReqMB := 0
 		if stateClass == "pending" {
+			if reason == "" || strings.EqualFold(reason, "N/A") {
+				reason = "<unknown>"
+			}
 			memReqMB = parseMemRequestMB(memReq, cpuReq)
 			if !isGPUJob {
 				if fallbackGPUCount := pendingGPUCountByJobRoot[rootJobID(jobID)]; fallbackGPUCount > 0 {
@@ -145,10 +83,22 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (queue
 					gpuReq = fallbackGPUCount
 				}
 			}
+		} else {
+			reason = ""
 		}
 
 		addQueueItem(&queue, stateClass, cpuReq, gpuReq, isGPUJob)
 		addQueueItem(&partitions[partition].Queue, stateClass, cpuReq, gpuReq, isGPUJob)
+		if stateClass == "pending" {
+			reasonSummary := pendingReasons[reason]
+			if reasonSummary == nil {
+				reasonSummary = &PendingReasonSummary{Reason: reason}
+				pendingReasons[reason] = reasonSummary
+			}
+			reasonSummary.Jobs++
+			reasonSummary.CPU += cpuReq
+			reasonSummary.GPU += gpuReq
+		}
 
 		switch stateClass {
 		case "running":
@@ -174,6 +124,7 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (queue
 			user:      user,
 			partition: partition,
 			state:     state,
+			reason:    reason,
 		}
 		job := jobs[jobKey]
 		if job == nil {
@@ -182,6 +133,7 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (queue
 				User:      user,
 				Partition: partition,
 				State:     state,
+				Reason:    reason,
 			}
 			jobs[jobKey] = job
 		}
@@ -202,12 +154,17 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (queue
 	for _, job := range jobs {
 		outJobs = append(outJobs, *job)
 	}
+	outPendingReasons := make([]PendingReasonSummary, 0, len(pendingReasons))
+	for _, reason := range pendingReasons {
+		outPendingReasons = append(outPendingReasons, *reason)
+	}
 
 	return queueData{
-		Queue:      queue,
-		Partitions: outPartitions,
-		Users:      outUsers,
-		Jobs:       outJobs,
+		Queue:          queue,
+		Partitions:     outPartitions,
+		Users:          outUsers,
+		PendingReasons: outPendingReasons,
+		Jobs:           outJobs,
 	}, nil
 }
 
@@ -237,7 +194,7 @@ func addQueueItem(queue *QueueSummary, stateClass string, cpu, gpu int, isGPUJob
 func splitQueueRow(line string) []string {
 	line = strings.TrimSpace(line)
 	line = strings.TrimSuffix(line, "|")
-	return strings.SplitN(line, "|", 7)
+	return strings.SplitN(line, "|", 8)
 }
 
 func rootJobID(jobID string) string {
@@ -269,26 +226,6 @@ func classifyQueueState(state string) string {
 	}
 }
 
-func parseKVLine(line string) map[string]string {
-	out := make(map[string]string)
-	for _, token := range strings.Fields(line) {
-		parts := strings.SplitN(token, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		out[parts[0]] = parts[1]
-	}
-	return out
-}
-
-func cleanNodeState(v string) string {
-	if v == "" {
-		return ""
-	}
-	v = strings.ToUpper(strings.TrimSpace(v))
-	return strings.ReplaceAll(v, "*", "")
-}
-
 func parseInt(v string) int {
 	if v == "" {
 		return 0
@@ -302,72 +239,6 @@ func parseInt(v string) int {
 		return 0
 	}
 	return n
-}
-
-func parseFloat(v string) (float64, bool) {
-	if v == "" || v == "N/A" || v == "(null)" {
-		return 0, false
-	}
-	f, err := strconv.ParseFloat(v, 64)
-	if err != nil {
-		return 0, false
-	}
-	return f, true
-}
-
-func parseCPUUtil(cpuLoadRaw string, cpuTotal int) (float64, bool) {
-	load, ok := parseFloat(cpuLoadRaw)
-	if !ok || cpuTotal <= 0 {
-		return 0, false
-	}
-	pct := (load / float64(cpuTotal)) * 100.0
-	if math.IsNaN(pct) || math.IsInf(pct, 0) {
-		return 0, false
-	}
-	if pct < 0 {
-		pct = 0
-	}
-	return pct, true
-}
-
-func parseMemUtil(freeMemRaw string, totalMem int) (float64, bool) {
-	if totalMem <= 0 {
-		return 0, false
-	}
-	trimmed := strings.TrimSpace(freeMemRaw)
-	if trimmed == "" || trimmed == "N/A" || trimmed == "(null)" {
-		return 0, false
-	}
-
-	match := numPrefixRe.FindString(trimmed)
-	if match == "" {
-		return 0, false
-	}
-	freeMem, err := strconv.Atoi(match)
-	if err != nil || freeMem < 0 {
-		return 0, false
-	}
-
-	used := totalMem - freeMem
-	if used < 0 {
-		used = 0
-	}
-	pct := (float64(used) / float64(totalMem)) * 100.0
-	return pct, true
-}
-
-func allocUtilPct(alloc, total int) (float64, bool) {
-	if total <= 0 {
-		return 0, false
-	}
-	if alloc < 0 {
-		alloc = 0
-	}
-	pct := (float64(alloc) / float64(total)) * 100.0
-	if pct > 100.0 {
-		pct = 100.0
-	}
-	return pct, true
 }
 
 func parseGPUCount(tres string) int {
@@ -395,41 +266,6 @@ func parseGPUCount(tres string) int {
 		return genericTotal
 	}
 	return typedTotal
-}
-
-func parseMemMBFromTRES(tres string) int {
-	if tres == "" {
-		return 0
-	}
-	for _, part := range strings.Split(tres, ",") {
-		part = strings.TrimSpace(part)
-		kv := strings.SplitN(part, "=", 2)
-		if len(kv) != 2 {
-			continue
-		}
-		if strings.TrimSpace(kv[0]) != "mem" {
-			continue
-		}
-		val := strings.TrimSpace(kv[1])
-		if val == "" {
-			return 0
-		}
-		unit := val[len(val)-1]
-		num := parseInt(val)
-		switch unit {
-		case 'K', 'k':
-			return num / 1024
-		case 'M', 'm':
-			return num
-		case 'G', 'g':
-			return num * 1024
-		case 'T', 't':
-			return num * 1024 * 1024
-		default:
-			return num
-		}
-	}
-	return 0
 }
 
 func parseMemRequestMB(raw string, cpuCount int) int {

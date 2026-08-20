@@ -188,7 +188,7 @@ func TestLoopStopsRetryingAfterPermanentFailure(t *testing.T) {
 	sc := &scriptedCollector{
 		steps: []collectStep{
 			{snapshot: slurm.Snapshot{CollectedAt: now}},
-			{err: errors.New("parse nodes: unexpected collector output format: split marker missing")},
+			{err: errors.New("parse queue: queue row 1: expected 8 fields, got 3")},
 			{snapshot: slurm.Snapshot{CollectedAt: now.Add(2 * time.Second)}},
 		},
 	}

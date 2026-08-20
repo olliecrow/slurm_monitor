@@ -45,26 +45,25 @@ Implementations:
 
 ### 3) Collector pipeline
 Collectors produce typed data for a `Snapshot`:
-- `[]Node`
 - `QueueSummary`
 - `[]PartitionSummary`
 - `[]UserSummary`
+- `[]PendingReasonSummary`
 - `[]JobSummary`
 
 Design principles:
-- one combined node-and-queue command per poll tick, using `squeue -r` and `tres-alloc`
+- one `squeue -r` command per poll tick, using `tres-alloc` and pending reason data
 - at most four cached `scontrol show job` fallback probes per tick, within one command-timeout budget, and only when a pending row omits TRES details
 - clear parsers with defensive handling for missing optional metrics
 - deterministic parse errors with useful context
-- preserve scheduler-critical composite node state qualifiers (`+DRAIN`, `+DOWN`) during parsing; only cosmetic state markers are stripped
 
 ### 4) Snapshot aggregation
 Responsibilities:
-- compute totals and derived percentages
-- preserve raw values + display values (`n/a` where unavailable)
+- compute queue totals and resource demand
 - track freshness timestamps
-- aggregate queue, partition, and user job splits for CPU jobs and GPU jobs in running and pending states
-- group matching array tasks by root job, user, partition, and state for bounded job insights
+- aggregate queue, partition, and user job splits and CPU/GPU resources in running and pending states
+- aggregate pending reasons by affected task and CPU/GPU demand
+- group matching array tasks by root job, user, partition, state, and pending reason for bounded job insights
 
 ### 5) TUI runtime
 Responsibilities:
@@ -116,26 +115,21 @@ Behavior:
 
 ### Command plan
 Use read-only Slurm commands with stable parse contracts:
-- node and allocation data from `scontrol show node -o`
-- queue job counts and resource totals from `squeue -h -r -O ... tres-alloc ...` so job arrays are counted at task granularity and CPU/GPU totals come from Slurm's documented TRES data
+- queue job counts, resource totals, and pending reasons from `squeue -h -r -O ... tres-alloc ... Reason ...` so job arrays are counted at task granularity and CPU/GPU totals come from Slurm's documented TRES data
+- bounded `scontrol show job -o` fallback probes only when pending rows omit TRES details
 
 Optional metrics:
-- CPU/memory/GPU utilization depends on cluster/slurm configuration.
-- CPU/memory utilization values come from Slurm node fields (`CPULoad`, `FreeMem`) and may refresh slowly depending on cluster update cadence.
-- GPU percentage shown in the TUI is allocation ratio (`GPUAlloc/GPUTotal`), labeled explicitly as allocation percentage because true device activity is not available from the current collector contract.
-- if GPU totals are unavailable, keep the column but show `n/a`.
+- pending GPU demand can require the bounded job-detail fallback when a cluster omits TRES data from pending `squeue` rows.
 
 ## Rendering layout
 
 All terminals:
 - top: connection header + last update/staleness
-- middle: node summary panel
-- bottom: combined queue panel (queue summary, partition, user, and grouped-job sections)
-- when any node is `DOWN` or `DRAIN`, render a node-health alert line at the top of the node summary panel
-- keep node-health alerts out of the header to reduce top-line noise and keep clock/status readability
+- middle: scheduler-insights panel with summary, partition, user, pending-reason, and grouped-job sections
+- share available detail height fairly across active sections
 
 Compact terminals:
-- maintain the same vertical panel order while reducing visible row/detail counts to fit height
+- keep the same section order while reducing visible row/detail counts to fit height
 
 ## Error model
 - fatal startup errors:

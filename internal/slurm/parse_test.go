@@ -5,35 +5,12 @@ import (
 	"testing"
 )
 
-func TestParseNodeLineBasic(t *testing.T) {
-	line := "NodeName=node001 State=IDLE CPUTot=64 CPUAlloc=32 CPULoad=16.00 RealMemory=256000 AllocMem=128000 FreeMem=96000 Partitions=main CfgTRES=cpu=64,mem=256000M,billing=64,gres/gpu=4 AllocTRES=cpu=32,mem=128000M,billing=32,gres/gpu=2"
-	node, err := parseNodeLine(line)
-	if err != nil {
-		t.Fatalf("expected nil err, got %v", err)
-	}
-	if node.Name != "node001" {
-		t.Fatalf("unexpected node name %q", node.Name)
-	}
-	if node.CPUAlloc != 32 || node.CPUTotal != 64 {
-		t.Fatalf("unexpected cpu alloc/total: %d/%d", node.CPUAlloc, node.CPUTotal)
-	}
-	if !node.HasCPU {
-		t.Fatalf("expected cpu util available")
-	}
-	if node.GPUAlloc != 2 || node.GPUTotal != 4 {
-		t.Fatalf("unexpected gpu alloc/total: %d/%d", node.GPUAlloc, node.GPUTotal)
-	}
-	if !node.HasGPU {
-		t.Fatalf("expected gpu util availability for non-zero GPU total")
-	}
-}
-
 func TestParseQueueLines(t *testing.T) {
 	raw := "" +
-		"1001|RUNNING|alice|gpu|8|20G|cpu=8,mem=20G,gres/gpu=1\n" +
-		"1002|PENDING|alice|cpu|4|10G|N/A\n" +
-		"1003|COMPLETING|bob|gpu|2|5000M|cpu=2,mem=5000M,gres/gpu=2\n" +
-		"1004|PENDING|carol|cpu|1|4G|N/A\n"
+		"1001|RUNNING|alice|gpu|8|20G|cpu=8,mem=20G,gres/gpu=1|None\n" +
+		"1002|PENDING|alice|cpu|4|10G|N/A|Priority\n" +
+		"1003|COMPLETING|bob|gpu|2|5000M|cpu=2,mem=5000M,gres/gpu=2|None\n" +
+		"1004|PENDING|carol|cpu|1|4G|N/A|Resources\n"
 	data, err := parseQueueLines(raw, nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -91,13 +68,13 @@ func TestParseQueueLinesRejectsMalformedRow(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected malformed queue row error")
 	}
-	if !strings.Contains(err.Error(), "expected 7 fields, got 3") {
+	if !strings.Contains(err.Error(), "expected 8 fields, got 3") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
 func TestParseQueueLinesAcceptsTrailingDelimiter(t *testing.T) {
-	data, err := parseQueueLines("1001|RUNNING|alice|gpu|8|20G|cpu=8,mem=20G,gres/gpu=1|", nil)
+	data, err := parseQueueLines("1001|RUNNING|alice|gpu|8|20G|cpu=8,mem=20G,gres/gpu=1|None|", nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -109,9 +86,9 @@ func TestParseQueueLinesAcceptsTrailingDelimiter(t *testing.T) {
 
 func TestParseQueueLinesBuildsPartitionAndGroupedJobSummaries(t *testing.T) {
 	raw := "" +
-		"3001_1|PENDING|alice|gpu|4|16G|cpu=4,mem=16G,gres/gpu=1\n" +
-		"3001_2|PENDING|alice|gpu|4|16G|cpu=4,mem=16G,gres/gpu=1\n" +
-		"3002|RUNNING|bob|cpu|8|32G|cpu=8,mem=32G\n"
+		"3001_1|PENDING|alice|gpu|4|16G|cpu=4,mem=16G,gres/gpu=1|Resources\n" +
+		"3001_2|PENDING|alice|gpu|4|16G|cpu=4,mem=16G,gres/gpu=1|Resources\n" +
+		"3002|RUNNING|bob|cpu|8|32G|cpu=8,mem=32G|None\n"
 
 	data, err := parseQueueLines(raw, nil)
 	if err != nil {
@@ -152,8 +129,8 @@ func TestParseQueueLinesBuildsPartitionAndGroupedJobSummaries(t *testing.T) {
 
 func TestParseQueueLinesKeepsDifferentArrayTaskStatesSeparate(t *testing.T) {
 	raw := "" +
-		"4001_1|RUNNING|alice|gpu|4|16G|cpu=4,mem=16G,gres/gpu=1\n" +
-		"4001_2|PENDING|alice|gpu|4|16G|cpu=4,mem=16G,gres/gpu=1\n"
+		"4001_1|RUNNING|alice|gpu|4|16G|cpu=4,mem=16G,gres/gpu=1|None\n" +
+		"4001_2|PENDING|alice|gpu|4|16G|cpu=4,mem=16G,gres/gpu=1|Resources\n"
 
 	data, err := parseQueueLines(raw, nil)
 	if err != nil {
@@ -171,12 +148,6 @@ func TestParseQueueLinesKeepsDifferentArrayTaskStatesSeparate(t *testing.T) {
 	}
 	if states["RUNNING"] != 1 || states["PENDING"] != 1 {
 		t.Fatalf("unexpected mixed-state groups: %v", states)
-	}
-}
-
-func TestParseMemFromTRES(t *testing.T) {
-	if got := parseMemMBFromTRES("cpu=8,mem=12G,billing=8"); got != 12288 {
-		t.Fatalf("unexpected mem parse: %d", got)
 	}
 }
 
@@ -220,8 +191,8 @@ func TestParseGPUCount(t *testing.T) {
 
 func TestPendingGPUJobsClassifiedByGPURequest(t *testing.T) {
 	raw := "" +
-		"2001|PENDING|alice|gpu|8|20G|cpu=8,mem=20G,gres/gpu=2\n" +
-		"2002|PENDING|alice|cpu|4|10G|N/A\n"
+		"2001|PENDING|alice|gpu|8|20G|cpu=8,mem=20G,gres/gpu=2|Resources\n" +
+		"2002|PENDING|alice|cpu|4|10G|N/A|Priority\n"
 	data, err := parseQueueLines(raw, nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -244,9 +215,9 @@ func TestPendingGPUJobsClassifiedByGPURequest(t *testing.T) {
 
 func TestPendingGPUJobsFallbackByRootJobMap(t *testing.T) {
 	raw := "" +
-		"37820_1|PENDING|alice|gpu|4|64G|N/A\n" +
-		"37820_2|PENDING|alice|gpu|4|64G|N/A\n" +
-		"37821_1|PENDING|alice|cpu|4|64G|N/A\n"
+		"37820_1|PENDING|alice|gpu|4|64G|N/A|Resources\n" +
+		"37820_2|PENDING|alice|gpu|4|64G|N/A|Resources\n" +
+		"37821_1|PENDING|alice|cpu|4|64G|N/A|Priority\n"
 
 	data, err := parseQueueLines(raw, map[string]int{"37820": 2})
 	if err != nil {
@@ -269,34 +240,52 @@ func TestPendingGPUJobsFallbackByRootJobMap(t *testing.T) {
 	if queue.ResourceLoad.PendingGPU != 4 {
 		t.Fatalf("expected queue pending gpu total 4, got %d", queue.ResourceLoad.PendingGPU)
 	}
-}
-
-func TestParseMemUtil(t *testing.T) {
-	pct, ok := parseMemUtil("0", 1024)
-	if !ok {
-		t.Fatalf("expected FreeMem=0 to be treated as valid")
+	reasons := make(map[string]PendingReasonSummary, len(data.PendingReasons))
+	for _, reason := range data.PendingReasons {
+		reasons[reason.Reason] = reason
 	}
-	if pct != 100 {
-		t.Fatalf("expected 100%% utilization for FreeMem=0, got %.2f", pct)
-	}
-
-	if pct, ok := parseMemUtil("N/A", 1024); ok || pct != 0 {
-		t.Fatalf("expected N/A FreeMem to be unavailable, got pct=%.2f ok=%v", pct, ok)
+	if reasons["Resources"].GPU != 4 {
+		t.Fatalf("expected fallback GPU demand in reason summary, got %+v", reasons["Resources"])
 	}
 }
 
-func TestCleanNodeStatePreservesDrainAndDownFlags(t *testing.T) {
-	tests := []struct {
-		in   string
-		want string
-	}{
-		{in: "mixed+drain", want: "MIXED+DRAIN"},
-		{in: "idle+down*", want: "IDLE+DOWN"},
-		{in: "alloc*", want: "ALLOC"},
+func TestParseQueueLinesAggregatesPendingReasons(t *testing.T) {
+	raw := "" +
+		"5001_1|PENDING|alice|gpu|4|16G|cpu=4,gres/gpu=1|Resources\n" +
+		"5001_2|PENDING|alice|gpu|4|16G|cpu=4,gres/gpu=1|Resources\n" +
+		"5002|PENDING|bob|cpu|8|32G|N/A|Priority\n" +
+		"5003|PENDING|bob|cpu|2|8G|N/A|N/A\n" +
+		"5004|RUNNING|carol|cpu|16|64G|cpu=16|None\n"
+
+	data, err := parseQueueLines(raw, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
-	for _, tt := range tests {
-		if got := cleanNodeState(tt.in); got != tt.want {
-			t.Fatalf("cleanNodeState(%q)=%q want=%q", tt.in, got, tt.want)
-		}
+	got := make(map[string]PendingReasonSummary, len(data.PendingReasons))
+	for _, reason := range data.PendingReasons {
+		got[reason.Reason] = reason
+	}
+	if got["Resources"] != (PendingReasonSummary{Reason: "Resources", Jobs: 2, CPU: 8, GPU: 2}) {
+		t.Fatalf("unexpected Resources summary: %+v", got["Resources"])
+	}
+	if got["Priority"] != (PendingReasonSummary{Reason: "Priority", Jobs: 1, CPU: 8}) {
+		t.Fatalf("unexpected Priority summary: %+v", got["Priority"])
+	}
+	if got["<unknown>"].Jobs != 1 || len(got) != 3 {
+		t.Fatalf("unexpected reason summaries: %+v", got)
+	}
+}
+
+func TestParseQueueLinesKeepsDifferentPendingReasonsSeparate(t *testing.T) {
+	raw := "" +
+		"6001_1|PENDING|alice|gpu|4|16G|cpu=4,gres/gpu=1|Resources\n" +
+		"6001_2|PENDING|alice|gpu|4|16G|cpu=4,gres/gpu=1|Priority\n"
+
+	data, err := parseQueueLines(raw, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(data.Jobs) != 2 {
+		t.Fatalf("expected two pending-reason groups, got %d", len(data.Jobs))
 	}
 }
