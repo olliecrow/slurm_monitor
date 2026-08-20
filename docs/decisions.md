@@ -54,15 +54,15 @@ References: `internal/slurm/collector.go`, `internal/slurm/collector_test.go`, `
 
 ## Keep the TUI focused, terminal-bounded, and non-interactive
 
-The display has queue summary, partition, user, pending-reason, and job sections. It uses one full-height panel so scheduler insights remain visible without navigation. The panel shares its remaining height fairly across all active detail sections.
+The display has queue summary, partition, user, and pending-reason sections. It uses one full-height panel so scheduler insights remain visible without navigation. The panel shares its remaining height fairly across all active detail sections.
 
-The job view groups array tasks only when root job, user, partition, state, and pending reason match. This keeps large arrays readable without changing task-granular queue totals. Partition ordering surfaces pending pressure before current load. Pending-reason ordering surfaces the largest GPU and CPU demand. Job ordering surfaces pending GPU, running GPU, pending CPU, and running CPU work, then favors larger grouped jobs.
+The interactive display omits individual jobs because partition, user, and pending-reason aggregates explain scheduler pressure with less churn and visual noise. The `--once` report retains grouped root jobs for detailed non-interactive diagnostics. Partition ordering surfaces pending pressure before current load. Pending-reason ordering surfaces the largest GPU and CPU demand.
 
 The queue summary uses two lines when both activity groups fit together and three lines otherwise. It states total, running, pending, and non-zero other job counts, then shows CPU-only jobs, GPU jobs, CPUs, and GPUs for running and pending work.
 
-Wide partition and user tables group running jobs, pending jobs, resources in use, and requested resources under plain-language labels instead of abbreviated metric names. Wide pending-reason and job tables give spare width to reason text. Compact detail sections remove table headers and use self-describing rows with full state names and explicit CPU-only/GPU job or task/CPU/GPU units.
+Wide partition and user tables group running jobs, pending jobs, resources in use, and requested resources under plain-language labels instead of abbreviated metric names. Wide pending-reason tables give spare width to reason text. Compact detail sections remove table headers and use self-describing rows with explicit CPU-only/GPU job or task/CPU/GPU units.
 
-Panel-content budgets determine visible rows. The short queue summary and headerless compact details leave enough space for every active detail section to show at least one data row at 72x20, while common queues show multiple rows. Hidden-row metadata uses `X shown · N hidden`, and smaller terminals keep every active detail section title when space permits. This prevents large queues or small terminals from causing wrapping, scrolling, or silent loss of scheduler context.
+Panel-content budgets determine visible rows. Blank lines separate sections when every active detail can still show at least one data row; tight terminals use that space for data first. The short queue summary and headerless compact details leave enough space for every active detail section to show at least one data row at 72x20, while common queues show multiple rows. Hidden-row metadata uses `X shown · N hidden`, and smaller terminals keep every active detail section title when space permits. This prevents large queues or small terminals from causing wrapping, scrolling, or silent loss of scheduler context.
 
 The header distinguishes initial loading, connected operation, transient recovery, and permanent disconnection. A clock, update age, and status spinner show liveness even when cluster metrics are unchanged. Narrow headers remove the source and then the clock as complete fields when needed, rather than showing partial values.
 
