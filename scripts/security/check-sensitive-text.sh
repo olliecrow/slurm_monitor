@@ -23,21 +23,13 @@ labelled_phone_regex='([Pp][Hh][Oo][Nn][Ee]|[Mm][Oo][Bb][Ii][Ll][Ee]|[Tt][Ee][Ll
 has_pattern() {
   local pattern="$1"
   local file_path="$2"
-  if command -v rg >/dev/null 2>&1; then
-    rg --quiet --no-messages -e "$pattern" "$file_path"
-  else
-    grep -qE "$pattern" "$file_path"
-  fi
+  grep -qE "$pattern" "$file_path"
 }
 
 has_disallowed_path() {
   local file_path="$1"
   local matches
-  if command -v rg >/dev/null 2>&1; then
-    matches="$(rg --only-matching --no-filename --no-line-number -e "$local_path_regex" "$file_path" || true)"
-  else
-    matches="$(grep -Eo "$local_path_regex" "$file_path" || true)"
-  fi
+  matches="$(grep -Eo "$local_path_regex" "$file_path" || true)"
   [[ -n "$matches" ]] || return 1
   printf '%s\n' "$matches" | grep -qEiv "^${allowed_path_placeholder_regex}$"
 }
@@ -45,11 +37,7 @@ has_disallowed_path() {
 has_disallowed_email() {
   local file_path="$1"
   local matches
-  if command -v rg >/dev/null 2>&1; then
-    matches="$(rg --only-matching --no-filename --no-line-number -e "$email_regex" "$file_path" || true)"
-  else
-    matches="$(grep -Eo "$email_regex" "$file_path" || true)"
-  fi
+  matches="$(grep -Eo "$email_regex" "$file_path" || true)"
   [[ -n "$matches" ]] || return 1
   printf '%s\n' "$matches" | grep -qEiv "$allowed_email_regex"
 }

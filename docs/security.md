@@ -31,8 +31,8 @@
   - The commit hook requires a GitHub no-reply or reserved example address for Git author and committer metadata.
   - The pre-push hook scans each outbound commit identity, message, and added line for the same patterns.
   - `.github/workflows/ci.yml` applies the same checks to the exact push or pull request range and checks pull request title/body text.
-  - Policy self-tests verify allowed examples, personal-data detection, fallback behavior without `rg`, and redaction of detected content.
-  - Sensitive-text checks support both `rg` and `grep` so local/CI environments without `rg` still enforce policy.
+  - Policy self-tests verify allowed examples, personal-data detection, and redaction of detected content.
+  - Sensitive-text checks use portable extended `grep` expressions on macOS and Linux.
 
 ## Runtime safety posture
 - Monitor is strictly read-only.
