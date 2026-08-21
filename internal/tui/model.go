@@ -264,15 +264,13 @@ func (m Model) renderStatusText(now time.Time) (string, lipgloss.Style) {
 
 func (m Model) renderDashboard(maxHeight int) string {
 	contentWidth, contentHeight, framed := dashboardContentSize(m.width, maxHeight)
+	var content string
 	if m.snapshot == nil {
-		content := clipToHeight("Waiting for the first successful snapshot...", contentHeight)
-		if framed {
-			return m.frameDashboard(content, contentWidth)
-		}
-		return content
+		content = "Waiting for the first successful snapshot..."
+	} else {
+		expanded := !m.compact && aggregateGridLayoutForSnapshot(m.snapshot, contentWidth).width() <= contentWidth
+		content = m.renderInsightsPanelWithBudget(contentHeight, expanded, contentWidth)
 	}
-	expanded := !m.compact && aggregateGridLayoutForSnapshot(m.snapshot, contentWidth).width() <= contentWidth
-	content := m.renderInsightsPanelWithBudget(contentHeight, expanded, contentWidth)
 	content = clipToHeight(content, contentHeight)
 	if framed {
 		return m.frameDashboard(content, contentWidth)
