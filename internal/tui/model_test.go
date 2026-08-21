@@ -47,7 +47,7 @@ func TestWindowResizeSwitchesResponsiveLayout(t *testing.T) {
 	}
 	assertViewportBounds(t, compactView, 71, 20)
 
-	wideWidth := aggregateGridLayoutForSnapshot(compact.snapshot, 1_000).width() + 1
+	wideWidth := aggregateGridLayoutForSnapshot(compact.snapshot, 1_000).width() + 1 + dashboardFrameHorizontalOverhead
 	resized, _ = compact.Update(tea.WindowSizeMsg{Width: wideWidth, Height: 30})
 	expanded := resized.(Model)
 	expandedView := expanded.View()
@@ -733,7 +733,7 @@ func TestCompactStandardViewportUsesHeaderSpaceForData(t *testing.T) {
 	m.height = 20
 
 	out := m.View()
-	for _, want := range []string{"gpu", "cpu", "alice", "carol", "Users · jobs: running / pending · 3", "Waiting for resources"} {
+	for _, want := range []string{"gpu", "cpu", "alice", "carol", "Users · jobs: running / pending · 2 shown · 1 hidden", "Waiting for resources"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected compact 72x20 view to include %q, got: %q", want, out)
 		}
@@ -798,7 +798,7 @@ func TestExpandedLayoutStartsWhenNumericGridFits(t *testing.T) {
 	m.snapshot.Partitions = []slurm.PartitionSummary{{Name: "short", Queue: queue}}
 	m.snapshot.Users = []slurm.UserSummary{{User: "researcher", PendingCPUJobs: 1454, PendingGPUJobs: 98}}
 
-	firstExpandedWidth := aggregateGridLayoutForSnapshot(m.snapshot, 1_000).width() + 1
+	firstExpandedWidth := aggregateGridLayoutForSnapshot(m.snapshot, 1_000).width() + 1 + dashboardFrameHorizontalOverhead
 	m.width = firstExpandedWidth - 1
 	compact := m.View()
 	if !strings.Contains(compact, "Users · jobs: running / pending") || strings.Contains(compact, "…") {
@@ -817,7 +817,7 @@ func TestExpandedLayoutStartsWhenNumericGridFits(t *testing.T) {
 	queue.PendingCPUJobs = 12345
 	m.snapshot.Partitions[0].Queue = queue
 	m.snapshot.Users[0].PendingCPUJobs = 12345
-	secondExpandedWidth := aggregateGridLayoutForSnapshot(m.snapshot, 1_000).width() + 1
+	secondExpandedWidth := aggregateGridLayoutForSnapshot(m.snapshot, 1_000).width() + 1 + dashboardFrameHorizontalOverhead
 	m.width = secondExpandedWidth - 1
 	compact = m.View()
 	if !strings.Contains(compact, "Users · jobs: running / pending") || strings.Contains(compact, "…") {
@@ -892,8 +892,9 @@ func TestViewShowsHiddenUserIndicatorInTightLayout(t *testing.T) {
 	}
 }
 
-func TestViewUsesStabilizedFrameWidth(t *testing.T) {
+func TestViewUsesContentHeightFrameAtStabilizedWidth(t *testing.T) {
 	m := seededModel()
+	m.styles = defaultStyles(true)
 	m.width = 90
 	m.height = 24
 	out := m.View()
@@ -903,9 +904,56 @@ func TestViewUsesStabilizedFrameWidth(t *testing.T) {
 			t.Fatalf("expected line %d width 89 after viewport stabilization, got %d", i+1, lipgloss.Width(line))
 		}
 	}
-	for _, border := range []string{"╭", "╮", "╰", "╯"} {
-		if strings.Contains(out, border) {
-			t.Fatalf("did not expect a full-height panel border %q in %q", border, out)
+	for _, border := range []string{"╭", "╮", "╰", "╯", "│"} {
+		if !strings.Contains(out, border) {
+			t.Fatalf("expected dashboard frame glyph %q in %q", border, out)
+		}
+	}
+	if !strings.HasPrefix(lines[1], "╭") {
+		t.Fatalf("expected frame to begin directly below the header, got %q", lines[1])
+	}
+	if strings.Contains(lines[len(lines)-2], "│") {
+		t.Fatalf("expected unused height outside the content-height frame, got %q", lines[len(lines)-2])
+	}
+}
+
+func TestDashboardFrameUsesBalancedHorizontalPadding(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+
+	out := m.frameDashboard("Queue\n\nPartitions", 16)
+	if got, want := out, "╭──────────────────╮\n│ Queue            │\n│                  │\n│ Partitions       │\n╰──────────────────╯"; got != want {
+		t.Fatalf("frameDashboard()=%q want %q", got, want)
+	}
+}
+
+func TestDashboardContentSizeReservesFrameAndPadding(t *testing.T) {
+	tests := []struct {
+		width, height         int
+		wantWidth, wantHeight int
+		wantFramed            bool
+	}{
+		{width: 71, height: 18, wantWidth: 67, wantHeight: 16, wantFramed: true},
+		{width: 4, height: 10, wantWidth: 4, wantHeight: 10, wantFramed: false},
+		{width: 20, height: 2, wantWidth: 20, wantHeight: 2, wantFramed: false},
+	}
+	for _, test := range tests {
+		width, height, framed := dashboardContentSize(test.width, test.height)
+		if width != test.wantWidth || height != test.wantHeight || framed != test.wantFramed {
+			t.Fatalf("dashboardContentSize(%d, %d)=(%d, %d, %t) want (%d, %d, %t)", test.width, test.height, width, height, framed, test.wantWidth, test.wantHeight, test.wantFramed)
+		}
+	}
+}
+
+func TestLoadingViewKeepsDashboardFrame(t *testing.T) {
+	m := NewModel(Options{Source: "local", Updates: make(chan monitor.Update), NoColor: true})
+	m.width = 72
+	m.height = 20
+
+	out := m.View()
+	for _, want := range []string{"╭", "Waiting for the first successful snapshot...", "╯"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected loading view to retain %q, got %q", want, out)
 		}
 	}
 }
@@ -923,7 +971,7 @@ func TestViewPinsExitHintToBottomRow(t *testing.T) {
 		t.Fatalf("expected exit hint on bottom row, got: %q", lines[len(lines)-1])
 	}
 	if strings.TrimSpace(lines[len(lines)-2]) != "" {
-		t.Fatalf("expected calm unframed space above the pinned footer, got: %q", lines[len(lines)-2])
+		t.Fatalf("expected calm space below the content-height frame, got: %q", lines[len(lines)-2])
 	}
 }
 
