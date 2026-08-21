@@ -19,7 +19,7 @@ Prove changed behavior against a real cluster without exposing or changing clust
 1. Run local tests and `dry-run` before contacting the target. Build the current tree into a temporary location when the installed binary is not the artifact under test.
 2. Run `slurm-monitor doctor TARGET`, then `slurm-monitor --once TARGET`. Keep raw output in a temporary untracked file and check its structure without publishing live rows.
 3. For TUI changes, use a bounded `--duration` in a real pseudo-terminal. Test only sizes relevant to the change. Use 72x20 as the normal compact baseline; add short-wide, narrow, or large-wide cases when the affected layout boundary requires them.
-4. Check connection state, terminal restoration, required section visibility, complete CPU and GPU values, spacing, alignment, and honest clipping metadata. Compare the installed binary only when the task includes installation verification.
+4. Check connection state, terminal restoration, required section visibility, frame and divider continuity, complete CPU and GPU values, spacing, alignment, and honest clipping metadata. Compare the installed binary only when the task includes installation verification.
 5. Test timeout or reconnect behavior only when transport or resilience behavior changed, or when a specific regression requires it.
 6. Remove temporary binaries and captures. Report the tested dimensions and outcomes without reproducing private cluster data.
 

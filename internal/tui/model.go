@@ -292,6 +292,10 @@ func (m Model) frameDashboard(content string, contentWidth int) string {
 	horizontalWidth := contentWidth + 2*dashboardHorizontalPadding
 	lines := []string{border("╭" + strings.Repeat("─", horizontalWidth) + "╮")}
 	for _, line := range strings.Split(content, "\n") {
+		if line == "" {
+			lines = append(lines, border("├"+strings.Repeat("─", horizontalWidth)+"┤"))
+			continue
+		}
 		line = truncateRunes(line, contentWidth)
 		line += strings.Repeat(" ", max(0, contentWidth-lipgloss.Width(line)))
 		lines = append(lines,
