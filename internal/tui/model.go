@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,13 +44,13 @@ type Model struct {
 type styles struct {
 	title      lipgloss.Style
 	dim        lipgloss.Style
-	panel      lipgloss.Style
-	tableHdr   lipgloss.Style
+	heading    lipgloss.Style
+	section    lipgloss.Style
+	total      lipgloss.Style
 	value      lipgloss.Style
-	chip       lipgloss.Style
-	chipOK     lipgloss.Style
-	chipWarn   lipgloss.Style
-	chipBad    lipgloss.Style
+	statusOK   lipgloss.Style
+	statusWarn lipgloss.Style
+	statusBad  lipgloss.Style
 	errorLabel lipgloss.Style
 }
 
@@ -67,8 +68,11 @@ var pulseFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧
 
 const (
 	frameRightGutter           = 1
-	groupedSummaryNameWidth    = 16
-	groupedSummaryColumnGaps   = 4
+	aggregateNameMinWidth      = 16
+	aggregateNameMaxWidth      = 24
+	aggregateNameGap           = 2
+	aggregateColumnGap         = 1
+	aggregateGroupGap          = 3
 	pendingReasonTaskWidth     = 14
 	pendingReasonResourceWidth = 14
 	pendingReasonColumnGaps    = 3
@@ -87,32 +91,31 @@ func NewModel(opts Options) Model {
 }
 
 func defaultStyles(noColor bool) styles {
-	basePanel := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
 	if noColor {
 		return styles{
 			title:      lipgloss.NewStyle().Bold(true),
 			dim:        lipgloss.NewStyle(),
-			panel:      basePanel,
-			tableHdr:   lipgloss.NewStyle().Bold(true),
-			value:      lipgloss.NewStyle().Bold(true),
-			chip:       lipgloss.NewStyle().Bold(true),
-			chipOK:     lipgloss.NewStyle().Bold(true),
-			chipWarn:   lipgloss.NewStyle().Bold(true),
-			chipBad:    lipgloss.NewStyle().Bold(true),
+			heading:    lipgloss.NewStyle(),
+			section:    lipgloss.NewStyle().Bold(true),
+			total:      lipgloss.NewStyle().Bold(true),
+			value:      lipgloss.NewStyle(),
+			statusOK:   lipgloss.NewStyle().Bold(true),
+			statusWarn: lipgloss.NewStyle().Bold(true),
+			statusBad:  lipgloss.NewStyle().Bold(true),
 			errorLabel: lipgloss.NewStyle().Bold(true),
 		}
 	}
 
 	return styles{
-		title:      lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("24")).Padding(0, 1),
+		title:      lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39")),
 		dim:        lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
-		panel:      basePanel.BorderForeground(lipgloss.Color("61")),
-		tableHdr:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("60")).Padding(0, 1),
-		value:      lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255")),
-		chip:       lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("238")).Padding(0, 1),
-		chipOK:     lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("28")).Padding(0, 1),
-		chipWarn:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("232")).Background(lipgloss.Color("220")).Padding(0, 1),
-		chipBad:    lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("160")).Padding(0, 1),
+		heading:    lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
+		section:    lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("75")),
+		total:      lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255")),
+		value:      lipgloss.NewStyle().Foreground(lipgloss.Color("252")),
+		statusOK:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42")),
+		statusWarn: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("220")),
+		statusBad:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203")),
 		errorLabel: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203")),
 	}
 }
@@ -186,20 +189,27 @@ func (m Model) View() string {
 	footer := m.styles.dim.Render("Ctrl+C to exit")
 	headerLines := lineCount(header)
 	footerLines := lineCount(footer)
-	bodyHeight := m.height - headerLines - footerLines
+	bodyGap := 0
+	if m.height-headerLines-footerLines >= 3 {
+		bodyGap = 1
+	}
+	bodyHeight := m.height - headerLines - footerLines - bodyGap
 	if bodyHeight < 1 {
 		bodyHeight = 1
 	}
 
 	var body string
 	if m.snapshot == nil {
-		body = m.styles.panel.Width(max(20, m.width-2)).Render("waiting for first successful snapshot...")
-		body = clipToHeight(body, bodyHeight)
+		body = clipToHeight("Waiting for the first successful snapshot...", bodyHeight)
 	} else {
 		body = m.renderMain(bodyHeight)
 	}
 
-	parts := []string{header, body}
+	parts := []string{header}
+	if bodyGap > 0 {
+		parts = append(parts, "")
+	}
+	parts = append(parts, body)
 	top := lipgloss.JoinVertical(lipgloss.Left, parts...)
 	joined := pinFooterToBottom(top, footer, m.height)
 	return clipToViewport(joined, viewWidth, m.height)
@@ -216,8 +226,8 @@ func (m Model) renderHeader(now time.Time) string {
 
 	title := m.styles.title.Render("SLURM MONITOR")
 	source := m.styles.value.Render(m.source)
-	clock := m.styles.chip.Render(now.Format("15:04:05"))
-	age := m.styles.chip.Render(ageText)
+	clock := m.styles.dim.Render(now.Format("15:04:05"))
+	age := m.styles.dim.Render(ageText)
 	right := statusChip.Render(statusText)
 	left := title
 	for _, candidate := range []string{
@@ -241,26 +251,26 @@ func (m Model) renderHeader(now time.Time) string {
 
 func (m Model) renderStatusText(now time.Time) (string, lipgloss.Style) {
 	if m.snapshot == nil && strings.TrimSpace(m.lastError) == "" {
-		return "loading", m.styles.chipWarn
+		return "loading", m.styles.statusWarn
 	}
 
 	switch m.state {
 	case monitor.StateConnected:
-		return "connected", m.styles.chipOK
+		return "connected", m.styles.statusOK
 	case monitor.StateDisconnected:
-		return "disconnected", m.styles.chipBad
+		return "disconnected", m.styles.statusBad
 	case monitor.StateDisconnectedRecovering:
 		next := ""
 		if !m.nextRetry.IsZero() && m.nextRetry.After(now) {
 			next = fmt.Sprintf(" (retry in %s)", humanDuration(m.nextRetry.Sub(now)))
 		}
-		return "disconnected, recovering" + next, m.styles.chipBad
+		return "disconnected, recovering" + next, m.styles.statusBad
 	default:
 		next := ""
 		if !m.nextRetry.IsZero() && m.nextRetry.After(now) {
 			next = fmt.Sprintf(" (retry in %s)", humanDuration(m.nextRetry.Sub(now)))
 		}
-		return "reconnecting" + next, m.styles.chipWarn
+		return "reconnecting" + next, m.styles.statusWarn
 	}
 }
 
@@ -268,11 +278,10 @@ func (m Model) renderMain(maxHeight int) string {
 	if m.snapshot == nil {
 		return ""
 	}
-	inner := max(20, m.width-2)
-	contentWidth := panelContentWidth(inner)
-	expanded := !m.compact && contentWidth >= groupedSummaryMinContentWidth(m.snapshot)
-	body := m.renderInsightsPanelWithBudget(panelContentHeight(maxHeight), expanded, contentWidth)
-	return clipToHeight(m.styles.panel.Width(inner).Height(panelContentHeight(maxHeight)).Render(body), maxHeight)
+	contentWidth := max(1, m.width)
+	expanded := !m.compact && aggregateGridLayoutForSnapshot(m.snapshot, contentWidth).width() <= contentWidth
+	body := m.renderInsightsPanelWithBudget(maxHeight, expanded, contentWidth)
+	return clipToHeight(body, maxHeight)
 }
 
 func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, contentWidth int) string {
@@ -283,11 +292,11 @@ func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, c
 		return ""
 	}
 
-	lines := m.schedulerSummaryLines(m.snapshot.Queue, contentWidth)
+	lines := m.schedulerSummaryLines(m.snapshot.Queue, expanded, contentWidth)
 	detailCaps := []int{
-		detailLineCapacity(len(m.snapshot.Partitions), expanded),
-		detailLineCapacity(len(m.snapshot.Users), expanded),
-		detailLineCapacity(len(m.snapshot.PendingReasons), expanded),
+		partitionLineCapacity(len(m.snapshot.Partitions), expanded),
+		userLineCapacity(len(m.snapshot.Users), expanded),
+		pendingReasonLineCapacity(len(m.snapshot.PendingReasons), expanded),
 	}
 	activeDetailSections := 0
 	for _, cap := range detailCaps {
@@ -340,11 +349,15 @@ func (m Model) renderPendingReasonLinesWithBudget(rowBudget int, wide bool, cont
 	reasons := append([]slurm.PendingReasonSummary(nil), m.snapshot.PendingReasons...)
 	slurm.SortPendingReasonsForDisplay(reasons)
 	tableHeader := wide && rowBudget >= 3
-	visibleRows := visibleRowsForBudget(len(reasons), rowBudget, tableHeader)
+	overhead := 1
+	if tableHeader {
+		overhead = 2
+	}
+	visibleRows := visibleRowsForBudget(len(reasons), rowBudget, overhead)
 	lines := []string{m.sectionTitle(viewTitle("Why jobs are pending", len(reasons), visibleRows))}
 	if tableHeader {
-		tableWidth := min(contentWidth, pendingReasonTableWidth(reasons[:visibleRows]))
-		lines = append(lines, pendingReasonHeaderLine(tableWidth))
+		tableWidth := min(contentWidth, max(pendingReasonTableWidth(reasons[:visibleRows]), aggregateGridLayoutForSnapshot(m.snapshot, contentWidth).width()))
+		lines = append(lines, m.styles.heading.Render(pendingReasonHeaderLine(tableWidth)))
 		for _, reason := range reasons[:visibleRows] {
 			lines = append(lines, pendingReasonRowLine(reason, tableWidth))
 		}
@@ -356,7 +369,27 @@ func (m Model) renderPendingReasonLinesWithBudget(rowBudget int, wide bool, cont
 	return fitLinesToWidth(clipLines(lines, rowBudget), contentWidth)
 }
 
-func detailLineCapacity(rowCount int, expanded bool) int {
+func partitionLineCapacity(rowCount int, expanded bool) int {
+	if rowCount == 0 {
+		return 0
+	}
+	if expanded {
+		return rowCount + 4
+	}
+	return rowCount + 2
+}
+
+func userLineCapacity(rowCount int, expanded bool) int {
+	if rowCount == 0 {
+		return 0
+	}
+	if expanded {
+		return rowCount + 3
+	}
+	return rowCount + 1
+}
+
+func pendingReasonLineCapacity(rowCount int, expanded bool) int {
 	if rowCount == 0 {
 		return 0
 	}
@@ -388,11 +421,7 @@ func allocateLineBudgets(total int, caps []int) []int {
 	return budgets
 }
 
-func visibleRowsForBudget(totalRows, rowBudget int, tableHeader bool) int {
-	overhead := 1
-	if tableHeader {
-		overhead++
-	}
+func visibleRowsForBudget(totalRows, rowBudget, overhead int) int {
 	if totalRows == 0 || rowBudget <= overhead {
 		return 0
 	}
@@ -416,22 +445,31 @@ func (m Model) renderPartitionLinesWithBudget(rowBudget int, wide bool, contentW
 	}
 	partitions := append([]slurm.PartitionSummary(nil), m.snapshot.Partitions...)
 	slurm.SortPartitionsForDisplay(partitions)
-	tableHeader := wide && rowBudget >= 3
-	visibleRows := visibleRowsForBudget(len(partitions), rowBudget, tableHeader)
+	tableHeader := wide && rowBudget >= 5
+	overhead := 2
+	if tableHeader {
+		overhead = 4
+	}
+	visibleRows := visibleRowsForBudget(len(partitions), rowBudget, overhead)
 	title := "Partitions"
 	if !tableHeader {
-		title += " · job counts"
+		title += " · jobs: running / pending"
 	}
 	lines := []string{m.sectionTitle(viewTitle(title, len(partitions), visibleRows))}
+	layout := aggregateGridLayoutForSnapshot(m.snapshot, contentWidth)
 	if tableHeader {
-		metricWidths := groupedSummaryMetricWidths(m.snapshot)
-		lines = append(lines, groupedSummaryHeaderLine("partition", metricWidths))
+		lines = append(lines, m.styles.heading.Render(layout.groupHeaderLine()))
+		lines = append(lines, m.styles.heading.Render(layout.subheaderLine("Partition")))
+		lines = append(lines, m.styles.total.Render(layout.rowLine("All partitions", m.snapshot.Queue)))
 		for _, partition := range partitions[:visibleRows] {
-			lines = append(lines, groupedSummaryRowLine(partition.Name, partition.Queue, metricWidths))
+			lines = append(lines, layout.rowLine(partition.Name, partition.Queue))
 		}
 	} else {
+		if rowBudget >= 2 {
+			lines = append(lines, m.styles.total.Render(compactAggregateRowLine("All partitions", m.snapshot.Queue, layout, contentWidth)))
+		}
 		for _, partition := range partitions[:visibleRows] {
-			lines = append(lines, compactGroupedSummaryRowLine(partition.Name, partition.Queue, contentWidth))
+			lines = append(lines, compactAggregateRowLine(partition.Name, partition.Queue, layout, contentWidth))
 		}
 	}
 	return fitLinesToWidth(clipLines(lines, rowBudget), contentWidth)
@@ -445,113 +483,190 @@ func (m Model) renderUserLinesWithBudget(rowBudget int, expanded bool, contentWi
 	slurm.SortUsersForDisplay(users)
 
 	totalUsers := len(users)
-	tableHeader := expanded && rowBudget >= 3
-	visibleRows := visibleRowsForBudget(totalUsers, rowBudget, tableHeader)
+	tableHeader := expanded && rowBudget >= 4
+	overhead := 1
+	if tableHeader {
+		overhead = 3
+	}
+	visibleRows := visibleRowsForBudget(totalUsers, rowBudget, overhead)
 	visibleUsers := users[:visibleRows]
 	title := "Users"
 	if !tableHeader {
-		title += " · job counts"
+		title += " · jobs: running / pending"
 	}
 	lines := []string{m.sectionTitle(viewTitle(title, totalUsers, visibleRows))}
+	layout := aggregateGridLayoutForSnapshot(m.snapshot, contentWidth)
 
 	if tableHeader {
-		metricWidths := groupedSummaryMetricWidths(m.snapshot)
-		lines = append(lines, groupedSummaryHeaderLine("user", metricWidths))
+		lines = append(lines, m.styles.heading.Render(layout.groupHeaderLine()))
+		lines = append(lines, m.styles.heading.Render(layout.subheaderLine("User")))
 		for _, u := range visibleUsers {
-			lines = append(lines, groupedSummaryRowLine(u.User, userQueueSummary(u), metricWidths))
+			lines = append(lines, layout.rowLine(u.User, userQueueSummary(u)))
 		}
 		lines = clipLines(lines, rowBudget)
 		return fitLinesToWidth(lines, contentWidth)
 	}
 
 	for _, u := range visibleUsers {
-		lines = append(lines, compactGroupedSummaryRowLine(u.User, userQueueSummary(u), contentWidth))
+		lines = append(lines, compactAggregateRowLine(u.User, userQueueSummary(u), layout, contentWidth))
 	}
 	lines = clipLines(lines, rowBudget)
 	return fitLinesToWidth(lines, contentWidth)
 }
 
-func groupedSummaryHeaderLine(nameLabel string, metricWidths [4]int) string {
-	headings := groupedSummaryHeadings()
-	return fmt.Sprintf(
-		"%-*s %-*s %-*s %-*s %-*s",
-		groupedSummaryNameWidth, truncateRunes(nameLabel, groupedSummaryNameWidth),
-		metricWidths[0], headings[0],
-		metricWidths[1], headings[1],
-		metricWidths[2], headings[2],
-		metricWidths[3], headings[3],
-	)
+type aggregateGridLayout struct {
+	nameWidth     int
+	valueWidth    [8]int
+	jobValueWidth [4]int
 }
 
-func groupedSummaryRowLine(name string, q slurm.QueueSummary, metricWidths [4]int) string {
-	metrics := groupedSummaryMetrics(q)
-	return fmt.Sprintf(
-		"%-*s %-*s %-*s %-*s %-*s",
-		groupedSummaryNameWidth, truncateRunes(name, groupedSummaryNameWidth),
-		metricWidths[0], metrics[0],
-		metricWidths[1], metrics[1],
-		metricWidths[2], metrics[2],
-		metricWidths[3], metrics[3],
-	)
+var aggregateSubheadings = [8]string{
+	"Running", "Pending",
+	"Running", "Pending",
+	"In use", "Requested",
+	"In use", "Requested",
 }
 
-func groupedSummaryMinContentWidth(snapshot *slurm.Snapshot) int {
-	metricWidths := groupedSummaryMetricWidths(snapshot)
-	return groupedSummaryNameWidth + groupedSummaryColumnGaps + metricWidths[0] + metricWidths[1] + metricWidths[2] + metricWidths[3]
-}
+var aggregateGroupHeadings = [4]string{"CPU-only jobs", "GPU jobs", "CPU cores", "GPUs"}
 
-func groupedSummaryMetricWidths(snapshot *slurm.Snapshot) [4]int {
-	headings := groupedSummaryHeadings()
-	widths := [4]int{}
-	for i, heading := range headings {
-		widths[i] = lipgloss.Width(heading)
+func aggregateGridLayoutForSnapshot(snapshot *slurm.Snapshot, contentWidth int) aggregateGridLayout {
+	layout := aggregateGridLayout{nameWidth: aggregateNameMinWidth}
+	for i, heading := range aggregateSubheadings {
+		layout.valueWidth[i] = lipgloss.Width(heading)
 	}
-	for _, partition := range snapshot.Partitions {
-		for i, metric := range groupedSummaryMetrics(partition.Queue) {
-			widths[i] = max(widths[i], lipgloss.Width(metric))
+	for i := range layout.jobValueWidth {
+		layout.jobValueWidth[i] = 1
+	}
+
+	preferredNameWidth := aggregateNameMinWidth
+	include := func(name string, q slurm.QueueSummary) {
+		preferredNameWidth = max(preferredNameWidth, min(aggregateNameMaxWidth, lipgloss.Width(name)))
+		values := aggregateValues(q)
+		for i, value := range values {
+			layout.valueWidth[i] = max(layout.valueWidth[i], lipgloss.Width(value))
+			if i < len(layout.jobValueWidth) {
+				layout.jobValueWidth[i] = max(layout.jobValueWidth[i], lipgloss.Width(value))
+			}
 		}
+	}
+	include("All partitions", snapshot.Queue)
+	for _, partition := range snapshot.Partitions {
+		include(partition.Name, partition.Queue)
 	}
 	for _, user := range snapshot.Users {
-		for i, metric := range groupedSummaryMetrics(userQueueSummary(user)) {
-			widths[i] = max(widths[i], lipgloss.Width(metric))
+		include(user.User, userQueueSummary(user))
+	}
+	for group := 0; group < len(aggregateGroupHeadings); group++ {
+		pairWidth := max(layout.valueWidth[2*group], layout.valueWidth[2*group+1])
+		layout.valueWidth[2*group] = pairWidth
+		layout.valueWidth[2*group+1] = pairWidth
+	}
+	for group := 0; group < 2; group++ {
+		pairWidth := max(layout.jobValueWidth[2*group], layout.jobValueWidth[2*group+1])
+		layout.jobValueWidth[2*group] = pairWidth
+		layout.jobValueWidth[2*group+1] = pairWidth
+	}
+
+	layout.nameWidth = preferredNameWidth
+	if layout.width() > contentWidth {
+		layout.nameWidth = aggregateNameMinWidth
+	}
+	return layout
+}
+
+func (l aggregateGridLayout) width() int {
+	width := l.nameWidth + aggregateNameGap
+	for i, valueWidth := range l.valueWidth {
+		width += valueWidth
+		if i == len(l.valueWidth)-1 {
+			continue
+		}
+		if i%2 == 1 {
+			width += aggregateGroupGap
+		} else {
+			width += aggregateColumnGap
 		}
 	}
-	return widths
+	return width
 }
 
-func groupedSummaryHeadings() [4]string {
-	return [4]string{"CPU-only jobs", "GPU jobs", "CPU cores (all jobs)", "GPUs"}
+func (l aggregateGridLayout) groupHeaderLine() string {
+	var b strings.Builder
+	b.WriteString(strings.Repeat(" ", l.nameWidth+aggregateNameGap))
+	for group, label := range aggregateGroupHeadings {
+		if group > 0 {
+			b.WriteString(strings.Repeat(" ", aggregateGroupGap))
+		}
+		pairWidth := l.valueWidth[2*group] + aggregateColumnGap + l.valueWidth[2*group+1]
+		b.WriteString(centerText(label, pairWidth))
+	}
+	return b.String()
 }
 
-func groupedSummaryMetrics(q slurm.QueueSummary) [4]string {
-	return [4]string{
-		fmt.Sprintf("%d running, %d pending", q.RunningCPUJobs, q.PendingCPUJobs),
-		fmt.Sprintf("%d running, %d pending", q.RunningGPUJobs, q.PendingGPUJobs),
-		fmt.Sprintf("%d in use, %d requested", q.ResourceLoad.RunningCPU, q.ResourceLoad.PendingCPU),
-		fmt.Sprintf("%d in use, %d requested", q.ResourceLoad.RunningGPU, q.ResourceLoad.PendingGPU),
+func (l aggregateGridLayout) subheaderLine(nameLabel string) string {
+	values := aggregateSubheadings
+	return l.line(nameLabel, values, false)
+}
+
+func (l aggregateGridLayout) rowLine(name string, q slurm.QueueSummary) string {
+	return l.line(name, aggregateValues(q), true)
+}
+
+func (l aggregateGridLayout) line(name string, values [8]string, rightAlign bool) string {
+	var b strings.Builder
+	b.WriteString(padRight(truncateRunes(name, l.nameWidth), l.nameWidth))
+	b.WriteString(strings.Repeat(" ", aggregateNameGap))
+	for i, value := range values {
+		if i > 0 {
+			gap := aggregateColumnGap
+			if i%2 == 0 {
+				gap = aggregateGroupGap
+			}
+			b.WriteString(strings.Repeat(" ", gap))
+		}
+		if rightAlign {
+			b.WriteString(padLeft(value, l.valueWidth[i]))
+		} else {
+			b.WriteString(centerText(value, l.valueWidth[i]))
+		}
+	}
+	return b.String()
+}
+
+func aggregateValues(q slurm.QueueSummary) [8]string {
+	return [8]string{
+		formatCount(q.RunningCPUJobs),
+		formatCount(q.PendingCPUJobs),
+		formatCount(q.RunningGPUJobs),
+		formatCount(q.PendingGPUJobs),
+		formatCount(q.ResourceLoad.RunningCPU),
+		formatCount(q.ResourceLoad.PendingCPU),
+		formatCount(q.ResourceLoad.RunningGPU),
+		formatCount(q.ResourceLoad.PendingGPU),
 	}
 }
 
-func compactGroupedSummaryRowLine(name string, q slurm.QueueSummary, contentWidth int) string {
+func compactAggregateRowLine(name string, q slurm.QueueSummary, layout aggregateGridLayout, contentWidth int) string {
+	values := aggregateValues(q)
 	metrics := fmt.Sprintf(
-		"CPU-only %d running/%d pending · GPU %d running/%d pending",
-		q.RunningCPUJobs,
-		q.PendingCPUJobs,
-		q.RunningGPUJobs,
-		q.PendingGPUJobs,
+		"CPU-only %s / %s   GPU %s / %s",
+		padLeft(values[0], layout.jobValueWidth[0]),
+		padLeft(values[1], layout.jobValueWidth[1]),
+		padLeft(values[2], layout.jobValueWidth[2]),
+		padLeft(values[3], layout.jobValueWidth[3]),
 	)
-	nameWidth := max(1, contentWidth-lipgloss.Width(metrics)-2)
-	return fmt.Sprintf("%s: %s", truncateRunes(name, nameWidth), metrics)
+	nameWidth := min(layout.nameWidth, max(1, contentWidth-lipgloss.Width(metrics)-aggregateNameGap))
+	return padRight(truncateRunes(name, nameWidth), nameWidth) + strings.Repeat(" ", aggregateNameGap) + metrics
 }
 
 func pendingReasonHeaderLine(contentWidth int) string {
 	reasonWidth, taskWidth, resourceWidth := pendingReasonColumnWidths(contentWidth)
-	return fmt.Sprintf("%-*s %*s %*s %*s", reasonWidth, "reason", taskWidth, "affected tasks", resourceWidth, "requested CPUs", resourceWidth, "requested GPUs")
+	return fmt.Sprintf("%-*s %*s %*s %*s", reasonWidth, "Reason", taskWidth, "Affected tasks", resourceWidth, "Requested CPUs", resourceWidth, "Requested GPUs")
 }
 
 func pendingReasonRowLine(reason slurm.PendingReasonSummary, contentWidth int) string {
 	reasonWidth, taskWidth, resourceWidth := pendingReasonColumnWidths(contentWidth)
-	return fmt.Sprintf("%-*s %*d %*d %*d", reasonWidth, truncatePendingReason(pendingReasonLabel(reason.Reason), reasonWidth), taskWidth, reason.Tasks, resourceWidth, reason.CPU, resourceWidth, reason.GPU)
+	return fmt.Sprintf("%-*s %*s %*s %*s", reasonWidth, truncatePendingReason(pendingReasonLabel(reason.Reason), reasonWidth), taskWidth, formatCount(reason.Tasks), resourceWidth, formatCount(reason.CPU), resourceWidth, formatCount(reason.GPU))
 }
 
 func compactPendingReasonSummaryLine(reason slurm.PendingReasonSummary, contentWidth int) string {
@@ -644,34 +759,28 @@ func userQueueSummary(u slurm.UserSummary) slurm.QueueSummary {
 	}
 }
 
-func (m Model) schedulerSummaryLines(q slurm.QueueSummary, contentWidth int) []string {
+func (m Model) schedulerSummaryLines(q slurm.QueueSummary, expanded bool, contentWidth int) []string {
 	runningJobs := q.RunningCPUJobs + q.RunningGPUJobs
 	pendingJobs := q.PendingCPUJobs + q.PendingGPUJobs
-	title := fmt.Sprintf("Queue · %d jobs · %d running · %d pending", q.TotalJobs(), runningJobs, pendingJobs)
+	title := fmt.Sprintf("Queue · %s jobs · %s running · %s pending", formatCount(q.TotalJobs()), formatCount(runningJobs), formatCount(pendingJobs))
 	if q.Other > 0 {
-		title += fmt.Sprintf(" · %d other", q.Other)
+		title += fmt.Sprintf(" · %s other", formatCount(q.Other))
 	}
 	lines := []string{m.sectionTitle(title)}
-	lines = append(lines, groupedQueueLines(
-		"Jobs",
-		fmt.Sprintf("CPU-only: %d running, %d pending", q.RunningCPUJobs, q.PendingCPUJobs),
-		fmt.Sprintf("GPU: %d running, %d pending", q.RunningGPUJobs, q.PendingGPUJobs),
-		contentWidth,
-	)...)
-	return append(lines, groupedQueueLines(
-		"Resources",
-		fmt.Sprintf("CPU cores: %d in use, %d requested", q.ResourceLoad.RunningCPU, q.ResourceLoad.PendingCPU),
-		fmt.Sprintf("GPUs: %d in use, %d requested", q.ResourceLoad.RunningGPU, q.ResourceLoad.PendingGPU),
-		contentWidth,
-	)...)
+	if expanded {
+		return lines
+	}
+	return append(lines, resourceSummaryLines(q.ResourceLoad, contentWidth)...)
 }
 
-func groupedQueueLines(label, cpuText, gpuText string, contentWidth int) []string {
-	combined := fmt.Sprintf("%s · %s  │  %s", label, cpuText, gpuText)
+func resourceSummaryLines(resources slurm.ResourceTotals, contentWidth int) []string {
+	cpuText := fmt.Sprintf("CPU cores · %s in use · %s requested", formatCount(resources.RunningCPU), formatCount(resources.PendingCPU))
+	gpuText := fmt.Sprintf("GPUs · %s in use · %s requested", formatCount(resources.RunningGPU), formatCount(resources.PendingGPU))
+	combined := fmt.Sprintf("Resources · %s   %s", cpuText, gpuText)
 	if lipgloss.Width(combined) <= contentWidth {
 		return []string{combined}
 	}
-	return []string{label + " · " + cpuText, strings.Repeat(" ", lipgloss.Width(label)+3) + gpuText}
+	return []string{"Resources · " + cpuText, strings.Repeat(" ", lipgloss.Width("Resources · ")) + gpuText}
 }
 
 func countNoun(count int, singular string) string {
@@ -679,11 +788,50 @@ func countNoun(count int, singular string) string {
 	if count == 1 {
 		suffix = ""
 	}
-	return fmt.Sprintf("%d %s%s", count, singular, suffix)
+	return fmt.Sprintf("%s %s%s", formatCount(count), singular, suffix)
+}
+
+func formatCount(value int) string {
+	raw := strconv.Itoa(value)
+	sign := ""
+	if strings.HasPrefix(raw, "-") {
+		sign = "-"
+		raw = strings.TrimPrefix(raw, "-")
+	}
+	if len(raw) <= 3 {
+		return sign + raw
+	}
+
+	firstGroup := len(raw) % 3
+	if firstGroup == 0 {
+		firstGroup = 3
+	}
+	var b strings.Builder
+	b.WriteString(sign)
+	b.WriteString(raw[:firstGroup])
+	for i := firstGroup; i < len(raw); i += 3 {
+		b.WriteByte(',')
+		b.WriteString(raw[i : i+3])
+	}
+	return b.String()
+}
+
+func padLeft(text string, width int) string {
+	return strings.Repeat(" ", max(0, width-lipgloss.Width(text))) + text
+}
+
+func padRight(text string, width int) string {
+	return text + strings.Repeat(" ", max(0, width-lipgloss.Width(text)))
+}
+
+func centerText(text string, width int) string {
+	space := max(0, width-lipgloss.Width(text))
+	left := space / 2
+	return strings.Repeat(" ", left) + text + strings.Repeat(" ", space-left)
 }
 
 func (m Model) sectionTitle(label string) string {
-	return m.styles.tableHdr.Render(label)
+	return m.styles.section.Render(label)
 }
 
 func stabilizedFrameWidth(width int) int {
@@ -812,14 +960,6 @@ func lineCount(s string) int {
 		return 0
 	}
 	return strings.Count(s, "\n") + 1
-}
-
-func panelContentHeight(panelHeight int) int {
-	return max(1, panelHeight-2)
-}
-
-func panelContentWidth(panelWidth int) int {
-	return max(1, panelWidth-4)
 }
 
 func fitLinesToWidth(lines []string, width int) []string {

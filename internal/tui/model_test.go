@@ -42,16 +42,16 @@ func TestWindowResizeSwitchesResponsiveLayout(t *testing.T) {
 	resized, _ := model.Update(tea.WindowSizeMsg{Width: 72, Height: 20})
 	compact := resized.(Model)
 	compactView := compact.View()
-	if !strings.Contains(compactView, ": CPU-only ") || !strings.Contains(compactView, "Users · job counts") {
+	if !strings.Contains(compactView, "CPU-only") || !strings.Contains(compactView, "Users · jobs: running / pending") {
 		t.Fatalf("expected compact layout after narrowing the same model, got %q", compactView)
 	}
 	assertViewportBounds(t, compactView, 71, 20)
 
-	wideWidth := groupedSummaryMinContentWidth(compact.snapshot) + 7
+	wideWidth := aggregateGridLayoutForSnapshot(compact.snapshot, 1_000).width() + 1
 	resized, _ = compact.Update(tea.WindowSizeMsg{Width: wideWidth, Height: 30})
 	expanded := resized.(Model)
 	expandedView := expanded.View()
-	if strings.Contains(expandedView, "Users · job counts") || !strings.Contains(expandedView, "CPU cores") {
+	if strings.Contains(expandedView, "Users · jobs: running / pending") || !strings.Contains(expandedView, "CPU cores") || !strings.Contains(expandedView, "Requested") {
 		t.Fatalf("expected expanded layout after widening the same model, got %q", expandedView)
 	}
 	assertViewportBounds(t, expandedView, wideWidth-1, 30)
@@ -205,28 +205,31 @@ func TestSchedulerSummaryRendersJobsAndResourceDemand(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Queue · 48 jobs · 42 running · 5 pending · 1 other",
-		"Jobs · CPU-only: 14 running, 2 pending  │  GPU: 28 running, 3 pending",
-		"Resources · CPU cores: 640 in use, 96 requested  │  GPUs: 38 in use, 8 requested",
+		"All partitions",
+		"14",
+		"28",
+		"640",
+		"38",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected scheduler summary row %q in output, got: %q", want, out)
 		}
 	}
 	lines := strings.Split(out, "\n")
-	if len(lines) < 5 || lines[3] != "" || !strings.Contains(lines[4], "Partitions") {
-		t.Fatalf("expected a blank line between the compact queue summary and partitions, got: %q", out)
+	if len(lines) < 3 || lines[1] != "" || !strings.Contains(lines[2], "Partitions") {
+		t.Fatalf("expected a blank line between the queue summary and partitions, got: %q", out)
 	}
 }
 
 func TestSchedulerSummarySeparatesJobTypesAndResources(t *testing.T) {
 	m := seededModel()
-	wide := m.schedulerSummaryLines(m.snapshot.Queue, 120)
-	if len(wide) != 3 || !strings.Contains(wide[1], "CPU-only:") || !strings.Contains(wide[1], "GPU:") || !strings.Contains(wide[2], "CPU cores:") || !strings.Contains(wide[2], "GPUs:") {
-		t.Fatalf("expected separate job-type and resource lines, got: %q", wide)
+	wide := m.schedulerSummaryLines(m.snapshot.Queue, true, 120)
+	if len(wide) != 1 || !strings.Contains(wide[0], "42 running") || strings.Contains(strings.Join(wide, "\n"), "Resources") {
+		t.Fatalf("expected the wide grid to carry detailed queue totals, got: %q", wide)
 	}
-	compact := m.schedulerSummaryLines(m.snapshot.Queue, 40)
-	if len(compact) != 5 || !strings.HasPrefix(compact[1], "Jobs · CPU-only:") || !strings.Contains(compact[2], "GPU:") || !strings.HasPrefix(compact[3], "Resources · CPU cores:") || !strings.Contains(compact[4], "GPUs:") {
-		t.Fatalf("expected narrow queue groups to split without clipping, got: %q", compact)
+	compact := m.schedulerSummaryLines(m.snapshot.Queue, false, 40)
+	if len(compact) != 3 || !strings.HasPrefix(compact[1], "Resources · CPU cores ·") || !strings.Contains(compact[2], "GPUs ·") {
+		t.Fatalf("expected compact mode to retain queue-wide resource totals, got: %q", compact)
 	}
 }
 
@@ -288,9 +291,9 @@ func TestInsightsPanelSharesTightBudgetAcrossAggregateViews(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		"Partitions · 2 shown · 1 hidden",
-		"Users · 2 shown · 1 hidden",
-		"Why jobs are pending · 1 shown · 2 hidden",
+		"Partitions · 1 shown · 2 hidden",
+		"Users · 1 shown · 2 hidden",
+		"Why jobs are pending · 2 shown · 1 hidden",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected deterministic clipping metadata %q, got: %q", want, out)
@@ -301,11 +304,12 @@ func TestInsightsPanelSharesTightBudgetAcrossAggregateViews(t *testing.T) {
 	}
 }
 
-func TestGroupedQueueLinesKeepCPUAndGPUValuesDistinct(t *testing.T) {
-	if got, want := strings.Join(groupedQueueLines("Jobs", "CPU-only: 5 running, 1 pending", "GPU: 40 running, 55 pending", 100), "\n"), "Jobs · CPU-only: 5 running, 1 pending  │  GPU: 40 running, 55 pending"; got != want {
+func TestResourceSummaryKeepsCPUAndGPUValuesDistinct(t *testing.T) {
+	resources := slurm.ResourceTotals{RunningCPU: 1_646, PendingCPU: 1_061, RunningGPU: 93, PendingGPU: 111}
+	if got, want := strings.Join(resourceSummaryLines(resources, 120), "\n"), "Resources · CPU cores · 1,646 in use · 1,061 requested   GPUs · 93 in use · 111 requested"; got != want {
 		t.Fatalf("wide rows=%q want=%q", got, want)
 	}
-	if got, want := strings.Join(groupedQueueLines("Jobs", "CPU-only: 5 running, 1 pending", "GPU: 40 running, 55 pending", 40), "\n"), "Jobs · CPU-only: 5 running, 1 pending\n       GPU: 40 running, 55 pending"; got != want {
+	if got, want := strings.Join(resourceSummaryLines(resources, 60), "\n"), "Resources · CPU cores · 1,646 in use · 1,061 requested\n            GPUs · 93 in use · 111 requested"; got != want {
 		t.Fatalf("narrow rows=%q want=%q", got, want)
 	}
 }
@@ -365,8 +369,8 @@ func TestInsightsPanelBudgetKeepsOneRowAndSpacingForEachAggregateView(t *testing
 			t.Fatalf("expected %q in compact insight budget, got: %q", want, out)
 		}
 	}
-	if !strings.Contains(out, "3 tasks, 64 CPUs, 8 GPUs") {
-		t.Fatalf("expected self-describing pending-reason detail, got %q", out)
+	if !strings.Contains(out, "Affected tasks") || !strings.Contains(out, "Waiting for resources") {
+		t.Fatalf("expected a clear pending-reason table, got %q", out)
 	}
 	if got := strings.Count(out, "\n\n"); got != 3 {
 		t.Fatalf("expected spacing between all sections, got %d separators in %q", got, out)
@@ -394,7 +398,7 @@ func TestUserLinesBudgetTwoRowsShowsOneUser(t *testing.T) {
 
 	lines := m.renderUserLinesWithBudget(2, true, 80)
 	out := strings.Join(lines, "\n")
-	if !strings.Contains(out, "Users · job counts · 1 shown · 2 hidden") {
+	if !strings.Contains(out, "Users · jobs: running / pending · 1 shown · 2 hidden") {
 		t.Fatalf("expected one visible user in tight two-row budget, got: %q", out)
 	}
 	if !strings.Contains(out, "alice") {
@@ -412,8 +416,8 @@ func TestWideUserColumnsUsePlainGroupedLabels(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 
-	lines := m.renderUserLinesWithBudget(5, true, 120)
-	if len(lines) < 3 {
+	lines := m.renderUserLinesWithBudget(6, true, 120)
+	if len(lines) < 4 {
 		t.Fatalf("expected header plus rows, got: %q", strings.Join(lines, "\n"))
 	}
 
@@ -422,10 +426,15 @@ func TestWideUserColumnsUsePlainGroupedLabels(t *testing.T) {
 			t.Fatalf("expected expanded user header %q, got %q", want, lines[1])
 		}
 	}
-	for _, row := range lines[2:4] {
-		for _, want := range []string{"running", "pending", "in use", "requested"} {
-			if !strings.Contains(row, want) {
-				t.Fatalf("expected expanded user row to include %q, got %q", want, row)
+	for _, want := range []string{"Running", "Pending", "In use", "Requested"} {
+		if !strings.Contains(lines[2], want) {
+			t.Fatalf("expected expanded user subheader to include %q, got %q", want, lines[2])
+		}
+	}
+	for _, row := range lines[3:5] {
+		for _, unwanted := range []string{"running", "pending", "in use", "requested"} {
+			if strings.Contains(row, unwanted) {
+				t.Fatalf("did not expect repeated prose %q in numeric row %q", unwanted, row)
 			}
 		}
 	}
@@ -447,15 +456,15 @@ func TestExpandedPartitionColumnsShowJobCountsAndResources(t *testing.T) {
 			},
 		},
 	}
-	metricWidths := groupedSummaryMetricWidths(&slurm.Snapshot{Partitions: []slurm.PartitionSummary{partition}})
-	header := groupedSummaryHeaderLine("partition", metricWidths)
-	row := groupedSummaryRowLine(partition.Name, partition.Queue, metricWidths)
+	layout := aggregateGridLayoutForSnapshot(&slurm.Snapshot{Partitions: []slurm.PartitionSummary{partition}}, 120)
+	header := layout.groupHeaderLine() + "\n" + layout.subheaderLine("Partition")
+	row := layout.rowLine(partition.Name, partition.Queue)
 	for _, want := range []string{"CPU-only jobs", "GPU jobs", "CPU cores", "GPUs"} {
 		if !strings.Contains(header, want) {
 			t.Fatalf("expected expanded partition header %q, got %q", want, header)
 		}
 	}
-	for _, want := range []string{"accelerated", "1 running, 3 pending", "2 running, 4 pending", "16 in use, 32 requested", "2 in use, 4 requested"} {
+	for _, want := range []string{"accelerated", "1", "3", "2", "4", "16", "32"} {
 		if !strings.Contains(row, want) {
 			t.Fatalf("expected expanded partition row %q, got %q", want, row)
 		}
@@ -466,17 +475,9 @@ func TestWideAggregateTablesUseNaturalWidth(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 	const availableWidth = 174
-	wantWidth := groupedSummaryMinContentWidth(m.snapshot)
-	metricWidths := groupedSummaryMetricWidths(m.snapshot)
-	widestMetric := 0
-	for _, width := range metricWidths {
-		widestMetric = max(widestMetric, width)
-	}
-	if uniformlyPaddedWidth := groupedSummaryNameWidth + groupedSummaryColumnGaps + 4*widestMetric; wantWidth >= uniformlyPaddedWidth {
-		t.Fatalf("expected independent metric widths to use less than %d columns, got %d", uniformlyPaddedWidth, wantWidth)
-	}
+	wantWidth := aggregateGridLayoutForSnapshot(m.snapshot, availableWidth).width()
 
-	partitionLines := m.renderPartitionLinesWithBudget(5, true, availableWidth)
+	partitionLines := m.renderPartitionLinesWithBudget(6, true, availableWidth)
 	userLines := m.renderUserLinesWithBudget(5, true, availableWidth)
 	for name, lines := range map[string][]string{"partition": partitionLines, "user": userLines} {
 		if got := lipgloss.Width(lines[1]); got != wantWidth {
@@ -488,7 +489,61 @@ func TestWideAggregateTablesUseNaturalWidth(t *testing.T) {
 	}
 }
 
-func TestWidePendingReasonTableUsesNaturalWidth(t *testing.T) {
+func TestAggregateGridRightAlignsEveryNumericColumn(t *testing.T) {
+	queue := slurm.QueueSummary{
+		RunningCPUJobs: 101,
+		PendingCPUJobs: 202,
+		RunningGPUJobs: 303,
+		PendingGPUJobs: 404,
+		ResourceLoad: slurm.ResourceTotals{
+			RunningCPU: 505,
+			PendingCPU: 606,
+			RunningGPU: 707,
+			PendingGPU: 808,
+		},
+	}
+	snapshot := &slurm.Snapshot{Queue: queue}
+	layout := aggregateGridLayoutForSnapshot(snapshot, 120)
+	row := layout.rowLine("All partitions", queue)
+	values := aggregateValues(queue)
+
+	rightEdge := layout.nameWidth + aggregateNameGap
+	for i, value := range values {
+		rightEdge += layout.valueWidth[i]
+		if got := strings.Index(row, value) + lipgloss.Width(value); got != rightEdge {
+			t.Fatalf("column %d right edge=%d want=%d in %q", i, got, rightEdge, row)
+		}
+		if i == len(values)-1 {
+			continue
+		}
+		if i%2 == 1 {
+			rightEdge += aggregateGroupGap
+		} else {
+			rightEdge += aggregateColumnGap
+		}
+	}
+	if got := lipgloss.Width(row); got != layout.width() {
+		t.Fatalf("row width=%d want=%d", got, layout.width())
+	}
+}
+
+func TestAggregateGridBreakpointIsStableForNormalDigitGrowth(t *testing.T) {
+	small := &slurm.Snapshot{Queue: slurm.QueueSummary{RunningCPUJobs: 1, ResourceLoad: slurm.ResourceTotals{RunningCPU: 1}}}
+	large := &slurm.Snapshot{Queue: slurm.QueueSummary{RunningCPUJobs: 999_999, ResourceLoad: slurm.ResourceTotals{RunningCPU: 999_999}}}
+	if got, want := aggregateGridLayoutForSnapshot(large, 120).width(), aggregateGridLayoutForSnapshot(small, 120).width(); got != want {
+		t.Fatalf("normal digit growth changed the responsive breakpoint: got %d want %d", got, want)
+	}
+}
+
+func TestFormatCountUsesThousandsSeparators(t *testing.T) {
+	for value, want := range map[int]string{0: "0", 999: "999", 1_000: "1,000", 1_234_567: "1,234,567"} {
+		if got := formatCount(value); got != want {
+			t.Errorf("formatCount(%d)=%q want %q", value, got, want)
+		}
+	}
+}
+
+func TestWidePendingReasonTableAlignsWithAggregateGrid(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 	m.snapshot.PendingReasons = []slurm.PendingReasonSummary{
@@ -496,7 +551,7 @@ func TestWidePendingReasonTableUsesNaturalWidth(t *testing.T) {
 		{Reason: "DependencyNeverSatisfied", Tasks: 2, GPU: 2},
 	}
 	const availableWidth = 174
-	wantWidth := pendingReasonTableWidth(m.snapshot.PendingReasons)
+	wantWidth := max(pendingReasonTableWidth(m.snapshot.PendingReasons), aggregateGridLayoutForSnapshot(m.snapshot, availableWidth).width())
 
 	lines := m.renderPendingReasonLinesWithBudget(4, true, availableWidth)
 	if got := lipgloss.Width(lines[1]); got != wantWidth {
@@ -509,8 +564,9 @@ func TestWidePendingReasonTableUsesNaturalWidth(t *testing.T) {
 
 func TestUserColumnsDoNotShowHeldTotals(t *testing.T) {
 	snapshot := sampleSnapshot()
-	wideHeader := groupedSummaryHeaderLine("user", groupedSummaryMetricWidths(&snapshot))
-	compactRow := compactGroupedSummaryRowLine("alice", userQueueSummary(snapshot.Users[0]), 80)
+	layout := aggregateGridLayoutForSnapshot(&snapshot, 120)
+	wideHeader := layout.groupHeaderLine()
+	compactRow := compactAggregateRowLine("alice", userQueueSummary(snapshot.Users[0]), layout, 80)
 	if strings.Contains(wideHeader, "heldCPU") || strings.Contains(wideHeader, "heldGPU") {
 		t.Fatalf("wide user header should not show held totals: %q", wideHeader)
 	}
@@ -519,34 +575,38 @@ func TestUserColumnsDoNotShowHeldTotals(t *testing.T) {
 	}
 }
 
-func TestCompactGroupedSummaryPreservesCompleteMetricsBeforeLongNames(t *testing.T) {
+func TestCompactAggregateRowPreservesCompleteMetricsBeforeLongNames(t *testing.T) {
 	q := slurm.QueueSummary{PendingCPUJobs: 1, RunningGPUJobs: 24, PendingGPUJobs: 23}
-	row := compactGroupedSummaryRowLine("long-research-username", q, 65)
+	snapshot := &slurm.Snapshot{Queue: q, Users: []slurm.UserSummary{{User: "long-research-username", PendingCPUJobs: 1, RunningGPUJobs: 24, PendingGPUJobs: 23}}}
+	row := compactAggregateRowLine("long-research-username", q, aggregateGridLayoutForSnapshot(snapshot, 65), 65)
 	if lipgloss.Width(row) > 65 {
 		t.Fatalf("expected compact row to fit 65 columns, got %d in %q", lipgloss.Width(row), row)
 	}
-	if !strings.Contains(row, "CPU-only 0 running/1 pending · GPU 24 running/23 pending") {
+	if !strings.Contains(row, "CPU-only 0 / 1") || !strings.Contains(row, "GPU 24 / 23") {
 		t.Fatalf("expected complete CPU and GPU metrics, got %q", row)
 	}
-	if !strings.Contains(row, "…:") {
+	if !strings.Contains(row, "…") {
 		t.Fatalf("expected the name to shorten before the metrics, got %q", row)
 	}
 }
 
 func TestWideUserColumnsDistinguishJobsFromResources(t *testing.T) {
 	snapshot := sampleSnapshot()
-	metricWidths := groupedSummaryMetricWidths(&snapshot)
-	header := groupedSummaryHeaderLine("user", metricWidths)
-	row := groupedSummaryRowLine("alice", userQueueSummary(snapshot.Users[0]), metricWidths)
+	layout := aggregateGridLayoutForSnapshot(&snapshot, 120)
+	header := layout.groupHeaderLine() + "\n" + layout.subheaderLine("User")
+	row := layout.rowLine("alice", userQueueSummary(snapshot.Users[0]))
 	for _, want := range []string{"CPU-only jobs", "GPU jobs", "CPU cores", "GPUs"} {
 		if !strings.Contains(header, want) {
 			t.Fatalf("expected distinct job and resource group %q, got %q", want, header)
 		}
 	}
-	for _, want := range []string{"running", "pending", "in use", "requested"} {
-		if !strings.Contains(row, want) {
-			t.Fatalf("expected explicit job and resource unit %q, got %q", want, row)
+	for _, want := range []string{"Running", "Pending", "In use", "Requested"} {
+		if !strings.Contains(header, want) {
+			t.Fatalf("expected explicit job and resource unit %q, got %q", want, header)
 		}
+	}
+	if strings.Contains(row, "running") || strings.Contains(row, "requested") {
+		t.Fatalf("expected values to remain numeric and aligned, got %q", row)
 	}
 }
 
@@ -559,10 +619,10 @@ func TestCompactUserRowsAreSelfDescribingAndHeaderless(t *testing.T) {
 	if len(lines) != 4 {
 		t.Fatalf("expected title plus three user rows, got: %q", out)
 	}
-	if strings.Contains(out, "CPU-only run") {
+	if strings.Contains(out, "CPU cores") {
 		t.Fatalf("did not expect a compact table header, got: %q", out)
 	}
-	for _, want := range []string{"Users · job counts · 3", "alice: CPU-only 5 running/1 pending · GPU 12 running/2 pending", "bob", "carol"} {
+	for _, want := range []string{"Users · jobs: running / pending · 3", "alice", "CPU-only", "GPU", "bob", "carol"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected self-describing compact content %q, got: %q", want, out)
 		}
@@ -575,7 +635,7 @@ func TestUserLinesBudgetOneRowUsesHiddenOnlyLabel(t *testing.T) {
 
 	lines := m.renderUserLinesWithBudget(1, true, 80)
 	out := strings.Join(lines, "\n")
-	if !strings.Contains(out, "Users · job counts · 3 hidden") {
+	if !strings.Contains(out, "Users · jobs: running / pending · 3 hidden") {
 		t.Fatalf("expected hidden-only user label for one-row budget, got: %q", out)
 	}
 	if strings.Contains(out, "0 shown") {
@@ -593,7 +653,7 @@ func TestCompactViewKeepsExplicitJobCountsAndResourceSummary(t *testing.T) {
 	if strings.Contains(out, "heldCPU") || strings.Contains(out, "heldGPU") {
 		t.Fatalf("expected compact view to hide held-resource columns, got: %q", out)
 	}
-	for _, want := range []string{"Queue ·", "Jobs ·", "Resources ·", "CPU-only:", "GPU:", ": CPU-only ", " · GPU "} {
+	for _, want := range []string{"Queue ·", "Resources ·", "CPU cores ·", "GPUs ·", "CPU-only", "GPU", "running / pending"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected compact view to include %q, got: %q", want, out)
 		}
@@ -631,7 +691,7 @@ func TestCompactStandardViewportUsesHeaderSpaceForData(t *testing.T) {
 	m.height = 20
 
 	out := m.View()
-	for _, want := range []string{"gpu:", "cpu:", "alice:", "carol:", "Users · job counts · 2 shown · 1 hidden", "Waiting for resources"} {
+	for _, want := range []string{"gpu", "cpu", "alice", "carol", "Users · jobs: running / pending · 3", "Waiting for resources"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected compact 72x20 view to include %q, got: %q", want, out)
 		}
@@ -661,6 +721,7 @@ func TestWideViewUsesPlainLabelsAndAvailableReasonWidth(t *testing.T) {
 	for _, want := range []string{
 		"Queue ·",
 		"CPU-only",
+		"All partitions",
 		"Partitions",
 		"CPU-only jobs",
 		"GPU jobs",
@@ -668,9 +729,9 @@ func TestWideViewUsesPlainLabelsAndAvailableReasonWidth(t *testing.T) {
 		"GPUs",
 		"Users",
 		"Why jobs are pending",
-		"affected tasks",
-		"requested CPUs",
-		"requested GPUs",
+		"Affected tasks",
+		"Requested CPUs",
+		"Requested GPUs",
 		reason,
 	} {
 		if !strings.Contains(out, want) {
@@ -687,7 +748,7 @@ func TestWideViewUsesPlainLabelsAndAvailableReasonWidth(t *testing.T) {
 	}
 }
 
-func TestExpandedLayoutStartsAfterGroupedMetricsFit(t *testing.T) {
+func TestExpandedLayoutStartsWhenNumericGridFits(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 	m.height = 30
@@ -695,16 +756,16 @@ func TestExpandedLayoutStartsAfterGroupedMetricsFit(t *testing.T) {
 	m.snapshot.Partitions = []slurm.PartitionSummary{{Name: "short", Queue: queue}}
 	m.snapshot.Users = []slurm.UserSummary{{User: "researcher", PendingCPUJobs: 1454, PendingGPUJobs: 98}}
 
-	firstExpandedWidth := groupedSummaryMinContentWidth(m.snapshot) + 7
+	firstExpandedWidth := aggregateGridLayoutForSnapshot(m.snapshot, 1_000).width() + 1
 	m.width = firstExpandedWidth - 1
 	compact := m.View()
-	if !strings.Contains(compact, "Users · job counts") || strings.Contains(compact, "…") {
+	if !strings.Contains(compact, "Users · jobs: running / pending") || strings.Contains(compact, "…") {
 		t.Fatalf("expected the last narrow width to keep the complete compact layout, got %q", compact)
 	}
 
 	m.width = firstExpandedWidth
 	expanded := m.View()
-	if strings.Contains(expanded, "Users · job counts") || strings.Count(expanded, "0 running, 1454 pending") != 2 {
+	if strings.Contains(expanded, "Users · jobs: running / pending") || !strings.Contains(expanded, "1,454") {
 		t.Fatalf("expected the first wide width to show complete grouped metrics, got %q", expanded)
 	}
 	if strings.Contains(expanded, "…") {
@@ -714,16 +775,16 @@ func TestExpandedLayoutStartsAfterGroupedMetricsFit(t *testing.T) {
 	queue.PendingCPUJobs = 12345
 	m.snapshot.Partitions[0].Queue = queue
 	m.snapshot.Users[0].PendingCPUJobs = 12345
-	secondExpandedWidth := groupedSummaryMinContentWidth(m.snapshot) + 7
+	secondExpandedWidth := aggregateGridLayoutForSnapshot(m.snapshot, 1_000).width() + 1
 	m.width = secondExpandedWidth - 1
 	compact = m.View()
-	if !strings.Contains(compact, "Users · job counts") || strings.Contains(compact, "…") {
+	if !strings.Contains(compact, "Users · jobs: running / pending") || strings.Contains(compact, "…") {
 		t.Fatalf("expected larger metrics to delay the expanded layout, got %q", compact)
 	}
 
 	m.width = secondExpandedWidth
 	expanded = m.View()
-	if strings.Contains(expanded, "Users · job counts") || strings.Count(expanded, "0 running, 12345 pending") != 2 {
+	if strings.Contains(expanded, "Users · jobs: running / pending") || !strings.Contains(expanded, "12,345") {
 		t.Fatalf("expected expanded layout when larger metrics fit, got %q", expanded)
 	}
 	if strings.Contains(expanded, "…") {
@@ -747,7 +808,7 @@ func TestUserPanelUsesAvailableHeightBeforeHidingUsers(t *testing.T) {
 	}
 	m.snapshot.Users = users
 
-	out := strings.Join(m.renderUserLinesWithBudget(17, true, 88), "\n")
+	out := strings.Join(m.renderUserLinesWithBudget(18, true, 96), "\n")
 	if strings.Contains(out, "hidden") {
 		t.Fatalf("did not expect hidden-user indicator when compact panel has enough height, got: %q", out)
 	}
@@ -762,11 +823,11 @@ func TestUserViewShowsHiddenCountWhenCapped(t *testing.T) {
 	lines := m.renderUserLinesWithBudget(3, true, 120)
 	out := strings.Join(lines, "\n")
 
-	if !strings.Contains(out, "Users · 1 shown · 2 hidden") {
+	if !strings.Contains(out, "Users · jobs: running / pending · 2 shown · 1 hidden") {
 		t.Fatalf("expected capped user view label, got: %q", out)
 	}
-	if strings.Count(out, "alice") != 1 {
-		t.Fatalf("expected only top user to render when capped, got: %q", out)
+	if strings.Count(out, "alice") != 1 || strings.Count(out, "carol") != 1 {
+		t.Fatalf("expected the top two users to render when capped, got: %q", out)
 	}
 }
 
@@ -796,20 +857,15 @@ func TestViewUsesStabilizedFrameWidth(t *testing.T) {
 	out := m.View()
 	lines := strings.Split(out, "\n")
 	for i, line := range lines {
-		if lipgloss.Width(line) > 89 {
-			t.Fatalf("expected line %d width <= 89 after right-gutter stabilization, got %d", i+1, lipgloss.Width(line))
+		if lipgloss.Width(line) != 89 {
+			t.Fatalf("expected line %d width 89 after viewport stabilization, got %d", i+1, lipgloss.Width(line))
 		}
 	}
-	for _, line := range lines {
-		if !strings.Contains(line, "╭") {
-			continue
+	for _, border := range []string{"╭", "╮", "╰", "╯"} {
+		if strings.Contains(out, border) {
+			t.Fatalf("did not expect a full-height panel border %q in %q", border, out)
 		}
-		if got := lipgloss.Width(strings.TrimRight(line, " ")); got != 89 {
-			t.Fatalf("expected panel to use stabilized width 89, got %d", got)
-		}
-		return
 	}
-	t.Fatal("expected rendered panel border")
 }
 
 func TestViewPinsExitHintToBottomRow(t *testing.T) {
@@ -824,8 +880,8 @@ func TestViewPinsExitHintToBottomRow(t *testing.T) {
 	if !strings.Contains(lines[len(lines)-1], "Ctrl+C to exit") {
 		t.Fatalf("expected exit hint on bottom row, got: %q", lines[len(lines)-1])
 	}
-	if !strings.HasPrefix(lines[len(lines)-2], "╰") {
-		t.Fatalf("expected the panel to fill the body above the footer, got: %q", lines[len(lines)-2])
+	if strings.TrimSpace(lines[len(lines)-2]) != "" {
+		t.Fatalf("expected calm unframed space above the pinned footer, got: %q", lines[len(lines)-2])
 	}
 }
 
