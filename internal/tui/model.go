@@ -73,6 +73,7 @@ const (
 	aggregateNameGap           = 2
 	aggregateColumnGap         = 1
 	aggregateGroupGap          = 3
+	widePartitionMinimumLines  = 5
 	pendingReasonTaskWidth     = 14
 	pendingReasonResourceWidth = 14
 	pendingReasonColumnGaps    = 3
@@ -292,32 +293,18 @@ func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, c
 		return ""
 	}
 
-	lines := m.schedulerSummaryLines(m.snapshot.Queue, expanded, contentWidth)
 	detailCaps := []int{
 		partitionLineCapacity(len(m.snapshot.Partitions), expanded),
 		userLineCapacity(len(m.snapshot.Users), expanded),
 		pendingReasonLineCapacity(len(m.snapshot.PendingReasons), expanded),
 	}
-	activeDetailSections := 0
-	for _, cap := range detailCaps {
-		if cap > 0 {
-			activeDetailSections++
-		}
-	}
-	reservedDetailLines := min(contentHeight-1, activeDetailSections)
-	if reservedDetailLines < 0 {
-		reservedDetailLines = 0
-	}
-	summaryBudget := contentHeight - reservedDetailLines
-	if len(lines) > summaryBudget {
-		lines = clipLines(lines, summaryBudget)
+	lines := m.schedulerSummaryLines(m.snapshot.Queue, !expanded, contentWidth)
+	lines, separatorLines, detailBudgets := allocateInsightLineBudgets(contentHeight, lines, detailCaps)
+	if expanded && (len(m.snapshot.Partitions) == 0 || detailBudgets[0] < widePartitionMinimumLines) {
+		lines = m.schedulerSummaryLines(m.snapshot.Queue, true, contentWidth)
+		lines, separatorLines, detailBudgets = allocateInsightLineBudgets(contentHeight, lines, detailCaps)
 	}
 
-	separatorLines := 0
-	if contentHeight-len(lines) >= 3*activeDetailSections {
-		separatorLines = activeDetailSections
-	}
-	detailBudgets := allocateLineBudgets(contentHeight-len(lines)-separatorLines, detailCaps)
 	if detailBudgets[0] > 0 {
 		if separatorLines > 0 {
 			lines = append(lines, "")
@@ -340,6 +327,30 @@ func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, c
 	lines = clipLines(lines, contentHeight)
 	lines = fitLinesToWidth(lines, contentWidth)
 	return strings.Join(lines, "\n")
+}
+
+func allocateInsightLineBudgets(contentHeight int, summaryLines []string, detailCaps []int) ([]string, int, []int) {
+	activeDetailSections := 0
+	for _, cap := range detailCaps {
+		if cap > 0 {
+			activeDetailSections++
+		}
+	}
+	reservedDetailLines := min(contentHeight-1, activeDetailSections)
+	if reservedDetailLines < 0 {
+		reservedDetailLines = 0
+	}
+	summaryBudget := contentHeight - reservedDetailLines
+	if len(summaryLines) > summaryBudget {
+		summaryLines = clipLines(summaryLines, summaryBudget)
+	}
+
+	separatorLines := 0
+	if contentHeight-len(summaryLines) >= 3*activeDetailSections {
+		separatorLines = activeDetailSections
+	}
+	detailBudgets := allocateLineBudgets(contentHeight-len(summaryLines)-separatorLines, detailCaps)
+	return summaryLines, separatorLines, detailBudgets
 }
 
 func (m Model) renderPendingReasonLinesWithBudget(rowBudget int, wide bool, contentWidth int) []string {
@@ -445,7 +456,7 @@ func (m Model) renderPartitionLinesWithBudget(rowBudget int, wide bool, contentW
 	}
 	partitions := append([]slurm.PartitionSummary(nil), m.snapshot.Partitions...)
 	slurm.SortPartitionsForDisplay(partitions)
-	tableHeader := wide && rowBudget >= 5
+	tableHeader := wide && rowBudget >= widePartitionMinimumLines
 	overhead := 2
 	if tableHeader {
 		overhead = 4
@@ -759,7 +770,7 @@ func userQueueSummary(u slurm.UserSummary) slurm.QueueSummary {
 	}
 }
 
-func (m Model) schedulerSummaryLines(q slurm.QueueSummary, expanded bool, contentWidth int) []string {
+func (m Model) schedulerSummaryLines(q slurm.QueueSummary, includeResources bool, contentWidth int) []string {
 	runningJobs := q.RunningCPUJobs + q.RunningGPUJobs
 	pendingJobs := q.PendingCPUJobs + q.PendingGPUJobs
 	title := fmt.Sprintf("Queue · %s jobs · %s running · %s pending", formatCount(q.TotalJobs()), formatCount(runningJobs), formatCount(pendingJobs))
@@ -767,20 +778,32 @@ func (m Model) schedulerSummaryLines(q slurm.QueueSummary, expanded bool, conten
 		title += fmt.Sprintf(" · %s other", formatCount(q.Other))
 	}
 	lines := []string{m.sectionTitle(title)}
-	if expanded {
+	if !includeResources {
 		return lines
 	}
 	return append(lines, resourceSummaryLines(q.ResourceLoad, contentWidth)...)
 }
 
 func resourceSummaryLines(resources slurm.ResourceTotals, contentWidth int) []string {
-	cpuText := fmt.Sprintf("CPU cores · %s in use · %s requested", formatCount(resources.RunningCPU), formatCount(resources.PendingCPU))
-	gpuText := fmt.Sprintf("GPUs · %s in use · %s requested", formatCount(resources.RunningGPU), formatCount(resources.PendingGPU))
+	runningCPU := formatCount(resources.RunningCPU)
+	pendingCPU := formatCount(resources.PendingCPU)
+	runningGPU := formatCount(resources.RunningGPU)
+	pendingGPU := formatCount(resources.PendingGPU)
+	cpuText := fmt.Sprintf("CPU cores · %s in use · %s requested", runningCPU, pendingCPU)
+	gpuText := fmt.Sprintf("GPUs · %s in use · %s requested", runningGPU, pendingGPU)
 	combined := fmt.Sprintf("Resources · %s   %s", cpuText, gpuText)
 	if lipgloss.Width(combined) <= contentWidth {
 		return []string{combined}
 	}
-	return []string{"Resources · " + cpuText, strings.Repeat(" ", lipgloss.Width("Resources · ")) + gpuText}
+	split := []string{"Resources · " + cpuText, strings.Repeat(" ", lipgloss.Width("Resources · ")) + gpuText}
+	if lipgloss.Width(split[0]) <= contentWidth && lipgloss.Width(split[1]) <= contentWidth {
+		return split
+	}
+	return []string{
+		"Resources · in use / requested",
+		fmt.Sprintf("CPU cores · %s / %s", runningCPU, pendingCPU),
+		fmt.Sprintf("GPUs · %s / %s", runningGPU, pendingGPU),
+	}
 }
 
 func countNoun(count int, singular string) string {
