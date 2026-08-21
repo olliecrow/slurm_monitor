@@ -917,13 +917,40 @@ func TestViewUsesContentHeightFrameAtStabilizedWidth(t *testing.T) {
 	}
 }
 
-func TestDashboardFrameUsesBalancedHorizontalPadding(t *testing.T) {
+func TestDashboardFrameUsesBalancedPaddingAndConnectedDivider(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
 
 	out := m.frameDashboard("Queue\n\nPartitions", 16)
-	if got, want := out, "╭──────────────────╮\n│ Queue            │\n│                  │\n│ Partitions       │\n╰──────────────────╯"; got != want {
+	if got, want := out, "╭──────────────────╮\n│ Queue            │\n├──────────────────┤\n│ Partitions       │\n╰──────────────────╯"; got != want {
 		t.Fatalf("frameDashboard()=%q want %q", got, want)
+	}
+}
+
+func TestDashboardFrameConnectsRoomySectionsWithoutAddingHeight(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.width = 90
+	m.height = 24
+
+	out := m.View()
+	if got := strings.Count(out, "├"); got != 3 {
+		t.Fatalf("expected three connected section dividers, got %d in %q", got, out)
+	}
+	if got := strings.Count(out, "┤"); got != 3 {
+		t.Fatalf("expected three connected divider ends, got %d in %q", got, out)
+	}
+}
+
+func TestDashboardFrameOmitsDividersWhenTightLayoutNeedsData(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.width = 100
+	m.height = 12
+
+	out := m.View()
+	if strings.Contains(out, "├") || strings.Contains(out, "┤") {
+		t.Fatalf("did not expect dividers to replace data in a tight layout, got %q", out)
 	}
 }
 
