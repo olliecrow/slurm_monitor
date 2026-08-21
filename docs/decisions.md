@@ -58,7 +58,7 @@ The display has queue summary, partition, user, and pending-reason sections. It 
 
 The interactive display omits individual jobs because partition, user, and pending-reason aggregates explain scheduler pressure with less churn and visual noise. The `--once` report retains grouped root jobs for detailed non-interactive diagnostics. Partition ordering surfaces pending pressure before current load. Pending-reason ordering surfaces the largest GPU and CPU demand.
 
-The queue summary states total, running, pending, and non-zero other job counts. On wide terminals, a bold `All partitions` row supplies detailed queue totals in the same grid as partition data. On compact terminals, a separate resource summary preserves CPU-core and GPU pressure because compact detail rows show job counts only. CPU-core totals cover both CPU-only and GPU jobs.
+The queue summary states total, running, pending, and non-zero other job counts. On wide terminals with enough height, a bold `All partitions` row supplies detailed queue totals in the same grid as partition data. Compact terminals and short wide terminals use a separate resource summary because their detail rows show job counts only. CPU-core totals cover both CPU-only and GPU jobs.
 
 The TUI translates stable common Slurm pending-reason codes into plain language and preserves unknown reason text. Long prose reasons clip at a word boundary when space permits, without changing fixed table-label clipping. The `--once` report keeps raw reason values for diagnostics and downstream parsing. Compact pending-reason details use singular task and resource labels only for one.
 
