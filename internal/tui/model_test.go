@@ -221,14 +221,14 @@ func TestSchedulerSummaryRendersJobsAndResourceDemand(t *testing.T) {
 	}
 }
 
-func TestSchedulerSummarySeparatesJobTypesAndResources(t *testing.T) {
+func TestSchedulerSummaryIncludesResourcesOnlyWhenNeeded(t *testing.T) {
 	m := seededModel()
-	wide := m.schedulerSummaryLines(m.snapshot.Queue, true, 120)
+	wide := m.schedulerSummaryLines(m.snapshot.Queue, false, 120)
 	if len(wide) != 1 || !strings.Contains(wide[0], "42 running") || strings.Contains(strings.Join(wide, "\n"), "Resources") {
 		t.Fatalf("expected the wide grid to carry detailed queue totals, got: %q", wide)
 	}
-	compact := m.schedulerSummaryLines(m.snapshot.Queue, false, 40)
-	if len(compact) != 3 || !strings.HasPrefix(compact[1], "Resources · CPU cores ·") || !strings.Contains(compact[2], "GPUs ·") {
+	compact := m.schedulerSummaryLines(m.snapshot.Queue, true, 40)
+	if len(compact) != 4 || compact[1] != "Resources · in use / requested" || !strings.HasPrefix(compact[2], "CPU cores ·") || !strings.HasPrefix(compact[3], "GPUs ·") {
 		t.Fatalf("expected compact mode to retain queue-wide resource totals, got: %q", compact)
 	}
 }
@@ -312,6 +312,9 @@ func TestResourceSummaryKeepsCPUAndGPUValuesDistinct(t *testing.T) {
 	if got, want := strings.Join(resourceSummaryLines(resources, 60), "\n"), "Resources · CPU cores · 1,646 in use · 1,061 requested\n            GPUs · 93 in use · 111 requested"; got != want {
 		t.Fatalf("narrow rows=%q want=%q", got, want)
 	}
+	if got, want := strings.Join(resourceSummaryLines(resources, 40), "\n"), "Resources · in use / requested\nCPU cores · 1,646 / 1,061\nGPUs · 93 / 111"; got != want {
+		t.Fatalf("very narrow rows=%q want=%q", got, want)
+	}
 }
 
 func TestPendingReasonLabelsUsePlainLanguageAndPreserveUnknownReasons(t *testing.T) {
@@ -369,8 +372,8 @@ func TestInsightsPanelBudgetKeepsOneRowAndSpacingForEachAggregateView(t *testing
 			t.Fatalf("expected %q in compact insight budget, got: %q", want, out)
 		}
 	}
-	if !strings.Contains(out, "Affected tasks") || !strings.Contains(out, "Waiting for resources") {
-		t.Fatalf("expected a clear pending-reason table, got %q", out)
+	if !strings.Contains(out, "Waiting for resources") || !strings.Contains(out, "3 tasks, 64 CPUs, 8 GPUs") {
+		t.Fatalf("expected a clear pending-reason detail, got %q", out)
 	}
 	if got := strings.Count(out, "\n\n"); got != 3 {
 		t.Fatalf("expected spacing between all sections, got %d separators in %q", got, out)
@@ -389,6 +392,45 @@ func TestInsightsPanelUsesSpacingForDataOnVeryTightTerminals(t *testing.T) {
 	}
 	if strings.Contains(out, "\n\n") {
 		t.Fatalf("did not expect blank separators to replace data in a very tight layout, got %q", out)
+	}
+}
+
+func TestTightWideViewRetainsQueueResourceTotals(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+
+	out := m.renderInsightsPanelWithBudget(9, true, 99)
+	for _, want := range []string{
+		"Resources · CPU cores · 640 in use · 96 requested",
+		"GPUs · 38 in use · 8 requested",
+		"gpu",
+		"alice",
+		"Waiting for resources",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected tight wide view to retain %q, got %q", want, out)
+		}
+	}
+	if strings.Contains(out, viewportClipText) {
+		t.Fatalf("did not expect viewport clipping in budgeted output, got %q", out)
+	}
+}
+
+func TestWideViewWithoutPartitionsRetainsQueueResourceTotals(t *testing.T) {
+	m := seededModel()
+	m.styles = defaultStyles(true)
+	m.snapshot.Partitions = nil
+
+	out := m.renderInsightsPanelWithBudget(24, true, 120)
+	for _, want := range []string{
+		"Resources · CPU cores · 640 in use · 96 requested",
+		"GPUs · 38 in use · 8 requested",
+		"Users",
+		"Why jobs are pending",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected partition-free wide view to retain %q, got %q", want, out)
+		}
 	}
 }
 
