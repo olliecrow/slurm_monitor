@@ -115,7 +115,7 @@ Fields:
 - other jobs count
 - running CPU and GPU resource totals
 - pending CPU and GPU resource demand
-- queue totals appear in the aggregate partition grid on wide terminals and in a separate resource summary on compact terminals
+- queue totals appear in the aggregate partition grid when the full wide partition grid fits, and in a separate resource summary on compact or short wide terminals
 - CPU-core totals include CPU cores assigned to both CPU-only and GPU jobs
 - counts include Slurm job arrays at array-task granularity (each array task counts as one job).
 
