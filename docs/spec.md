@@ -172,7 +172,7 @@ Per grouped-job fields:
 - Header includes a heartbeat clock and update age.
 - Header includes a status spinner so refresh/liveness is visible even when metrics are stable.
 - When the header is narrow, it removes lower-priority fields as complete units instead of cutting labels or values mid-word.
-- Body renders one unframed scheduler dashboard with queue, partition, user, and pending-reason sections. Unused terminal height stays blank above the pinned footer.
+- Body renders one content-height framed dashboard with queue, partition, user, and pending-reason sections. The frame uses balanced horizontal padding, and unused terminal height stays blank outside it above the pinned footer.
 - The queue summary states total, running, pending, and non-zero other job counts. Wide terminals put detailed queue totals in a bold `All partitions` row when the full grid fits vertically. Compact terminals and short wide terminals add complete CPU-core and GPU resource summaries because their detail rows show job counts only.
 - Wide partition and user tables use distinct CPU-only job, GPU job, CPU-core, and GPU groups. Two header rows state `Running` and `Pending` once for job counts and `In use` and `Requested` once for resources. Data rows contain right-aligned numbers only.
 - CPU-core totals include cores assigned to CPU-only and GPU jobs.

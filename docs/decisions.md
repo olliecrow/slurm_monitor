@@ -54,7 +54,7 @@ References: `internal/slurm/collector.go`, `internal/slurm/collector_test.go`, `
 
 ## Keep the TUI focused, terminal-bounded, and non-interactive
 
-The display has queue summary, partition, user, and pending-reason sections. It uses an unframed, content-height dashboard. Unused terminal height stays blank above the pinned footer, and the remaining data height is shared fairly across active detail sections.
+The display has queue summary, partition, user, and pending-reason sections. A content-height frame and balanced horizontal padding define the dashboard without enclosing unused terminal space. Unused height stays blank above the pinned footer, and the remaining data height is shared fairly across active detail sections.
 
 The interactive display omits individual jobs because partition, user, and pending-reason aggregates explain scheduler pressure with less churn and visual noise. The `--once` report retains grouped root jobs for detailed non-interactive diagnostics. Partition ordering surfaces pending pressure before current load. Pending-reason ordering surfaces the largest GPU and CPU demand.
 
