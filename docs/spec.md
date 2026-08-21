@@ -115,7 +115,7 @@ Fields:
 - other jobs count
 - running CPU and GPU resource totals
 - pending CPU and GPU resource demand
-- separate job-category and resource lines: CPU-only and GPU job counts stay distinct from CPU-core and GPU totals
+- queue totals appear in the aggregate partition grid on wide terminals and in a separate resource summary on compact terminals
 - CPU-core totals include CPU cores assigned to both CPU-only and GPU jobs
 - counts include Slurm job arrays at array-task granularity (each array task counts as one job).
 
@@ -172,21 +172,21 @@ Per grouped-job fields:
 - Header includes a heartbeat clock and update age.
 - Header includes a status spinner so refresh/liveness is visible even when metrics are stable.
 - When the header is narrow, it removes lower-priority fields as complete units instead of cutting labels or values mid-word.
-- Body renders one scheduler-insights panel with summary, partition, user, and pending-reason sections.
-- The queue summary separates job categories from resources. Wide terminals show CPU-only and GPU values on one job line and one resource line; narrow terminals split either line into complete CPU and GPU groups when required.
-- Wide partition and user tables use distinct columns for CPU-only jobs, GPU jobs, CPU cores, and GPUs. Each column shows running/in-use and pending/requested values together.
-- Wide pending-reason tables give spare terminal width to reason text before truncating it.
+- Body renders one unframed scheduler dashboard with queue, partition, user, and pending-reason sections. Unused terminal height stays blank above the pinned footer.
+- The queue summary states total, running, pending, and non-zero other job counts. Wide terminals put detailed queue totals in a bold `All partitions` row. Compact terminals add complete CPU-core and GPU resource summaries because compact detail rows show job counts only.
+- Wide partition and user tables use distinct CPU-only job, GPU job, CPU-core, and GPU groups. Two header rows state `Running` and `Pending` once for job counts and `In use` and `Requested` once for resources. Data rows contain right-aligned numbers only.
+- CPU-core totals include cores assigned to CPU-only and GPU jobs.
+- Wide pending-reason tables align their numeric right edge with the aggregate grids and give remaining width to reason text before truncating it.
 - The TUI replaces stable common Slurm pending-reason codes with plain-language labels and preserves unknown reason text. Long prose reasons clip at a word boundary when space permits. The `--once` report keeps raw Slurm reason values for diagnostics.
-- Wide tables use the minimum width needed for their current labels and values instead of stretching columns across the terminal.
-- Compact detail sections omit table headers and use self-describing rows so more data fits. Partition and user section titles identify their values as job counts, and each row shows the CPU-only group before the GPU group; pending-reason rows include task, CPU, and GPU units. When a summary row is too wide, it shortens the partition or user name before the metric text. Data is truncated only when the terminal width requires it.
+- Wide tables use their natural width instead of stretching across the terminal. Group widths stay stable through normal count growth, and thousands separators make large values easier to scan.
+- Compact partition and user sections identify their values as `running / pending` job counts, omit table headers and resource columns, and keep aligned CPU-only and GPU pairs. The compact queue summary retains CPU-core and GPU resource totals. A long partition or user name shortens before complete metrics.
 - At 72x20 and larger, compact terminals preserve at least one data row from every active detail section. Smaller terminals preserve every active section title when space permits.
 - Partition, user, and pending-reason tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
-- Row budgets are computed from panel content height and shared fairly across active detail sections.
-- The panel separates sections with blank lines when every active detail can still show at least one data row. Tight terminals remove spacing before data.
+- Row budgets are computed from available dashboard height and shared fairly across active detail sections.
+- Blank lines separate sections when every active detail can still show data. Tight terminals use that space for data first.
 - When rows are clipped, section headers must show deterministic plain-language metadata (for example `X shown · N hidden`).
-- When no rows fit in a panel budget, headers should still show the hidden-row count without `0 shown` phrasing (for example `N hidden`).
+- When no rows fit in a section budget, headers should still show the hidden-row count without `0 shown` phrasing (for example `N hidden`).
 - In worst-case global viewport clipping, the final visible row must show `... output clipped to terminal height ...`.
-- The insights panel fills the body above the footer, including when all data rows fit with height to spare.
 - Connectivity indicator states:
   - loading
   - connected
