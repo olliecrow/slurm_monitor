@@ -133,6 +133,9 @@ Compact terminals:
 - keep the same section order and use self-describing rows without table headers
 - spend saved header space on additional visible data rows
 
+Short wide terminals:
+- retain queue-wide CPU-core and GPU totals in the summary when the available height cannot fit the full partition grid
+
 ## Error model
 - fatal startup errors:
   - missing Slurm commands in target context
