@@ -128,6 +128,7 @@ All terminals:
 - middle: content-height framed scheduler dashboard with balanced horizontal padding, a compact queue activity summary, then partition, user, and pending-reason sections
 - use the stabilized terminal width without an extra right margin
 - share available detail height fairly across active sections
+- replace available separator rows with horizontal rules connected to the outer frame
 
 Compact terminals:
 - keep the same section order and use self-describing rows without table headers

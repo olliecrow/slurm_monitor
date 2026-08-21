@@ -183,7 +183,7 @@ Per grouped-job fields:
 - At 72x20 and larger, compact terminals preserve at least one data row from every active detail section. Smaller terminals preserve every active section title when space permits.
 - Partition, user, and pending-reason tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
 - Row budgets are computed from available dashboard height and shared fairly across active detail sections.
-- Blank lines separate sections when every active detail can still show data. Tight terminals use that space for data first.
+- Connected horizontal frame dividers separate sections when every active detail can still show data. Tight terminals omit dividers and use that space for data first.
 - When rows are clipped, section headers must show deterministic plain-language metadata (for example `X shown · N hidden`).
 - When no rows fit in a section budget, headers should still show the hidden-row count without `0 shown` phrasing (for example `N hidden`).
 - In worst-case global viewport clipping, the final visible row must show `... output clipped to terminal height ...`.
