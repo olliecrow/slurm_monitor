@@ -67,17 +67,19 @@ type channelClosedMsg struct{}
 var pulseFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 const (
-	frameRightGutter           = 1
-	aggregateNameMinWidth      = 16
-	aggregateNameMaxWidth      = 24
-	aggregateNameGap           = 2
-	aggregateColumnGap         = 1
-	aggregateGroupGap          = 3
-	widePartitionMinimumLines  = 5
-	pendingReasonTaskWidth     = 14
-	pendingReasonResourceWidth = 14
-	pendingReasonColumnGaps    = 3
-	viewportClipText           = "... output clipped to terminal height ..."
+	frameRightGutter                 = 1
+	dashboardHorizontalPadding       = 1
+	dashboardFrameHorizontalOverhead = 2 + 2*dashboardHorizontalPadding
+	aggregateNameMinWidth            = 16
+	aggregateNameMaxWidth            = 24
+	aggregateNameGap                 = 2
+	aggregateColumnGap               = 1
+	aggregateGroupGap                = 3
+	widePartitionMinimumLines        = 5
+	pendingReasonTaskWidth           = 14
+	pendingReasonResourceWidth       = 14
+	pendingReasonColumnGaps          = 3
+	viewportClipText                 = "... output clipped to terminal height ..."
 )
 
 func NewModel(opts Options) Model {
@@ -190,28 +192,13 @@ func (m Model) View() string {
 	footer := m.styles.dim.Render("Ctrl+C to exit")
 	headerLines := lineCount(header)
 	footerLines := lineCount(footer)
-	bodyGap := 0
-	if m.height-headerLines-footerLines >= 3 {
-		bodyGap = 1
-	}
-	bodyHeight := m.height - headerLines - footerLines - bodyGap
+	bodyHeight := m.height - headerLines - footerLines
 	if bodyHeight < 1 {
 		bodyHeight = 1
 	}
 
-	var body string
-	if m.snapshot == nil {
-		body = clipToHeight("Waiting for the first successful snapshot...", bodyHeight)
-	} else {
-		body = m.renderMain(bodyHeight)
-	}
-
-	parts := []string{header}
-	if bodyGap > 0 {
-		parts = append(parts, "")
-	}
-	parts = append(parts, body)
-	top := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	body := m.renderDashboard(bodyHeight)
+	top := lipgloss.JoinVertical(lipgloss.Left, header, body)
 	joined := pinFooterToBottom(top, footer, m.height)
 	return clipToViewport(joined, viewWidth, m.height)
 }
@@ -275,14 +262,50 @@ func (m Model) renderStatusText(now time.Time) (string, lipgloss.Style) {
 	}
 }
 
-func (m Model) renderMain(maxHeight int) string {
+func (m Model) renderDashboard(maxHeight int) string {
+	contentWidth, contentHeight, framed := dashboardContentSize(m.width, maxHeight)
 	if m.snapshot == nil {
-		return ""
+		content := clipToHeight("Waiting for the first successful snapshot...", contentHeight)
+		if framed {
+			return m.frameDashboard(content, contentWidth)
+		}
+		return content
 	}
-	contentWidth := max(1, m.width)
 	expanded := !m.compact && aggregateGridLayoutForSnapshot(m.snapshot, contentWidth).width() <= contentWidth
-	body := m.renderInsightsPanelWithBudget(maxHeight, expanded, contentWidth)
-	return clipToHeight(body, maxHeight)
+	content := m.renderInsightsPanelWithBudget(contentHeight, expanded, contentWidth)
+	content = clipToHeight(content, contentHeight)
+	if framed {
+		return m.frameDashboard(content, contentWidth)
+	}
+	return content
+}
+
+func dashboardContentSize(frameWidth, maxHeight int) (int, int, bool) {
+	contentWidth := frameWidth - dashboardFrameHorizontalOverhead
+	contentHeight := maxHeight - 2
+	if contentWidth < 1 || contentHeight < 1 {
+		return max(1, frameWidth), max(1, maxHeight), false
+	}
+	return contentWidth, contentHeight, true
+}
+
+func (m Model) frameDashboard(content string, contentWidth int) string {
+	border := func(s string) string { return m.styles.dim.Render(s) }
+	horizontalWidth := contentWidth + 2*dashboardHorizontalPadding
+	lines := []string{border("╭" + strings.Repeat("─", horizontalWidth) + "╮")}
+	for _, line := range strings.Split(content, "\n") {
+		line = truncateRunes(line, contentWidth)
+		line += strings.Repeat(" ", max(0, contentWidth-lipgloss.Width(line)))
+		lines = append(lines,
+			border("│")+
+				strings.Repeat(" ", dashboardHorizontalPadding)+
+				line+
+				strings.Repeat(" ", dashboardHorizontalPadding)+
+				border("│"),
+		)
+	}
+	lines = append(lines, border("╰"+strings.Repeat("─", horizontalWidth)+"╯"))
+	return strings.Join(lines, "\n")
 }
 
 func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, contentWidth int) string {
