@@ -125,7 +125,7 @@ Optional metrics:
 
 All terminals:
 - top: connection header + last update/staleness
-- middle: scheduler-insights panel with a compact queue activity summary, then partition, user, and pending-reason sections
+- middle: unframed scheduler dashboard with a compact queue activity summary, then partition, user, and pending-reason sections
 - use the stabilized terminal width without an extra right margin
 - share available detail height fairly across active sections
 
