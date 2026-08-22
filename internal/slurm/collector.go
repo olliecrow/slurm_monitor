@@ -16,7 +16,7 @@ const (
 	// Use tres-alloc instead of %b so GPU demand comes from Slurm's documented
 	// TRES view for both running and pending jobs. The trailing suffixes also
 	// prevent squeue -O from truncating TRES and pending-reason fields.
-	queueCollectCommand = `squeue -h -r -O "JobID:|,State:|,UserName:|,Partition:|,NumCPUs:|,MinMemory:|,tres-alloc:|,Reason:|"`
+	combinedCollectCommand = `scontrol show nodes --oneliner && printf '\n__SLURM_MONITOR_SPLIT__\n' && squeue -h -r -O "JobID:|,State:|,UserName:|,Partition:|,NumCPUs:|,MinMemory:|,tres-alloc:|,Reason:|"`
 
 	maxPendingGPUProbesPerCollect = 4
 )
@@ -36,9 +36,17 @@ func NewCollector(t transport.Transport, commandTimeout time.Duration) *Collecto
 }
 
 func (c *Collector) Collect(ctx context.Context) (Snapshot, error) {
-	queueRaw, err := c.runWithTimeout(ctx, queueCollectCommand)
+	raw, err := c.runWithTimeout(ctx, combinedCollectCommand)
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("collect snapshot: %w", err)
+	}
+	nodesRaw, queueRaw, err := splitCombinedOutput(raw)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	available, err := parseAvailableResources(nodesRaw)
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("parse available resources: %w", err)
 	}
 	probeCtx, cancelProbes := context.WithTimeout(ctx, c.commandTimeout)
 	c.fillPendingGPURequestCache(probeCtx, queueRaw)
@@ -50,12 +58,22 @@ func (c *Collector) Collect(ctx context.Context) (Snapshot, error) {
 
 	return Snapshot{
 		Queue:          queueData.Queue,
+		Available:      available,
 		Partitions:     queueData.Partitions,
 		Users:          queueData.Users,
 		PendingReasons: queueData.PendingReasons,
 		Jobs:           queueData.Jobs,
 		CollectedAt:    time.Now(),
 	}, nil
+}
+
+func splitCombinedOutput(raw string) (nodes string, queue string, err error) {
+	const marker = "__SLURM_MONITOR_SPLIT__"
+	parts := strings.SplitN(raw, marker, 2)
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("unexpected collector output format: split marker missing")
+	}
+	return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]), nil
 }
 
 func (c *Collector) runWithTimeout(ctx context.Context, command string) (string, error) {

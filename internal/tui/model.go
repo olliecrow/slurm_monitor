@@ -323,10 +323,10 @@ func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, c
 		userLineCapacity(len(m.snapshot.Users), expanded),
 		pendingReasonLineCapacity(len(m.snapshot.PendingReasons), expanded),
 	}
-	lines := m.schedulerSummaryLines(m.snapshot.Queue, !expanded, contentWidth)
+	lines := m.schedulerSummaryLines(m.snapshot, !expanded, contentWidth)
 	lines, separatorLines, detailBudgets := allocateInsightLineBudgets(contentHeight, lines, detailCaps)
 	if expanded && (len(m.snapshot.Partitions) == 0 || detailBudgets[0] < widePartitionMinimumLines) {
-		lines = m.schedulerSummaryLines(m.snapshot.Queue, true, contentWidth)
+		lines = m.schedulerSummaryLines(m.snapshot, true, contentWidth)
 		lines, separatorLines, detailBudgets = allocateInsightLineBudgets(contentHeight, lines, detailCaps)
 	}
 
@@ -795,7 +795,8 @@ func userQueueSummary(u slurm.UserSummary) slurm.QueueSummary {
 	}
 }
 
-func (m Model) schedulerSummaryLines(q slurm.QueueSummary, includeResources bool, contentWidth int) []string {
+func (m Model) schedulerSummaryLines(snapshot *slurm.Snapshot, includeResources bool, contentWidth int) []string {
+	q := snapshot.Queue
 	runningJobs := q.RunningCPUJobs + q.RunningGPUJobs
 	pendingJobs := q.PendingCPUJobs + q.PendingGPUJobs
 	title := fmt.Sprintf("Queue · %s jobs · %s running · %s pending", formatCount(q.TotalJobs()), formatCount(runningJobs), formatCount(pendingJobs))
@@ -804,30 +805,53 @@ func (m Model) schedulerSummaryLines(q slurm.QueueSummary, includeResources bool
 	}
 	lines := []string{m.sectionTitle(title)}
 	if !includeResources {
-		return lines
+		return append(lines, availabilitySummaryLines(snapshot.Available, contentWidth)...)
 	}
-	return append(lines, resourceSummaryLines(q.ResourceLoad, contentWidth)...)
+	return append(lines, resourceSummaryLines(q.ResourceLoad, snapshot.Available, contentWidth)...)
 }
 
-func resourceSummaryLines(resources slurm.ResourceTotals, contentWidth int) []string {
+func availabilitySummaryLines(available slurm.AvailableResources, contentWidth int) []string {
+	cpuText := fmt.Sprintf("CPU cores · %s", formatCount(available.CPU))
+	gpuText := fmt.Sprintf("GPUs · %s", formatCount(available.GPU))
+	combined := fmt.Sprintf("Available now · %s   %s", cpuText, gpuText)
+	if lipgloss.Width(combined) <= contentWidth {
+		return []string{combined}
+	}
+	return []string{
+		"Available now",
+		cpuText + " available",
+		gpuText + " available",
+	}
+}
+
+func resourceSummaryLines(resources slurm.ResourceTotals, available slurm.AvailableResources, contentWidth int) []string {
 	runningCPU := formatCount(resources.RunningCPU)
 	pendingCPU := formatCount(resources.PendingCPU)
+	availableCPU := formatCount(available.CPU)
 	runningGPU := formatCount(resources.RunningGPU)
 	pendingGPU := formatCount(resources.PendingGPU)
-	cpuText := fmt.Sprintf("CPU cores · %s in use · %s requested", runningCPU, pendingCPU)
-	gpuText := fmt.Sprintf("GPUs · %s in use · %s requested", runningGPU, pendingGPU)
+	availableGPU := formatCount(available.GPU)
+	cpuText := fmt.Sprintf("CPU cores · %s in use · %s requested · %s available", runningCPU, pendingCPU, availableCPU)
+	gpuText := fmt.Sprintf("GPUs · %s in use · %s requested · %s available", runningGPU, pendingGPU, availableGPU)
 	combined := fmt.Sprintf("Resources · %s   %s", cpuText, gpuText)
 	if lipgloss.Width(combined) <= contentWidth {
 		return []string{combined}
+	}
+	concise := fmt.Sprintf(
+		"Resources · in use / requested / free · CPU cores · %s / %s / %s · GPUs · %s / %s / %s",
+		runningCPU, pendingCPU, availableCPU, runningGPU, pendingGPU, availableGPU,
+	)
+	if lipgloss.Width(concise) <= contentWidth {
+		return []string{concise}
 	}
 	split := []string{"Resources · " + cpuText, strings.Repeat(" ", lipgloss.Width("Resources · ")) + gpuText}
 	if lipgloss.Width(split[0]) <= contentWidth && lipgloss.Width(split[1]) <= contentWidth {
 		return split
 	}
 	return []string{
-		"Resources · in use / requested",
-		fmt.Sprintf("CPU cores · %s / %s", runningCPU, pendingCPU),
-		fmt.Sprintf("GPUs · %s / %s", runningGPU, pendingGPU),
+		"Resources · in use / requested / free",
+		fmt.Sprintf("CPU cores · %s / %s / %s", runningCPU, pendingCPU, availableCPU),
+		fmt.Sprintf("GPUs · %s / %s / %s", runningGPU, pendingGPU, availableGPU),
 	}
 }
 

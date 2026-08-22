@@ -5,6 +5,66 @@ import (
 	"testing"
 )
 
+func TestParseAvailableResourcesCountsOnlySchedulableCapacity(t *testing.T) {
+	raw := strings.Join([]string{
+		"NodeName=idle CPUAlloc=0 CPUEfctv=64 CPUTot=72 State=IDLE CfgTRES=cpu=64,gres/gpu=4 AllocTRES=cpu=0,gres/gpu=0",
+		"NodeName=mixed CPUAlloc=40 CPUEfctv=64 CPUTot=64 State=MIXED CfgTRES=cpu=64,gres/gpu=4 AllocTRES=cpu=40,gres/gpu=2",
+		"NodeName=dynamic CPUAlloc=8 CPUEfctv=32 CPUTot=32 State=MIXED+DYNAMIC_NORM Gres=gpu:a100:2 GresUsed=gpu:a100:1(IDX:0)",
+		"NodeName=allocated CPUAlloc=32 CPUEfctv=64 CPUTot=64 State=ALLOCATED CfgTRES=cpu=64,gres/gpu=8 AllocTRES=cpu=32,gres/gpu=2",
+		"NodeName=draining CPUAlloc=8 CPUEfctv=64 CPUTot=64 State=MIXED+DRAIN CfgTRES=cpu=64,gres/gpu=8 AllocTRES=cpu=8,gres/gpu=1",
+		"NodeName=idle CPUAlloc=0 CPUEfctv=64 CPUTot=72 State=IDLE CfgTRES=cpu=64,gres/gpu=4 AllocTRES=cpu=0,gres/gpu=0",
+	}, "\n")
+
+	got, err := parseAvailableResources(raw)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	want := AvailableResources{CPU: 112, GPU: 7, SchedulableNodes: 3, TotalNodes: 5}
+	if got != want {
+		t.Fatalf("available resources=%+v want=%+v", got, want)
+	}
+}
+
+func TestParseAvailableResourcesClampsOverAllocation(t *testing.T) {
+	got, err := parseAvailableResources("NodeName=over CPUAlloc=12 CPUTot=8 State=MIXED CfgTRES=cpu=8,gres/gpu=2 AllocTRES=cpu=12,gres/gpu=3")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if got.CPU != 0 || got.GPU != 0 {
+		t.Fatalf("expected over-allocation to clamp at zero, got %+v", got)
+	}
+}
+
+func TestParseAvailableResourcesRejectsMissingRequiredFields(t *testing.T) {
+	for _, raw := range []string{
+		"CPUAlloc=0 CPUTot=8 State=IDLE",
+		"NodeName=node-a CPUAlloc=0 CPUTot=8",
+		"NodeName=node-a CPUTot=8 State=IDLE",
+	} {
+		if _, err := parseAvailableResources(raw); err == nil {
+			t.Fatalf("expected malformed node row error for %q", raw)
+		}
+	}
+}
+
+func TestNodeIsSchedulable(t *testing.T) {
+	for state, want := range map[string]bool{
+		"IDLE":               true,
+		"MIXED*":             true,
+		"MIXED+DYNAMIC":      true,
+		"MIXED+DYNAMIC_NORM": true,
+		"ALLOCATED":          false,
+		"IDLE+DRAIN":         false,
+		"MIXED+RESERVED":     false,
+		"IDLE+POWERED_DOWN":  false,
+		"UNKNOWN":            false,
+	} {
+		if got := nodeIsSchedulable(state); got != want {
+			t.Fatalf("nodeIsSchedulable(%q)=%t want=%t", state, got, want)
+		}
+	}
+}
+
 func TestParseQueueLines(t *testing.T) {
 	raw := "" +
 		"1001|RUNNING|alice|gpu|8|20G|cpu=8,mem=20G,gres/gpu=1|None\n" +
