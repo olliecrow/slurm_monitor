@@ -46,20 +46,21 @@ Implementations:
 ### 3) Collector pipeline
 Collectors produce typed data for a `Snapshot`:
 - `QueueSummary`
+- `AvailableResources`
 - `[]PartitionSummary`
 - `[]UserSummary`
 - `[]PendingReasonSummary`
 - `[]JobSummary`
 
 Design principles:
-- one `squeue -r` command per poll tick, using `tres-alloc` and pending reason data
+- one combined read-only `scontrol show nodes --oneliner` and `squeue -r` command per poll tick, using node state/capacity plus queue `tres-alloc` and pending reason data
 - at most four cached `scontrol show job` fallback probes per tick, within one command-timeout budget, and only when a pending row omits TRES details
 - clear parsers with defensive handling for missing optional metrics
 - deterministic parse errors with useful context
 
 ### 4) Snapshot aggregation
 Responsibilities:
-- compute queue totals and resource demand
+- compute queue totals, resource demand, and current cluster availability
 - track freshness timestamps
 - aggregate queue, partition, and user job splits and CPU/GPU resources in running and pending states
 - aggregate pending reasons by affected task and CPU/GPU demand
@@ -115,17 +116,19 @@ Behavior:
 
 ### Command plan
 Use read-only Slurm commands with stable parse contracts:
+- available CPU/GPU capacity from deduplicated `scontrol show nodes --oneliner` rows; count unallocated capacity only on schedulable `IDLE` or `MIXED` nodes without blocking flags
 - queue job counts, resource totals, and pending reasons from `squeue -h -r -O ... tres-alloc ... Reason ...` so job arrays are counted at task granularity and CPU/GPU totals come from Slurm's documented TRES data
 - bounded `scontrol show job -o` fallback probes only when pending rows omit TRES details
 
 Optional metrics:
 - pending GPU demand can require the bounded job-detail fallback when a cluster omits TRES data from pending `squeue` rows.
+- node GPU capacity uses `CfgTRES` and `AllocTRES`, with `Gres` and `GresUsed` as compatibility fallbacks.
 
 ## Rendering layout
 
 All terminals:
 - top: connection header + last update/staleness
-- middle: content-height framed scheduler dashboard with balanced horizontal padding, a compact queue activity summary, then partition, user, and pending-reason sections
+- middle: content-height framed scheduler dashboard with balanced horizontal padding, a compact queue activity and available-capacity summary, then partition, user, and pending-reason sections
 - use the stabilized terminal width without an extra right margin
 - share available detail height fairly across active sections
 - replace available separator rows with horizontal rules connected to the outer frame
@@ -135,7 +138,7 @@ Compact terminals:
 - spend saved header space on additional visible data rows
 
 Short wide terminals:
-- retain queue-wide CPU-core and GPU totals in the summary when the available height cannot fit the full partition grid
+- retain queue-wide CPU-core and GPU in-use, requested, and available totals in the summary when the available height cannot fit the full partition grid
 
 ## Error model
 - fatal startup errors:

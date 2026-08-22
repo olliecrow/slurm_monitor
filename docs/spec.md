@@ -16,7 +16,7 @@ The tool should run for long periods with minimal operator interaction and provi
 - Remote mode via SSH target (alias from SSH config or `user@host` style target).
 - Recovery behavior for transient SSH/network failures.
 - Four primary data views:
-  - scheduler summary view (cluster-level job counts and CPU/GPU resource totals)
+  - scheduler summary view (cluster-level job counts, CPU/GPU resource totals, and current availability)
   - partition view (per-partition job counts and CPU/GPU resource totals)
   - user view (per-user job counts and CPU/GPU resource totals)
   - pending-reason view (scheduler reasons with affected task, CPU, and GPU demand)
@@ -57,7 +57,7 @@ The tool should run for long periods with minimal operator interaction and provi
 - `--port <int>`: optional SSH port override.
 - `--no-color`: disable colored UI output.
 - `--compact`: compact layout for small terminal dimensions.
-- `--once`: collect one snapshot and print a text summary with queue job and resource totals, and top partition, user, pending-reason, and grouped-job rows.
+- `--once`: collect one snapshot and print a text summary with queue job and resource totals, current CPU/GPU availability, and top partition, user, pending-reason, and grouped-job rows.
 - `--duration <duration>`: optional clean auto-exit timer for TUI runs, including while transient startup preflight retries are active.
 
 ## Startup Behavior
@@ -115,9 +115,13 @@ Fields:
 - other jobs count
 - running CPU and GPU resource totals
 - pending CPU and GPU resource demand
+- currently available CPU cores and GPUs
 - queue totals appear in the aggregate partition grid when the full wide partition grid fits, and in a separate resource summary on compact or short wide terminals
 - CPU-core totals include CPU cores assigned to both CPU-only and GPU jobs
 - counts include Slurm job arrays at array-task granularity (each array task counts as one job).
+- available resources are unallocated CPU and GPU capacity on deduplicated nodes in schedulable `IDLE` or `MIXED` states without blocking flags
+- available CPU uses Slurm's effective CPU total when present; available GPU uses configured and allocated node TRES, with node GRES fields as a fallback
+- availability is cluster-level capacity, not a guarantee that a specific job can start; partition, reservation, topology, feature, memory, and policy constraints can still prevent placement.
 
 ### 2) User view
 Per-user fields:
@@ -173,7 +177,7 @@ Per grouped-job fields:
 - Header includes a status spinner so refresh/liveness is visible even when metrics are stable.
 - When the header is narrow, it removes lower-priority fields as complete units instead of cutting labels or values mid-word.
 - Body renders one content-height framed dashboard with queue, partition, user, and pending-reason sections. The frame uses balanced horizontal padding, and unused terminal height stays blank outside it above the pinned footer.
-- The queue summary states total, running, pending, and non-zero other job counts. Wide terminals put detailed queue totals in a bold `All partitions` row when the full grid fits vertically. Compact terminals and short wide terminals add complete CPU-core and GPU resource summaries because their detail rows show job counts only.
+- The queue summary states total, running, pending, and non-zero other job counts. It always shows currently available CPU cores and GPUs. Wide terminals put detailed queue totals in a bold `All partitions` row when the full grid fits vertically. Compact terminals and short wide terminals combine in-use, requested, and free values in a complete CPU-core and GPU resource summary because their detail rows show job counts only.
 - Wide partition and user tables use distinct CPU-only job, GPU job, CPU-core, and GPU groups. Two header rows state `Running` and `Pending` once for job counts and `In use` and `Requested` once for resources. Data rows contain right-aligned numbers only.
 - CPU-core totals include cores assigned to CPU-only and GPU jobs.
 - Wide pending-reason tables align their numeric right edge with the aggregate grids and give remaining width to reason text before truncating it.

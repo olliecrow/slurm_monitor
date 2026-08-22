@@ -216,19 +216,19 @@ func TestSchedulerSummaryRendersJobsAndResourceDemand(t *testing.T) {
 		}
 	}
 	lines := strings.Split(out, "\n")
-	if len(lines) < 3 || lines[1] != "" || !strings.Contains(lines[2], "Partitions") {
+	if len(lines) < 4 || !strings.Contains(lines[1], "Available now") || lines[2] != "" || !strings.Contains(lines[3], "Partitions") {
 		t.Fatalf("expected a blank line between the queue summary and partitions, got: %q", out)
 	}
 }
 
 func TestSchedulerSummaryIncludesResourcesOnlyWhenNeeded(t *testing.T) {
 	m := seededModel()
-	wide := m.schedulerSummaryLines(m.snapshot.Queue, false, 120)
-	if len(wide) != 1 || !strings.Contains(wide[0], "42 running") || strings.Contains(strings.Join(wide, "\n"), "Resources") {
-		t.Fatalf("expected the wide grid to carry detailed queue totals, got: %q", wide)
+	wide := m.schedulerSummaryLines(m.snapshot, false, 120)
+	if len(wide) != 2 || !strings.Contains(wide[0], "42 running") || !strings.Contains(wide[1], "Available now") || strings.Contains(strings.Join(wide, "\n"), "Resources") {
+		t.Fatalf("expected the wide grid to carry detailed queue totals plus availability, got: %q", wide)
 	}
-	compact := m.schedulerSummaryLines(m.snapshot.Queue, true, 40)
-	if len(compact) != 4 || compact[1] != "Resources · in use / requested" || !strings.HasPrefix(compact[2], "CPU cores ·") || !strings.HasPrefix(compact[3], "GPUs ·") {
+	compact := m.schedulerSummaryLines(m.snapshot, true, 40)
+	if len(compact) != 4 || compact[1] != "Resources · in use / requested / free" || !strings.HasPrefix(compact[2], "CPU cores ·") || !strings.HasPrefix(compact[3], "GPUs ·") {
 		t.Fatalf("expected compact mode to retain queue-wide resource totals, got: %q", compact)
 	}
 }
@@ -291,7 +291,7 @@ func TestInsightsPanelSharesTightBudgetAcrossAggregateViews(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		"Partitions · 1 shown · 2 hidden",
+		"Partitions · jobs: running / pending · 2 shown · 1 hidden",
 		"Users · 1 shown · 2 hidden",
 		"Why jobs are pending · 2 shown · 1 hidden",
 	} {
@@ -306,14 +306,28 @@ func TestInsightsPanelSharesTightBudgetAcrossAggregateViews(t *testing.T) {
 
 func TestResourceSummaryKeepsCPUAndGPUValuesDistinct(t *testing.T) {
 	resources := slurm.ResourceTotals{RunningCPU: 1_646, PendingCPU: 1_061, RunningGPU: 93, PendingGPU: 111}
-	if got, want := strings.Join(resourceSummaryLines(resources, 120), "\n"), "Resources · CPU cores · 1,646 in use · 1,061 requested   GPUs · 93 in use · 111 requested"; got != want {
+	available := slurm.AvailableResources{CPU: 384, GPU: 7}
+	if got, want := strings.Join(resourceSummaryLines(resources, available, 160), "\n"), "Resources · CPU cores · 1,646 in use · 1,061 requested · 384 available   GPUs · 93 in use · 111 requested · 7 available"; got != want {
 		t.Fatalf("wide rows=%q want=%q", got, want)
 	}
-	if got, want := strings.Join(resourceSummaryLines(resources, 60), "\n"), "Resources · CPU cores · 1,646 in use · 1,061 requested\n            GPUs · 93 in use · 111 requested"; got != want {
+	if got, want := strings.Join(resourceSummaryLines(resources, available, 110), "\n"), "Resources · in use / requested / free · CPU cores · 1,646 / 1,061 / 384 · GPUs · 93 / 111 / 7"; got != want {
+		t.Fatalf("concise rows=%q want=%q", got, want)
+	}
+	if got, want := strings.Join(resourceSummaryLines(resources, available, 80), "\n"), "Resources · CPU cores · 1,646 in use · 1,061 requested · 384 available\n            GPUs · 93 in use · 111 requested · 7 available"; got != want {
 		t.Fatalf("narrow rows=%q want=%q", got, want)
 	}
-	if got, want := strings.Join(resourceSummaryLines(resources, 40), "\n"), "Resources · in use / requested\nCPU cores · 1,646 / 1,061\nGPUs · 93 / 111"; got != want {
+	if got, want := strings.Join(resourceSummaryLines(resources, available, 40), "\n"), "Resources · in use / requested / free\nCPU cores · 1,646 / 1,061 / 384\nGPUs · 93 / 111 / 7"; got != want {
 		t.Fatalf("very narrow rows=%q want=%q", got, want)
+	}
+}
+
+func TestAvailabilitySummarySplitsWithoutLosingValues(t *testing.T) {
+	available := slurm.AvailableResources{CPU: 1_040, GPU: 87}
+	if got, want := strings.Join(availabilitySummaryLines(available, 80), "\n"), "Available now · CPU cores · 1,040   GPUs · 87"; got != want {
+		t.Fatalf("wide rows=%q want=%q", got, want)
+	}
+	if got, want := strings.Join(availabilitySummaryLines(available, 30), "\n"), "Available now\nCPU cores · 1,040 available\nGPUs · 87 available"; got != want {
+		t.Fatalf("narrow rows=%q want=%q", got, want)
 	}
 }
 
@@ -401,8 +415,8 @@ func TestTightWideViewRetainsQueueResourceTotals(t *testing.T) {
 
 	out := m.renderInsightsPanelWithBudget(9, true, 99)
 	for _, want := range []string{
-		"Resources · CPU cores · 640 in use · 96 requested",
-		"GPUs · 38 in use · 8 requested",
+		"CPU cores · 640 / 96 / 384",
+		"GPUs · 38 / 8 / 7",
 		"gpu",
 		"alice",
 		"Waiting for resources",
@@ -1066,6 +1080,7 @@ func sampleSnapshot() slurm.Snapshot {
 				PendingGPU: 8,
 			},
 		},
+		Available: slurm.AvailableResources{CPU: 384, GPU: 7, SchedulableNodes: 6, TotalNodes: 8},
 		Partitions: []slurm.PartitionSummary{
 			{Name: "gpu", Queue: slurm.QueueSummary{RunningGPUJobs: 28, PendingGPUJobs: 3, ResourceLoad: slurm.ResourceTotals{RunningCPU: 420, PendingCPU: 64, RunningGPU: 38, PendingGPU: 8}}},
 			{Name: "cpu", Queue: slurm.QueueSummary{RunningCPUJobs: 14, PendingCPUJobs: 2, ResourceLoad: slurm.ResourceTotals{RunningCPU: 220, PendingCPU: 32}}},

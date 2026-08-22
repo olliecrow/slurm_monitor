@@ -42,13 +42,15 @@ Enforcement: typed missing-command errors and transport retry classification gat
 
 References: `internal/app/app.go`, `internal/monitor/monitor.go`, `internal/transport/transport.go`, `docs/architecture.md`.
 
-## Count array tasks and use Slurm TRES as the resource source
+## Count array tasks and preserve Slurm resource semantics
 
 Collapsed job-array rows undercount schedulable work. `squeue -r` expands tasks so queue, partition, and user job counts reflect task granularity.
 
 CPU/GPU resource totals come from `tres-alloc`, which is the Slurm field for allocated or requested TRES. Some pending rows omit TRES detail, so the collector may use cached `scontrol show job` data for the affected root job. That fallback is limited to four probes per collection and one shared command-timeout budget so missing detail cannot create an unbounded poll.
 
-Enforcement: the collector command includes `squeue -r` and `tres-alloc`; tests lock the command shape, fallback conditions, and probe limit.
+Current availability comes from one node query, not queue subtraction. Nodes are deduplicated before aggregation. CPU availability uses `CPUEfctv` when present and otherwise `CPUTot`, less `CPUAlloc`. GPU availability uses configured TRES less allocated TRES, with node GRES fields as a compatibility fallback. Only `IDLE` and `MIXED` nodes without blocking state flags contribute. This prevents down, drained, reserved, powered-down, and other unavailable capacity from appearing free. These totals describe cluster-wide schedulable capacity, but placement constraints can still prevent a specific job from using it.
+
+Enforcement: the collector command includes read-only node data, `squeue -r`, and `tres-alloc`; tests lock the command shape, node-state and resource parsing, fallback conditions, and probe limit.
 
 References: `internal/slurm/collector.go`, `internal/slurm/collector_test.go`, `internal/slurm/parse.go`.
 
@@ -58,7 +60,7 @@ The display has queue summary, partition, user, and pending-reason sections. A c
 
 The interactive display omits individual jobs because partition, user, and pending-reason aggregates explain scheduler pressure with less churn and visual noise. The `--once` report retains grouped root jobs for detailed non-interactive diagnostics. Partition ordering surfaces pending pressure before current load. Pending-reason ordering surfaces the largest GPU and CPU demand.
 
-The queue summary states total, running, pending, and non-zero other job counts. On wide terminals with enough height, a bold `All partitions` row supplies detailed queue totals in the same grid as partition data. Compact terminals and short wide terminals use a separate resource summary because their detail rows show job counts only. CPU-core totals cover both CPU-only and GPU jobs.
+The queue summary states total, running, pending, and non-zero other job counts plus current CPU/GPU availability. On wide terminals with enough height, a bold `All partitions` row supplies detailed queue totals in the same grid as partition data. Compact terminals and short wide terminals use a separate resource summary with in-use, requested, and free values because their detail rows show job counts only. CPU-core totals cover both CPU-only and GPU jobs.
 
 The TUI translates stable common Slurm pending-reason codes into plain language and preserves unknown reason text. Long prose reasons clip at a word boundary when space permits, without changing fixed table-label clipping. The `--once` report keeps raw reason values for diagnostics and downstream parsing. Compact pending-reason details use singular task and resource labels only for one.
 
