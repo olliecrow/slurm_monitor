@@ -12,6 +12,7 @@ func TestParseAvailableResourcesCountsOnlySchedulableCapacity(t *testing.T) {
 		"NodeName=dynamic CPUAlloc=8 CPUEfctv=32 CPUTot=32 State=MIXED+DYNAMIC_NORM Gres=gpu:a100:2 GresUsed=gpu:a100:1(IDX:0)",
 		"NodeName=allocated CPUAlloc=32 CPUEfctv=64 CPUTot=64 State=ALLOCATED CfgTRES=cpu=64,gres/gpu=8 AllocTRES=cpu=32,gres/gpu=2",
 		"NodeName=draining CPUAlloc=8 CPUEfctv=64 CPUTot=64 State=MIXED+DRAIN CfgTRES=cpu=64,gres/gpu=8 AllocTRES=cpu=8,gres/gpu=1",
+		"NodeName=unresponsive CPUAlloc=0 CPUEfctv=64 CPUTot=64 State=IDLE* CfgTRES=cpu=64,gres/gpu=8 AllocTRES=cpu=0,gres/gpu=0",
 		"NodeName=idle CPUAlloc=0 CPUEfctv=64 CPUTot=72 State=IDLE CfgTRES=cpu=64,gres/gpu=4 AllocTRES=cpu=0,gres/gpu=0",
 	}, "\n")
 
@@ -19,7 +20,7 @@ func TestParseAvailableResourcesCountsOnlySchedulableCapacity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	want := AvailableResources{CPU: 112, GPU: 7, SchedulableNodes: 3, TotalNodes: 5}
+	want := AvailableResources{CPU: 112, GPU: 7, SchedulableNodes: 3, TotalNodes: 6}
 	if got != want {
 		t.Fatalf("available resources=%+v want=%+v", got, want)
 	}
@@ -50,10 +51,19 @@ func TestParseAvailableResourcesRejectsMissingRequiredFields(t *testing.T) {
 func TestNodeIsSchedulable(t *testing.T) {
 	for state, want := range map[string]bool{
 		"IDLE":               true,
-		"MIXED*":             true,
 		"MIXED+DYNAMIC":      true,
 		"MIXED+DYNAMIC_NORM": true,
 		"ALLOCATED":          false,
+		"IDLE*":              false,
+		"MIXED*":             false,
+		"IDLE~":              false,
+		"IDLE#":              false,
+		"IDLE!":              false,
+		"IDLE%":              false,
+		"IDLE$":              false,
+		"IDLE@":              false,
+		"IDLE^":              false,
+		"IDLE-":              false,
 		"IDLE+DRAIN":         false,
 		"MIXED+RESERVED":     false,
 		"IDLE+POWERED_DOWN":  false,
