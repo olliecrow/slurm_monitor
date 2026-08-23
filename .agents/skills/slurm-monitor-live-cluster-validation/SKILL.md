@@ -1,9 +1,9 @@
 ---
-name: live-cluster-validation
+name: slurm-monitor-live-cluster-validation
 description: Validate slurm_monitor against an explicitly authorized live Slurm SSH target after runtime, parser, transport, or TUI changes. Use for bounded read-only checks; never use it to mutate Slurm or network state.
 ---
 
-# Live Cluster Validation
+# slurm_monitor Live Cluster Validation
 
 Prove changed behavior against a real cluster without exposing or changing cluster state.
 
