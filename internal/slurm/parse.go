@@ -71,7 +71,6 @@ func parseKVLine(line string) map[string]string {
 
 func nodeIsSchedulable(rawState string) bool {
 	state := strings.ToUpper(strings.TrimSpace(rawState))
-	state = strings.TrimRight(state, "*~#%$@^!-")
 	parts := strings.Split(state, "+")
 	if parts[0] != "IDLE" && parts[0] != "MIXED" {
 		return false
