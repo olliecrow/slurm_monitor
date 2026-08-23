@@ -10,6 +10,80 @@ import (
 var numPrefixRe = regexp.MustCompile(`^-?\d+`)
 var gpuResourceRe = regexp.MustCompile(`^(gres/)?gpu(?::([^:=,()]+))?[:=]([0-9]+)`)
 
+func parseAvailableResources(raw string) (AvailableResources, error) {
+	var available AvailableResources
+	seenNodes := make(map[string]struct{})
+	for lineIndex, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		fields := parseKVLine(line)
+		nodeName := fields["NodeName"]
+		if nodeName == "" {
+			return AvailableResources{}, fmt.Errorf("node row %d: missing NodeName", lineIndex+1)
+		}
+		if _, seen := seenNodes[nodeName]; seen {
+			continue
+		}
+		seenNodes[nodeName] = struct{}{}
+		if fields["State"] == "" {
+			return AvailableResources{}, fmt.Errorf("node row %d: missing State", lineIndex+1)
+		}
+		cpuTotalRaw := fields["CPUEfctv"]
+		if cpuTotalRaw == "" {
+			cpuTotalRaw = fields["CPUTot"]
+		}
+		if cpuTotalRaw == "" || fields["CPUAlloc"] == "" {
+			return AvailableResources{}, fmt.Errorf("node row %d: missing CPU capacity fields", lineIndex+1)
+		}
+
+		available.TotalNodes++
+		if !nodeIsSchedulable(fields["State"]) {
+			continue
+		}
+		available.SchedulableNodes++
+		available.CPU += max(0, parseInt(cpuTotalRaw)-parseInt(fields["CPUAlloc"]))
+
+		gpuTotalRaw := fields["CfgTRES"]
+		if parseGPUCount(gpuTotalRaw) == 0 {
+			gpuTotalRaw = fields["Gres"]
+		}
+		gpuAllocRaw := fields["AllocTRES"]
+		if parseGPUCount(gpuAllocRaw) == 0 {
+			gpuAllocRaw = fields["GresUsed"]
+		}
+		available.GPU += max(0, parseGPUCount(gpuTotalRaw)-parseGPUCount(gpuAllocRaw))
+	}
+	return available, nil
+}
+
+func parseKVLine(line string) map[string]string {
+	out := make(map[string]string)
+	for _, token := range strings.Fields(line) {
+		parts := strings.SplitN(token, "=", 2)
+		if len(parts) == 2 {
+			out[parts[0]] = parts[1]
+		}
+	}
+	return out
+}
+
+func nodeIsSchedulable(rawState string) bool {
+	state := strings.ToUpper(strings.TrimSpace(rawState))
+	state = strings.TrimRight(state, "*~#%$@^!-")
+	parts := strings.Split(state, "+")
+	if parts[0] != "IDLE" && parts[0] != "MIXED" {
+		return false
+	}
+	for _, flag := range parts[1:] {
+		if flag != "DYNAMIC" && flag != "DYNAMIC_NORM" {
+			return false
+		}
+	}
+	return true
+}
+
 type queueData struct {
 	Queue          QueueSummary
 	Partitions     []PartitionSummary

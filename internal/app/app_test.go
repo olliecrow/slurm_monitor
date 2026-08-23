@@ -230,6 +230,8 @@ func TestMonitorDurationExpiryIsCleanOnlyForInteractiveMonitor(t *testing.T) {
 
 func TestRunOncePrintsQueueAndUserCPUAndGPUSplit(t *testing.T) {
 	raw := strings.Join([]string{
+		"NodeName=node-a CPUAlloc=24 CPUEfctv=32 CPUTot=32 State=MIXED CfgTRES=cpu=32,gres/gpu=4 AllocTRES=cpu=24,gres/gpu=1",
+		"__SLURM_MONITOR_SPLIT__",
 		"1001|RUNNING|alice|gpu|8|20G|cpu=8,mem=20G,gres/gpu=1|None",
 		"1002|PENDING|alice|cpu|4|10G|cpu=4,mem=10G|Priority",
 	}, "\n")
@@ -248,6 +250,9 @@ func TestRunOncePrintsQueueAndUserCPUAndGPUSplit(t *testing.T) {
 	}
 	if !strings.Contains(out, "queue_resources: running_cpu=8 running_gpu=1 pending_cpu=4 pending_gpu=0") {
 		t.Fatalf("expected queue resource totals in output, got: %q", out)
+	}
+	if !strings.Contains(out, "available_resources: cpu=8 gpu=3 schedulable_nodes=1 total_nodes=1") {
+		t.Fatalf("expected available resource totals in output, got: %q", out)
 	}
 	if !strings.Contains(out, "alice running_cpu=8 running_gpu=1 running_cpu_jobs=0 running_gpu_jobs=1 pending_cpu_jobs=1 pending_gpu_jobs=0 pending_cpu=4 pending_gpu=0") {
 		t.Fatalf("expected user resource and cpu/gpu job split in output, got: %q", out)

@@ -10,24 +10,40 @@ import (
 	"github.com/olliecrow/slurm_monitor/internal/transport"
 )
 
-func TestQueueCollectCommandExpandsArrayTasksAndIncludesReasons(t *testing.T) {
-	if strings.Contains(queueCollectCommand, "scontrol show node") {
-		t.Fatalf("queue collect command must not collect nodes: %q", queueCollectCommand)
+func TestCombinedCollectCommandIncludesNodesAndExpandedQueue(t *testing.T) {
+	if !strings.Contains(combinedCollectCommand, "scontrol show nodes --oneliner") {
+		t.Fatalf("collect command must include read-only node data: %q", combinedCollectCommand)
 	}
-	if !strings.Contains(queueCollectCommand, "squeue -h -r ") {
-		t.Fatalf("queue collect command must include squeue -r to expand arrays: %q", queueCollectCommand)
+	if !strings.Contains(combinedCollectCommand, "__SLURM_MONITOR_SPLIT__") {
+		t.Fatalf("collect command must delimit node and queue data: %q", combinedCollectCommand)
 	}
-	if !strings.Contains(queueCollectCommand, "tres-alloc:|") {
-		t.Fatalf("queue collect command must include untruncated tres-alloc output: %q", queueCollectCommand)
+	if !strings.Contains(combinedCollectCommand, "squeue -h -r ") {
+		t.Fatalf("queue collect command must include squeue -r to expand arrays: %q", combinedCollectCommand)
 	}
-	if !strings.Contains(queueCollectCommand, "Partition:|") {
-		t.Fatalf("queue collect command must include partition data: %q", queueCollectCommand)
+	if !strings.Contains(combinedCollectCommand, "tres-alloc:|") {
+		t.Fatalf("queue collect command must include untruncated tres-alloc output: %q", combinedCollectCommand)
 	}
-	if !strings.Contains(queueCollectCommand, "Reason:|") {
-		t.Fatalf("queue collect command must include untruncated pending reasons: %q", queueCollectCommand)
+	if !strings.Contains(combinedCollectCommand, "Partition:|") {
+		t.Fatalf("queue collect command must include partition data: %q", combinedCollectCommand)
 	}
-	if strings.Contains(queueCollectCommand, "%b") {
-		t.Fatalf("queue collect command must not rely on %%b for GPU totals: %q", queueCollectCommand)
+	if !strings.Contains(combinedCollectCommand, "Reason:|") {
+		t.Fatalf("queue collect command must include untruncated pending reasons: %q", combinedCollectCommand)
+	}
+	if strings.Contains(combinedCollectCommand, "%b") {
+		t.Fatalf("queue collect command must not rely on %%b for GPU totals: %q", combinedCollectCommand)
+	}
+}
+
+func TestSplitCombinedOutput(t *testing.T) {
+	nodes, queue, err := splitCombinedOutput("NodeName=node-a\n__SLURM_MONITOR_SPLIT__\n1001|RUNNING")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if nodes != "NodeName=node-a" || queue != "1001|RUNNING" {
+		t.Fatalf("unexpected split output: nodes=%q queue=%q", nodes, queue)
+	}
+	if _, _, err := splitCombinedOutput("missing marker"); err == nil {
+		t.Fatal("expected missing marker error")
 	}
 }
 

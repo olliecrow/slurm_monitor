@@ -58,11 +58,20 @@ type JobSummary struct {
 
 type Snapshot struct {
 	Queue          QueueSummary
+	Available      AvailableResources
 	Partitions     []PartitionSummary
 	Users          []UserSummary
 	PendingReasons []PendingReasonSummary
 	Jobs           []JobSummary
 	CollectedAt    time.Time
+}
+
+type AvailableResources struct {
+	CPU int
+	GPU int
+
+	SchedulableNodes int
+	TotalNodes       int
 }
 
 type ResourceTotals struct {
