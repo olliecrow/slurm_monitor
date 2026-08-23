@@ -232,6 +232,14 @@ func runOnce(ctx context.Context, collector *slurm.Collector, source string) err
 		snapshot.Queue.ResourceLoad.PendingCPU,
 		snapshot.Queue.ResourceLoad.PendingGPU,
 	)
+	fmt.Fprintf(
+		os.Stdout,
+		"available_resources: cpu=%d gpu=%d schedulable_nodes=%d total_nodes=%d\n",
+		snapshot.Available.CPU,
+		snapshot.Available.GPU,
+		snapshot.Available.SchedulableNodes,
+		snapshot.Available.TotalNodes,
+	)
 
 	partitions := append([]slurm.PartitionSummary(nil), snapshot.Partitions...)
 	slurm.SortPartitionsForDisplay(partitions)
