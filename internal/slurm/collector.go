@@ -11,11 +11,9 @@ import (
 )
 
 const (
-	// Use -r so job arrays are expanded one task per line; this keeps queue/user
-	// counts and requested/allocated CPU/GPU demand accurate for large arrays.
-	// Use tres-alloc instead of %b so GPU demand comes from Slurm's documented
-	// TRES view for both running and pending jobs. The trailing suffixes also
-	// prevent squeue -O from truncating TRES and pending-reason fields.
+	// -r expands each array task onto its own row, so task and resource totals
+	// do not undercount arrays. tres-alloc supplies Slurm's running and pending
+	// TRES values. The trailing colons prevent -O from truncating TRES and reasons.
 	combinedCollectCommand = `scontrol show nodes --oneliner && printf '\n__SLURM_MONITOR_SPLIT__\n' && squeue -h -r -O "JobID:|,State:|,UserName:|,Partition:|,NumCPUs:|,MinMemory:|,tres-alloc:|,Reason:|"`
 
 	maxPendingGPUProbesPerCollect = 4

@@ -2,8 +2,7 @@ package slurm
 
 import "sort"
 
-// SortUsersForDisplay keeps the biggest current holders near the top while
-// still using pending demand as a tie-breaker.
+// SortUsersForDisplay orders running GPU and CPU allocations before pending demand.
 func SortUsersForDisplay(users []UserSummary) {
 	sort.Slice(users, func(i, j int) bool {
 		if users[i].RunningGPU != users[j].RunningGPU {

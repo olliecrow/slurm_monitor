@@ -2,8 +2,7 @@ package slurm
 
 import "sort"
 
-// SortPartitionsForDisplay puts the partitions with the most queued GPU and
-// CPU work first, followed by the partitions with the largest current load.
+// SortPartitionsForDisplay orders queued demand before current load.
 func SortPartitionsForDisplay(partitions []PartitionSummary) {
 	sort.Slice(partitions, func(i, j int) bool {
 		a := partitions[i].Queue
@@ -27,8 +26,7 @@ func SortPartitionsForDisplay(partitions []PartitionSummary) {
 	})
 }
 
-// SortPendingReasonsForDisplay surfaces the reasons that strand the largest
-// GPU and CPU requests, followed by the reasons that affect the most tasks.
+// SortPendingReasonsForDisplay orders GPU demand, CPU demand, then task count.
 func SortPendingReasonsForDisplay(reasons []PendingReasonSummary) {
 	sort.Slice(reasons, func(i, j int) bool {
 		a, b := reasons[i], reasons[j]
@@ -45,8 +43,8 @@ func SortPendingReasonsForDisplay(reasons []PendingReasonSummary) {
 	})
 }
 
-// SortJobsForDisplay surfaces queued GPU work, running GPU work, queued CPU
-// work, and running CPU work in that order. Larger grouped jobs sort first.
+// SortJobsForDisplay orders pending GPU, running GPU, pending CPU, then running
+// CPU work. Larger grouped jobs sort first within each class.
 func SortJobsForDisplay(jobs []JobSummary) {
 	sort.Slice(jobs, func(i, j int) bool {
 		a, b := jobs[i], jobs[j]
