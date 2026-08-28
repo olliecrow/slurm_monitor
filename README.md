@@ -1,24 +1,15 @@
 # slurm_monitor
 
-`slurm_monitor` is a terminal-first monitor for Slurm clusters.
-It supports local mode and remote mode over SSH, and it stays read only.
+`slurm_monitor` shows Slurm scheduler activity and queue pressure in a terminal. It runs locally or over SSH and never changes Slurm state.
 
-## Current status
+## What it shows
 
-This project is actively maintained for read-only cluster monitoring workflows.
-
-## What this project is trying to achieve
-
-Give you a clear live view of scheduler activity and queue pressure without running any mutating Slurm commands.
-
-## What you experience as a user
-
-1. Run the tool locally on a cluster node, or remotely over SSH.
-2. See a live terminal user interface (TUI) with cluster, partition, user, and pending-reason insights.
-3. See currently available CPU cores and GPUs beside active use and queued demand.
-4. Compare CPU-only jobs, GPU jobs, CPU-core pressure, and GPU pressure in aligned plain-language groups.
-5. Keep monitoring through transient SSH or network failures, with automatic retries.
-6. On very large clusters, tables state how many rows are shown and hidden so the terminal stays stable.
+1. Run locally on a cluster node or remotely over SSH.
+2. View queue totals and partition, user, and pending-reason breakdowns.
+3. Compare CPU and GPU use, queued demand, and available capacity.
+4. Keep CPU-only and GPU job counts separate from CPU-core and GPU totals.
+5. Continue monitoring while the tool retries transient SSH or network failures.
+6. On large clusters, each clipped table states how many rows it shows and hides.
 
 ## Requirements
 
@@ -26,12 +17,12 @@ Give you a clear live view of scheduler activity and queue pressure without runn
 - POSIX `sh` available on the operator host and remote target environment
 - Slurm CLI tools available on target environment (`squeue`, `scontrol`)
 - OpenSSH `ssh` available for remote mode
-- supported operator platforms: macOS and Linux only
+- macOS or Linux on the operator host
 
-## Security guardrails for public/open-source readiness
+## Repository security checks
 
 - `gitleaks` runs in local pre-commit hooks and in GitHub Actions.
-- Staged files and commit messages are blocked if they contain personal contact details, local absolute paths, or credential-like values.
+- Staged files and commit messages are blocked if they contain personal contact details, user-home path prefixes, or credential-like values.
 - Commits must use a GitHub no-reply or reserved example address for author and committer metadata.
 - Outbound pushes are blocked locally when new identities, messages, or added lines violate the same policy.
 - Pull request titles and descriptions are checked in CI.
@@ -122,7 +113,7 @@ Run one-shot collection.
 go run ./cmd/slurm-monitor --once cluster_alias
 ```
 
-`--once` prints queue job and resource totals, currently available CPU/GPU capacity, top partition, user, and pending-reason rows, and grouped root jobs. Array-task counts stay task-granular; the job list groups matching tasks to stay useful on large arrays.
+`--once` prints queue job and resource totals, available CPU and GPU capacity, and up to 10 rows from each sorted partition, user, pending-reason, and grouped-job list. Queue counts include each array task. The job list groups tasks only when root job, user, partition, state, and pending reason match.
 
 ## Doctor output example
 
@@ -162,7 +153,7 @@ planned sequence:
 dry-run only: no local or remote commands were executed.
 ```
 
-## Helpful options
+## Common options
 
 - `--refresh <duration>`, default `2s`
 - `--connect-timeout <duration>`, default `10s`
@@ -175,11 +166,11 @@ dry-run only: no local or remote commands were executed.
 - `--once`
 - `--duration <duration>` cleanly stops the monitor at its deadline, including during transient startup retries
 
-## Known limitations
+## Limitations
 
-- Read-only monitor only; it does not support queue mutation actions.
+- The monitor cannot cancel, requeue, hold, release, or submit jobs.
 - Remote mode requires working OpenSSH access and remote Slurm command availability.
-- Very large clusters are intentionally summarized in capped top slices with explicit hidden-row counts.
+- Large clusters use capped tables that state how many rows are hidden.
 
 ## Completion command
 
@@ -188,13 +179,13 @@ dry-run only: no local or remote commands were executed.
 
 ## Optional shell alias
 
-If `slurm-monitor` is in your `PATH`.
+If `slurm-monitor` is in your `PATH`, use:
 
 ```bash
 alias slurm_monitor='slurm-monitor'
 ```
 
-If you prefer to run from this repo.
+To run from this repository, use:
 
 ```bash
 alias slurm_monitor='go run /path/to/slurm_monitor/cmd/slurm-monitor'

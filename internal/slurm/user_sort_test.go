@@ -12,12 +12,12 @@ func TestSortUsersForDisplay(t *testing.T) {
 
 	SortUsersForDisplay(users)
 	if users[0].User != "alice" {
-		t.Fatalf("expected alice first by held gpu, got %s", users[0].User)
+		t.Fatalf("expected alice first by running GPU allocation, got %s", users[0].User)
 	}
 	if users[1].User != "carol" {
-		t.Fatalf("expected carol second by held gpu, got %s", users[1].User)
+		t.Fatalf("expected carol second by running GPU allocation, got %s", users[1].User)
 	}
 	if users[2].User != "bob" {
-		t.Fatalf("expected bob ahead of pure-pending user by held cpu, got %s", users[2].User)
+		t.Fatalf("expected bob ahead of a pending-only user by running CPU allocation, got %s", users[2].User)
 	}
 }

@@ -12,8 +12,8 @@
 - Preserve local and system-OpenSSH transports, POSIX `sh -lc`, standard SSH config/agent/key behavior, aliases, `user@host`, ProxyJump, and optional identity/config/port overrides. Never accept password flags or persist credentials.
 - Fail fast for invalid arguments, missing capabilities, and permanent auth/config/parser failures. Retry only transient transport failures, keep the last good snapshot visible, and retain explicit stale/recovery state.
 - Count arrays at task granularity with `squeue -r`; use Slurm `tres-alloc` for queue CPU/GPU totals and keep the bounded job-detail fallback where required.
-- Preserve scheduler resource semantics, deterministic clipping metadata, fair section budgets, resize behavior, and terminal restoration.
-- Keep public surfaces free of secrets, private targets, machine paths, confidential cluster details, and sensitive logs.
+- Preserve Slurm resource semantics, the `X shown · N hidden` clipping labels, round-robin section row allocation, resize behavior, and terminal restoration.
+- Keep tracked files and published output free of secrets, private targets, machine paths, confidential cluster details, and sensitive logs.
 
 ## Development and verification
 

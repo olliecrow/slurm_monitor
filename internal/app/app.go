@@ -17,8 +17,7 @@ import (
 	"github.com/olliecrow/slurm_monitor/internal/tui"
 )
 
-// missingSlurmCommandsError is typed so retry classification is stable and
-// does not depend on brittle string matching.
+// missingSlurmCommandsError lets retry classification avoid string matching.
 type missingSlurmCommandsError struct {
 	source  string
 	missing string
@@ -35,7 +34,6 @@ func Run(cfg config.Config) error {
 	case config.CommandDryRun:
 		return RunDryRun(cfg, os.Stdout)
 	case config.CommandMonitor:
-		// Continue into monitor execution.
 	default:
 		return fmt.Errorf("unsupported command: %s", cfg.Command)
 	}
