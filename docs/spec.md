@@ -1,11 +1,12 @@
-# Product Spec
+# Product specification
 
 ## Goal
-Build a resilient CLI/TUI monitor for Slurm that can run:
-- locally on a host with Slurm CLI access, or
-- remotely over SSH with robust recovery from network drops and SSH failures.
 
-The tool should run for long periods with minimal operator interaction and provide a clear live view of scheduler activity and queue pressure.
+Build a CLI/TUI monitor for Slurm that can run:
+- locally on a host with Slurm CLI access, or
+- remotely over SSH, with automatic recovery from transient network and SSH failures.
+
+The tool runs until the operator stops it or its configured duration expires. It shows scheduler activity and queue pressure without changing Slurm state.
 
 ## Scope
 
@@ -20,15 +21,15 @@ The tool should run for long periods with minimal operator interaction and provi
   - partition view (per-partition job counts and CPU/GPU resource totals)
   - user view (per-user job counts and CPU/GPU resource totals)
   - pending-reason view (scheduler reasons with affected task, CPU, and GPU demand)
-- Queue labels must make it clear these are job or array-task counts, not held CPU or GPU resource totals.
-- Clear connectivity status indicators in the UI.
+- Queue labels must identify job or array-task counts and distinguish them from CPU and GPU resource totals.
+- Connectivity state and retry timing in the UI.
 
 ### Out of scope
 - Mutating Slurm state (cancel/requeue/hold/release).
 - Embedding credentials in files or CLI history.
 - Replacing OpenSSH with a custom SSH stack.
 
-## CLI Contract
+## CLI contract
 
 ### Invocation
 - `slurm-monitor`
@@ -45,10 +46,10 @@ The tool should run for long periods with minimal operator interaction and provi
   - prints a self-contained usage guide with mode behavior, retry semantics, auth model, flags, and examples.
 
 ### Argument errors
-- Invalid argument combinations or unknown flags must return actionable errors.
+- Invalid argument combinations or unknown flags must state the violated argument rule.
 - Parse errors must direct users to `slurm-monitor --help`.
 
-### Core flags
+### Main flags
 - `--refresh <duration>`: poll interval (default `2s`).
 - `--connect-timeout <duration>`: SSH command connect timeout.
 - `--command-timeout <duration>`: per poll command timeout.
@@ -60,7 +61,7 @@ The tool should run for long periods with minimal operator interaction and provi
 - `--once`: collect one snapshot and print a text summary with queue job and resource totals, current CPU/GPU availability, and top partition, user, pending-reason, and grouped-job rows.
 - `--duration <duration>`: optional clean auto-exit timer for TUI runs, including while transient startup preflight retries are active.
 
-## Startup Behavior
+## Startup behavior
 
 ### Mode selection
 - If no target is provided, run local checks and start local mode.
@@ -70,10 +71,10 @@ The tool should run for long periods with minimal operator interaction and provi
 - Required commands: `squeue`, `scontrol`.
 - Command execution uses POSIX `sh -lc` in both local and remote modes.
 - Local mode:
-  - if `sh` or required Slurm commands are missing locally, exit with a clear error.
+  - if `sh` or a required Slurm command is missing locally, name the missing command and exit.
 - Remote mode:
   - run capability check remotely via SSH through `sh -lc`.
-  - if the remote shell contract or required Slurm commands are missing, exit with a clear error.
+  - if the remote shell contract fails or a required Slurm command is missing, identify the failed capability and exit.
 
 ### Failure semantics
 - Non-recoverable startup failures are fatal:
@@ -86,7 +87,7 @@ The tool should run for long periods with minimal operator interaction and provi
   - transient transport failures continue retrying with staleness and retry markers.
   - permanent transport/parser-contract failures stop retrying and leave the UI disconnected until operator quit.
 
-## Helper Command Behavior
+## Helper command behavior
 
 ### `doctor`
 - Runs one preflight pass and exits.
@@ -104,7 +105,7 @@ The tool should run for long periods with minimal operator interaction and provi
 - Does not execute local or remote Slurm commands.
 - Exits non-zero on unsupported shells or invalid argument counts.
 
-## Runtime Data Contract
+## Runtime data contract
 
 ### 1) Scheduler summary view
 Fields:
@@ -135,7 +136,7 @@ Per-user fields:
 - running CPU-job count + running GPU-job count equals running count for each user.
 - pending CPU-job count + pending GPU-job count equals pending count for each user.
 - job-type counts include Slurm job arrays at array-task granularity.
-- default user ordering should keep the biggest current holders near the top, with pending demand used as a tie-breaker.
+- default user ordering puts the largest running GPU and CPU allocations first, then uses running job counts and pending demand as tie-breakers.
 
 ### 3) Partition view
 Per-partition fields:
@@ -145,7 +146,7 @@ Per-partition fields:
 - pending CPU-job count
 - pending GPU-job count
 - counts and resource totals use the same task-granular rules as the scheduler summary.
-- default ordering surfaces pending GPU pressure, pending CPU pressure, then current GPU and CPU load.
+- default ordering sorts by pending GPU pressure, pending CPU pressure, then current GPU and CPU load.
 
 ### 4) Pending-reason view
 Per-reason fields:
@@ -154,7 +155,7 @@ Per-reason fields:
 - total pending CPU demand
 - total pending GPU demand
 - blank or unavailable reasons appear as `<unknown>`.
-- default ordering surfaces GPU demand, CPU demand, then affected task count.
+- default ordering sorts by GPU demand, CPU demand, then affected task count.
 
 ### Grouped job details (`--once` only)
 Per grouped-job fields:
@@ -166,9 +167,9 @@ Per grouped-job fields:
 - matching array-task count
 - total requested or allocated CPU and GPU resources across those tasks
 - array tasks are grouped only when root job, user, partition, state, and pending reason match.
-- default ordering surfaces pending GPU work, running GPU work, pending CPU work, then running CPU work; larger grouped jobs sort first within each class.
+- default ordering sorts pending GPU work, running GPU work, pending CPU work, then running CPU work; larger grouped jobs sort first within each class.
 
-## TUI Behavior
+## TUI behavior
 - Full-screen layout.
 - Dynamic resize handling for width/height changes.
 - Live updates without requiring restart.
@@ -185,10 +186,10 @@ Per grouped-job fields:
 - Wide tables use their natural width instead of stretching across the terminal. Group widths stay stable through normal count growth, and thousands separators make large values easier to scan.
 - Compact partition and user sections identify their values as `running / pending` job counts, omit table headers and resource columns, and keep aligned CPU-only and GPU pairs. The compact queue summary retains CPU-core and GPU resource totals. A long partition or user name shortens before complete metrics.
 - At 72x20 and larger, compact terminals preserve at least one data row from every active detail section. Smaller terminals preserve every active section title when space permits.
-- Partition, user, and pending-reason tables are height-bounded and width-bounded from current terminal dimensions to avoid wrap/scroll drift on large clusters.
-- Row budgets are computed from available dashboard height and shared fairly across active detail sections.
+- Tables must fit within the current terminal width and height. They must not wrap or scroll as queue size grows.
+- Allocate available detail rows to active sections in round-robin order.
 - Connected horizontal frame dividers separate sections when every active detail can still show data. Tight terminals omit dividers and use that space for data first.
-- When rows are clipped, section headers must show deterministic plain-language metadata (for example `X shown · N hidden`).
+- When rows are clipped, show `X shown · N hidden` in the section header.
 - When no rows fit in a section budget, headers should still show the hidden-row count without `0 shown` phrasing (for example `N hidden`).
 - In worst-case global viewport clipping, the final visible row must show `... output clipped to terminal height ...`.
 - Connectivity indicator states:
@@ -196,13 +197,13 @@ Per grouped-job fields:
   - connected
   - reconnecting
   - disconnected
-  - disconnected (recovering)
-- Connectivity panel also shows:
+  - `disconnected, recovering`
+- The header also shows:
   - age of last successful update
   - next retry countdown when reconnecting or recovering
-- Graceful quit with standard terminal restoration.
+- Ctrl+C exits and restores the terminal.
 
-## Remote Resilience Contract
+## Remote resilience contract
 - Remote polling must tolerate transient errors and automatically retry.
 - Startup capability probes in remote mode must also retry on transient transport failures.
 - Reconnect loop uses bounded exponential backoff with jitter.
@@ -211,28 +212,28 @@ Per grouped-job fields:
 - Existing SSH mechanisms (agent, keys, config) are preferred.
 - Passwords are not accepted as CLI flags.
 
-## Performance Targets
+## Performance targets
 - TUI remains responsive under frequent updates.
 - Poll/render loop does not block terminal input handling.
 - Data collection and rendering pipelines are decoupled so slow network polls do not freeze UI.
 
-## Platform Support
+## Platform support
 - Primary: macOS.
 - Secondary: Linux.
 - Unsupported: Windows.
 - Shell assumptions should remain POSIX-compatible where possible.
 
-## Security Constraints
+## Security constraints
 - Never commit secrets, credentials, tokens, private keys, or passwords.
 - Avoid CLI flags that expose secrets in shell history/process list.
 - Transport errors must omit executed commands and captured stdout.
 - Locally displayed SSH targets and stderr must be treated as potentially sensitive when sharing diagnostics.
 
-## Safety Constraint
+## Safety constraint
 - The monitor must never submit mutating operations to Slurm.
 - Runtime command allowlist is read-only Slurm queries (`squeue` and `scontrol` reads).
 
 ## Non-functional acceptance criteria
 - Can run continuously for long periods without manual reconnect intervention.
 - Handles poor network conditions without crashing or wedging UI.
-- Produces explicit, actionable error messages for startup capability failures.
+- Names the failed startup capability or transport error so the operator can act.

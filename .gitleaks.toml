@@ -5,7 +5,7 @@ useDefault = true
 
 [[rules]]
 id = "local-system-paths"
-description = "Do not commit local absolute system paths in this public-ready repository."
+description = "Block user-home path prefixes in this public repository."
 regex = '''(/Users/[A-Za-z0-9._-]+|/home/[A-Za-z0-9._-]+|[A-Za-z]:\\+Users\\+[A-Za-z0-9._-]+)'''
 tags = ["policy", "privacy"]
 

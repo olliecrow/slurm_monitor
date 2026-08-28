@@ -62,7 +62,7 @@ for target in "$@"; do
     display_target="<redacted file name>"
   fi
   if has_disallowed_path "$target"; then
-    violations+=("local absolute path")
+    violations+=("user-home path")
   fi
   if has_pattern "$secret_assignment_regex" "$target"; then
     violations+=("credential-like assignment")
@@ -89,7 +89,7 @@ if [[ "$failed" -ne 0 ]]; then
 Blocked by sensitive-text policy.
 - Remove or redact secrets and credential-like values.
 - Replace personal contact details with a private reporting route or a reserved example value.
-- Replace local absolute paths with repo-relative paths or placeholders like /path/to/project.
+- Replace user-home paths with repository-relative paths or placeholders such as /path/to/project.
 EOF
 fi
 

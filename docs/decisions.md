@@ -4,9 +4,9 @@ This file records cross-cutting rationale that is not clearer in code, tests, th
 
 ## Use Go on macOS and Linux
 
-The project needs a responsive terminal application, straightforward process orchestration, and easily distributed binaries. Go provides suitable CLI/TUI libraries and simple concurrency without adding a more complex runtime or build toolchain.
+The project needs a responsive terminal application, direct process control, and single-file binaries. Go provides the CLI and TUI libraries, concurrency, and build output without another runtime.
 
-Windows is intentionally unsupported. Parser and process boundaries remain covered by tests because Go provides fewer type-level guarantees than some alternatives.
+Windows is unsupported. Tests cover parser and process boundaries that Go's type system cannot enforce.
 
 Enforcement: keep runtime implementation in Go and preserve the macOS/Linux platform contract.
 
@@ -26,7 +26,7 @@ References: `internal/transport/`, `internal/config/config.go`, `docs/security.m
 
 ## Keep all Slurm access read-only
 
-The product is an observability surface, not a cluster control plane. Queue mutation would increase operational risk and expand the authentication, confirmation, and recovery model.
+The product monitors a cluster. It does not control one. Queue mutation would require new authentication, confirmation, and recovery rules and would raise the cost of an operator mistake.
 
 Enforcement: runtime commands are limited to `squeue` and read-only `scontrol` queries. The CLI and TUI expose no cancel, requeue, hold, release, or submit actions.
 
@@ -36,9 +36,9 @@ References: `internal/slurm/collector.go`, `docs/spec.md`, `docs/security.md`.
 
 Invalid arguments, missing capabilities, permanent SSH/auth/configuration failures, shell-contract failures, and parser-contract failures require operator or code changes. Retrying them indefinitely hides the real problem.
 
-Transient transport failures should recover automatically. During recovery, the last good snapshot remains visible with explicit stale and retry state. Startup and runtime retries are unbounded unless the operator quits or sets `--duration`.
+The monitor retries transient transport failures. During recovery, it keeps the last good snapshot visible and marks it stale. Startup and runtime retries continue until the operator quits or `--duration` expires.
 
-Enforcement: typed missing-command errors and transport retry classification gate bounded exponential backoff; permanent runtime failures leave the TUI disconnected until exit.
+Enforcement: typed missing-command errors and transport classification decide whether to retry. Retryable failures use bounded exponential backoff. Permanent runtime failures leave the TUI disconnected until exit.
 
 References: `internal/app/app.go`, `internal/monitor/monitor.go`, `internal/transport/transport.go`, `docs/architecture.md`.
 
@@ -54,11 +54,11 @@ Enforcement: the collector command includes read-only node data, `squeue -r`, an
 
 References: `internal/slurm/collector.go`, `internal/slurm/collector_test.go`, `internal/slurm/parse.go`.
 
-## Keep the TUI focused, terminal-bounded, and non-interactive
+## Keep the TUI non-interactive and within the terminal viewport
 
-The display has queue summary, partition, user, and pending-reason sections. A content-height frame and balanced horizontal padding define the dashboard without enclosing unused terminal space. Unused height stays blank above the pinned footer, and the remaining data height is shared fairly across active detail sections.
+The display has queue summary, partition, user, and pending-reason sections. A frame encloses only the dashboard content. Unused height stays blank above the pinned footer. Active detail sections take turns receiving each available row.
 
-The interactive display omits individual jobs because partition, user, and pending-reason aggregates explain scheduler pressure with less churn and visual noise. The `--once` report retains grouped root jobs for detailed non-interactive diagnostics. Partition ordering surfaces pending pressure before current load. Pending-reason ordering surfaces the largest GPU and CPU demand.
+The interactive display omits individual jobs because those rows churn on busy clusters. Partition, user, and pending-reason totals show scheduler pressure. The `--once` report keeps grouped root jobs for detailed diagnostics. Partitions sort by pending pressure before current load. Pending reasons sort by GPU demand, CPU demand, then task count.
 
 The queue summary states total, running, pending, and non-zero other job counts plus current CPU/GPU availability. On wide terminals with enough height, a bold `All partitions` row supplies detailed queue totals in the same grid as partition data. Compact terminals and short wide terminals use a separate resource summary with in-use, requested, and free values because their detail rows show job counts only. CPU-core totals cover both CPU-only and GPU jobs.
 
@@ -66,11 +66,11 @@ The TUI translates stable common Slurm pending-reason codes into plain language 
 
 Wide partition and user tables use one shared numeric grid. Two header rows name CPU-only jobs, GPU jobs, CPU cores, and GPUs, then state `Running` and `Pending` for jobs and `In use` and `Requested` for resources. Names align left; numbers align right; state words do not repeat in data cells. Paired columns use stable widths through normal count growth. Pending-reason totals use the same right edge. Compact rows keep aligned CPU-only and GPU `running / pending` pairs and shorten a long name before complete metrics.
 
-Dashboard-height budgets determine visible rows. Connected horizontal rules separate sections when every active detail can still show data; tight terminals omit dividers and use that space for data first. The short queue summary and headerless compact details leave enough space for every active detail section to show data at 72x20, while common queues show multiple rows. Hidden-row metadata uses `X shown · N hidden`, and smaller terminals keep every active detail section title when space permits. This prevents large queues or small terminals from causing wrapping, scrolling, or silent loss of scheduler context.
+Dashboard-height budgets determine visible rows. Connected horizontal rules separate sections when every active detail can still show data. Tight terminals use that row for data instead. At 72x20, every active section can show at least one data row. Common queues show several. Hidden-row metadata uses `X shown · N hidden`, and smaller terminals keep every active section title when space permits. The display does not wrap or scroll. Each rendered section reports its hidden-row count. A terminal too small to render every section can omit later sections.
 
 The header distinguishes initial loading, connected operation, transient recovery, and permanent disconnection. A clock, update age, and status spinner show liveness even when cluster metrics are unchanged. Narrow headers remove the source and then the clock as complete fields when needed, rather than showing partial values.
 
-Enforcement: one budget-aware render path handles normal and compact layouts; summary sorting is deterministic; viewport tests cover resizing, fair detail-section budgets, clipping metadata, and footer placement.
+Enforcement: one render path handles normal and compact layouts. Sort functions use fixed tie-breakers. Viewport tests cover resizing, round-robin detail row allocation, shown and hidden row counts, and footer placement.
 
 References: `internal/slurm/summary_sort.go`, `internal/tui/model.go`, `internal/tui/model_test.go`, `docs/spec.md`.
 
@@ -78,7 +78,7 @@ References: `internal/slurm/summary_sort.go`, `internal/tui/model.go`, `internal
 
 Running and pending counts are grouped into distinct CPU-only-job and GPU-job columns. CPU-core and GPU resource columns remain separate because GPU jobs also use CPU cores. Two-level headers prevent job counts from being mistaken for resource totals without repeating prose in every row.
 
-Per-user ordering favors current GPU and CPU holders, then current job counts, pending GPU/CPU demand, pending job counts, pending memory, and username. This keeps active large holders visible when the terminal clips rows while retaining deterministic tie-breakers.
+Per-user ordering sorts by running GPU and CPU allocations, running job counts, pending GPU and CPU demand, pending job counts, pending memory, and username. Users with the largest running allocations remain visible when the terminal clips rows. The remaining fields give fixed tie-breakers.
 
 Running and pending CPU/GPU totals appear in expanded partition and user tables. Compact partition and user rows retain all four job counts. `--once` prints all counts and resource totals.
 

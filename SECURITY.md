@@ -1,11 +1,11 @@
-# Security Policy
+# Security policy
 
-## Supported Versions
+## Supported versions
 
 This repository is maintained on `main` only. Security fixes, when available, are published on `main`.
-GitHub vulnerability alerts and automated security fixes are enabled as the default low-maintenance dependency baseline.
+GitHub vulnerability alerts and automated security fixes are enabled.
 
-## Reporting a Vulnerability
+## Report a vulnerability
 
 Please do not open a public GitHub issue for suspected vulnerabilities.
 
