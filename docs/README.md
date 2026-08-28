@@ -7,4 +7,4 @@
 - [`security.md`](security.md): runtime authentication, logging, and secret handling.
 - [`decisions.md`](decisions.md): durable cross-cutting product rationale.
 
-Keep these documents evergreen and update the existing canonical contract instead of adding parallel workflow or status documents.
+Update the relevant existing document. Do not add separate workflow or status documents for the same contract.

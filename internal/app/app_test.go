@@ -258,19 +258,19 @@ func TestRunOncePrintsQueueAndUserCPUAndGPUSplit(t *testing.T) {
 		t.Fatalf("expected user resource and cpu/gpu job split in output, got: %q", out)
 	}
 	if !strings.Contains(out, "gpu running_cpu_jobs=0 running_gpu_jobs=1") || !strings.Contains(out, "cpu running_cpu_jobs=0 running_gpu_jobs=0 pending_cpu_jobs=1") {
-		t.Fatalf("expected partition insights in output, got: %q", out)
+		t.Fatalf("expected partition job counts in output, got: %q", out)
 	}
 	if !strings.Contains(out, `1001 user=alice partition=gpu state=RUNNING reason="" tasks=1 cpu=8 gpu=1`) {
-		t.Fatalf("expected grouped job insights in output, got: %q", out)
+		t.Fatalf("expected grouped job rows in output, got: %q", out)
 	}
 	if !strings.Contains(out, `pending_reasons: shown=1 total=1`) || !strings.Contains(out, `reason="Priority" tasks=1 cpu=4 gpu=0`) {
-		t.Fatalf("expected pending-reason pressure in output, got: %q", out)
+		t.Fatalf("expected pending-reason totals in output, got: %q", out)
 	}
 	if strings.Contains(out, "nodes:") || strings.Contains(out, "totals:") {
 		t.Fatalf("did not expect removed node output, got: %q", out)
 	}
 	if !strings.Contains(out, "partitions: shown=2 total=2") || !strings.Contains(out, "users: shown=1 total=1") || !strings.Contains(out, "jobs: shown=2 total=2 grouping=root+user+partition+state+pending_reason") {
-		t.Fatalf("expected explicit one-shot truncation and grouping metadata, got: %q", out)
+		t.Fatalf("expected shown/total counts and the job grouping key, got: %q", out)
 	}
 }
 

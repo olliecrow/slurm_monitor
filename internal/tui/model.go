@@ -269,7 +269,7 @@ func (m Model) renderDashboard(maxHeight int) string {
 		content = "Waiting for the first successful snapshot..."
 	} else {
 		expanded := !m.compact && aggregateGridLayoutForSnapshot(m.snapshot, contentWidth).width() <= contentWidth
-		content = m.renderInsightsPanelWithBudget(contentHeight, expanded, contentWidth)
+		content = m.renderDashboardSectionsWithBudget(contentHeight, expanded, contentWidth)
 	}
 	content = clipToHeight(content, contentHeight)
 	if framed {
@@ -310,9 +310,9 @@ func (m Model) frameDashboard(content string, contentWidth int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, contentWidth int) string {
+func (m Model) renderDashboardSectionsWithBudget(contentHeight int, expanded bool, contentWidth int) string {
 	if m.snapshot == nil {
-		return "scheduler insights\n(no data)"
+		return "scheduler summary\n(no data)"
 	}
 	if contentHeight <= 0 {
 		return ""
@@ -324,10 +324,10 @@ func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, c
 		pendingReasonLineCapacity(len(m.snapshot.PendingReasons), expanded),
 	}
 	lines := m.schedulerSummaryLines(m.snapshot, !expanded, contentWidth)
-	lines, separatorLines, detailBudgets := allocateInsightLineBudgets(contentHeight, lines, detailCaps)
+	lines, separatorLines, detailBudgets := allocateSectionLineBudgets(contentHeight, lines, detailCaps)
 	if expanded && (len(m.snapshot.Partitions) == 0 || detailBudgets[0] < widePartitionMinimumLines) {
 		lines = m.schedulerSummaryLines(m.snapshot, true, contentWidth)
-		lines, separatorLines, detailBudgets = allocateInsightLineBudgets(contentHeight, lines, detailCaps)
+		lines, separatorLines, detailBudgets = allocateSectionLineBudgets(contentHeight, lines, detailCaps)
 	}
 
 	if detailBudgets[0] > 0 {
@@ -354,7 +354,7 @@ func (m Model) renderInsightsPanelWithBudget(contentHeight int, expanded bool, c
 	return strings.Join(lines, "\n")
 }
 
-func allocateInsightLineBudgets(contentHeight int, summaryLines []string, detailCaps []int) ([]string, int, []int) {
+func allocateSectionLineBudgets(contentHeight int, summaryLines []string, detailCaps []int) ([]string, int, []int) {
 	activeDetailSections := 0
 	for _, cap := range detailCaps {
 		if cap > 0 {

@@ -81,8 +81,7 @@ func (f *fakeCollector) Collect(context.Context) (slurm.Snapshot, error) {
 	idx := f.position
 	f.position++
 
-	// Interleave by result index then error index as configured by explicit slices.
-	// For this test we map first len(results) as results, then remaining as errors.
+	// Return all configured results before the configured errors.
 	if idx < len(f.results) {
 		return f.results[idx], nil
 	}
