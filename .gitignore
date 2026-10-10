@@ -12,5 +12,6 @@ plan/
 *.log
 tmp/
 temp/
-.claude/
+.claude/*
+!.claude/skills/
 .codex/
