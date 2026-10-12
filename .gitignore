@@ -14,4 +14,6 @@ tmp/
 temp/
 .claude/*
 !.claude/skills/
+.claude/skills/*
+!.claude/skills/slurm-monitor-live-cluster-validation
 .codex/
