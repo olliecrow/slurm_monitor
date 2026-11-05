@@ -28,7 +28,7 @@
 - Keep local test targets in ignored files or local shell environment.
 - Review diffs for accidental secret leakage before commit.
 - Repository checks:
-  - `.pre-commit-config.yaml` runs `gitleaks` before commits.
+  - `.pre-commit-config.yaml` runs `gitleaks` before commits, including a path policy that does not inherit the default path allowlist.
   - Local hooks block personal contact details, user-home path prefixes, and credential-like values in staged files and commit messages.
   - The commit hook requires a GitHub no-reply or reserved example address for Git author and committer metadata.
   - The pre-push hook scans each outbound commit identity, message, and added line for the same patterns.

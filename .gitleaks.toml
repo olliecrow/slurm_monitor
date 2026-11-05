@@ -10,8 +10,8 @@ regex = '''(/Users/[A-Za-z0-9._-]+|/home/[A-Za-z0-9._-]+|[A-Za-z]:\\+Users\\+[A-
 tags = ["policy", "privacy"]
 
 [[rules.allowlists]]
-description = "Allow explicit placeholder examples used in policy/docs."
-regexTarget = "match"
+description = "Allow a match only when the whole match is a placeholder path."
+regexTarget = "secret"
 regexes = [
-  '''(/Users/(YOU|USER|username)|/home/(user|USER|username)|[A-Za-z]:\\+Users\\+(YOU|USER|USERNAME|username))'''
+  '''^(/Users/(YOU|USER|username)|/home/(user|USER|username)|[A-Za-z]:\\+Users\\+(YOU|USER|USERNAME|username))$'''
 ]

@@ -46,6 +46,27 @@ if bash "$checker" --context=policy-selftest "$bad_path_file" >/dev/null 2>&1; t
   echo "placeholder incorrectly allowed a real path on the same line" >&2
   exit 1
 fi
+
+assert_path_blocked() {
+  local content="$1"
+  local label="$2"
+  printf '%s\n' "$content" >"$tmp_dir/path-case.txt"
+  if bash "$checker" --context=policy-selftest "$tmp_dir/path-case.txt" >/dev/null 2>&1; then
+    echo "expected ${label} to be blocked" >&2
+    exit 1
+  fi
+}
+
+assert_path_blocked "$(printf '/Users/%s' YOUNG)" "longer user-home name"
+assert_path_blocked "$(printf '/home/%s' userbob)" "longer home name"
+assert_path_blocked "$(printf '/Users/YOU /Users/%s' example)" "real path beside a placeholder"
+assert_path_blocked "$(printf '%s:\\Users\\%s' C example)" "windows profile path"
+printf '%s\n' '/Users/YOU' '/home/user' '/home/username' >"$tmp_dir/allowed-paths.txt"
+bash "$checker" --context=policy-selftest "$tmp_dir/allowed-paths.txt"
+if bash "$checker" --context=policy-selftest "$tmp_dir/does-not-exist" >"$output_file" 2>&1; then
+  echo "missing policy input was treated as clean" >&2
+  exit 1
+fi
 assert_blocked_without_exposure "$bad_email_file" "$private_email_fixture" "personal email"
 assert_blocked_without_exposure "$bad_phone_file" "$private_phone_fixture" "phone number"
 bad_email_name="${tmp_dir}/${private_email_fixture}.txt"

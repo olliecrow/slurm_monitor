@@ -20,24 +20,44 @@ email_regex='[A-Za-z0-9.!#$%&*+/=?^_{}|~-]+@[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z][
 allowed_email_regex='^([^@]+@([A-Za-z0-9-]+\.)*(example\.com|example\.net|example\.org|users\.noreply\.github\.com|noreply\.github\.com)|noreply@github\.com)$'
 labelled_phone_regex='([Pp][Hh][Oo][Nn][Ee]|[Mm][Oo][Bb][Ii][Ll][Ee]|[Tt][Ee][Ll]([Ee][Pp][Hh][Oo][Nn][Ee])?)([[:space:]]+[Nn][Uu][Mm][Bb][Ee][Rr])?[[:space:]]*[:=][[:space:]]*[+]?([0-9][[:space:].()-]*){7,}'
 
+# A search tool failure must not look like a clean file. exit is required
+# because these helpers run inside if, where a plain command failure is ignored.
+fail_scan() {
+  echo "error: unable to scan policy input" >&2
+  exit 2
+}
+
 has_pattern() {
   local pattern="$1"
   local file_path="$2"
-  grep -qE "$pattern" "$file_path"
+  local status=0
+  grep -aqE -- "$pattern" "$file_path" || status=$?
+  if [[ "$status" -gt 1 ]]; then
+    fail_scan
+  fi
+  [[ "$status" -eq 0 ]]
 }
 
 has_disallowed_path() {
   local file_path="$1"
+  local status=0
   local matches
-  matches="$(grep -Eo "$local_path_regex" "$file_path" || true)"
+  matches="$(grep -aoE -- "$local_path_regex" "$file_path")" || status=$?
+  if [[ "$status" -gt 1 ]]; then
+    fail_scan
+  fi
   [[ -n "$matches" ]] || return 1
   printf '%s\n' "$matches" | grep -qEiv "^${allowed_path_placeholder_regex}$"
 }
 
 has_disallowed_email() {
   local file_path="$1"
+  local status=0
   local matches
-  matches="$(grep -Eo "$email_regex" "$file_path" || true)"
+  matches="$(grep -aoE -- "$email_regex" "$file_path")" || status=$?
+  if [[ "$status" -gt 1 ]]; then
+    fail_scan
+  fi
   [[ -n "$matches" ]] || return 1
   printf '%s\n' "$matches" | grep -qEiv "$allowed_email_regex"
 }
@@ -51,6 +71,10 @@ text_has_disallowed_email() {
 
 failed=0
 for target in "$@"; do
+  if [[ ! -e "$target" && ! -L "$target" ]]; then
+    echo "error: policy input is not a file" >&2
+    exit 2
+  fi
   if [[ ! -f "$target" ]]; then
     continue
   fi

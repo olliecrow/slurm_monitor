@@ -11,6 +11,10 @@ repos:
       - id: gitleaks
         args:
           - --config=.gitleaks.toml
+      - id: gitleaks
+        alias: gitleaks-paths
+        args:
+          - --config=.gitleaks-paths.toml
 
   - repo: local
     hooks:
@@ -19,7 +23,6 @@ repos:
         entry: bash scripts/security/check-sensitive-text.sh --context=staged-file
         language: system
         stages: [pre-commit]
-        types: [text]
         pass_filenames: true
       - id: check-git-identity
         name: Block personal Git email addresses
