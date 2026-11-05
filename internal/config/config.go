@@ -48,7 +48,7 @@ var ErrHelpRequested = errors.New("help requested")
 func defaultConfig() Config {
 	return Config{
 		Command:        CommandMonitor,
-		Refresh:        2 * time.Second,
+		Refresh:        5 * time.Second,
 		ConnectTimeout: 10 * time.Second,
 		CommandTimeout: 15 * time.Second,
 	}

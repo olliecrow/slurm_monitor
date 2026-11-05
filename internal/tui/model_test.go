@@ -1001,7 +1001,7 @@ func TestViewPinsExitHintToBottomRow(t *testing.T) {
 	if len(lines) != m.height {
 		t.Fatalf("expected %d lines, got %d", m.height, len(lines))
 	}
-	if !strings.Contains(lines[len(lines)-1], "Ctrl+C to exit") {
+	if !strings.Contains(lines[len(lines)-1], "q or Ctrl+C to exit") {
 		t.Fatalf("expected exit hint on bottom row, got: %q", lines[len(lines)-1])
 	}
 	if strings.TrimSpace(lines[len(lines)-2]) != "" {
@@ -1118,5 +1118,16 @@ func TestViewSanitizesRemoteError(t *testing.T) {
 	}
 	if got := strings.Count(m.renderHeader(time.Now()), "\n"); got != 1 {
 		t.Fatalf("header has %d line breaks", got)
+	}
+}
+
+func TestQQuits(t *testing.T) {
+	m := NewModel(Options{})
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if cmd == nil {
+		t.Fatal("missing quit command")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatal("q did not quit")
 	}
 }

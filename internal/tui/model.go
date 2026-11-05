@@ -148,7 +148,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c":
+		case "ctrl+c", "q":
 			return m, tea.Quit
 		}
 	case tea.WindowSizeMsg:
@@ -190,7 +190,7 @@ func (m Model) View() string {
 	}
 
 	header := m.renderHeader(now)
-	footer := m.styles.dim.Render("Ctrl+C to exit")
+	footer := m.styles.dim.Render("q or Ctrl+C to exit")
 	headerLines := lineCount(header)
 	footerLines := lineCount(footer)
 	bodyHeight := m.height - headerLines - footerLines

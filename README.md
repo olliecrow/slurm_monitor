@@ -136,7 +136,7 @@ doctor result: PASS
 slurm-monitor dry-run
 mode: local
 target: local
-refresh: 2s
+refresh: 5s
 connect-timeout: 10s
 command-timeout: 15s
 duration: unbounded
@@ -155,7 +155,7 @@ dry-run only: no local or remote commands were executed.
 
 ## Common options
 
-- `--refresh <duration>`, default `2s`
+- `--refresh <duration>`, default `5s`
 - `--connect-timeout <duration>`, default `10s`
 - `--command-timeout <duration>`, default `15s`
 - `--ssh-config <path>`

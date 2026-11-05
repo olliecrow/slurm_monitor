@@ -50,7 +50,7 @@ The tool runs until the operator stops it or its configured duration expires. It
 - Parse errors must direct users to `slurm-monitor --help`.
 
 ### Main flags
-- `--refresh <duration>`: poll interval (default `2s`).
+- `--refresh <duration>`: poll interval (default `5s`).
 - Flags can precede or follow the target. `--` ends flag parsing. Targets cannot start with `-` or contain whitespace or control characters. Path flags expand `~/` to the current home directory.
 - `--connect-timeout <duration>`: SSH command connect timeout.
 - `--command-timeout <duration>`: per poll command timeout; pipe cleanup takes at most 2 additional seconds.
@@ -204,7 +204,7 @@ Per grouped-job fields:
 - The header also shows:
   - age of last successful update
   - next retry countdown when reconnecting or recovering
-- Ctrl+C exits and restores the terminal.
+- `q` or Ctrl+C exits and restores the terminal.
 
 ## Remote resilience contract
 - Remote polling must tolerate transient errors and automatically retry.

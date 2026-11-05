@@ -6,12 +6,16 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseArgsLocalDefault(t *testing.T) {
 	cfg, err := ParseArgs(nil)
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
+	}
+	if cfg.Refresh != 5*time.Second {
+		t.Fatalf("unexpected default refresh: %v", cfg.Refresh)
 	}
 	if cfg.Command != CommandMonitor {
 		t.Fatalf("expected monitor command, got %s", cfg.Command)
