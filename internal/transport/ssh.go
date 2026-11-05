@@ -2,14 +2,17 @@ package transport
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -55,12 +58,9 @@ func (t *SSHTransport) buildSSHArgs(command string) []string {
 		"-o", "ServerAliveInterval=15",
 		"-o", "ServerAliveCountMax=3",
 		"-o", "TCPKeepAlive=yes",
-		"-o", "ControlMaster=auto",
-		"-o", "ControlPersist=300",
-		"-o", "StreamLocalBindUnlink=yes",
 	)
 	if t.controlPath != "" {
-		args = append(args, "-o", "ControlPath="+t.controlPath)
+		args = append(args, "-o", "ControlMaster=auto", "-o", "ControlPersist=300", "-o", "StreamLocalBindUnlink=yes", "-o", "ControlPath="+t.controlPath)
 	}
 
 	if t.opts.ConfigPath != "" {
@@ -87,11 +87,38 @@ func shellQuote(s string) string {
 
 func buildControlPath(opts SSHOptions) string {
 	base := fmt.Sprintf("%s|%s|%s|%d", opts.Target, opts.ConfigPath, opts.IdentityFile, opts.Port)
-	sum := sha1.Sum([]byte(base))
+	sum := sha256.Sum256([]byte(base))
 	id := hex.EncodeToString(sum[:8])
-	root := filepath.Join(os.TempDir(), "slurm-monitor-ssh")
-	if err := os.MkdirAll(root, 0o700); err != nil {
+	root, err := controlDir()
+	if err != nil {
 		return ""
 	}
 	return filepath.Join(root, "cm-"+id)
+}
+
+func controlDir() (string, error) {
+	base := os.Getenv("XDG_RUNTIME_DIR")
+	if base == "" {
+		base = os.TempDir()
+	}
+	dir := filepath.Join(base, fmt.Sprintf("slurm-monitor-%d", os.Getuid()))
+	if err := os.Mkdir(dir, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
+		return "", err
+	}
+	info, err := os.Lstat(dir)
+	if err != nil {
+		return "", err
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !info.IsDir() || !ok || int(st.Uid) != os.Getuid() || info.Mode().Perm() != 0o700 {
+		return "", fmt.Errorf("unsafe SSH control directory %s", dir)
+	}
+	return dir, nil
+}
+
+func (t *SSHTransport) MultiplexingStatus() string {
+	if t.controlPath == "" {
+		return "disabled (no safe per-user control directory)"
+	}
+	return filepath.Dir(t.controlPath)
 }

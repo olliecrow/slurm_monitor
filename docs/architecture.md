@@ -42,6 +42,7 @@ Two implementations satisfy it:
 
 - supports alias and `user@host` targets
 - supports custom ssh config and identity file flags
+- control sockets use a per-user directory owned by the user with mode 0700; unsafe directories disable tool-managed multiplexing
 - applies connect timeout and command timeout; inherited output pipes close within 2 seconds after cancellation
 - classifies failures into retryable vs fatal
 - uses OpenSSH connection multiplexing (`ControlMaster` and `ControlPersist`) to reduce poll latency

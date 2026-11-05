@@ -2,6 +2,9 @@ package transport
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +19,7 @@ func TestShellQuote(t *testing.T) {
 }
 
 func TestBuildControlPath(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	path := buildControlPath(SSHOptions{
 		Target:       "host-a",
 		ConfigPath:   "/tmp/cfg",
@@ -37,6 +41,7 @@ func TestBuildControlPath(t *testing.T) {
 }
 
 func TestBuildSSHArgsIncludesResilienceOptions(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	tr := NewSSHTransport(SSHOptions{
 		Target:         "user@host",
 		ConfigPath:     "/tmp/ssh_config",
@@ -129,5 +134,55 @@ func TestRetryableControllerAndResolverFailures(t *testing.T) {
 	}
 	if IsRetryable(&RunError{Stderr: "ssh: Could not resolve hostname host: Name or service not known", ExitCode: 255}) {
 		t.Fatal("invalid startup host should fail")
+	}
+}
+
+func TestControlDirSafety(t *testing.T) {
+	for _, kind := range []string{"new", "public", "symlink"} {
+		t.Run(kind, func(t *testing.T) {
+			base := t.TempDir()
+			t.Setenv("XDG_RUNTIME_DIR", base)
+			dir := filepath.Join(base, fmt.Sprintf("slurm-monitor-%d", os.Getuid()))
+			if kind == "public" {
+				if err := os.Mkdir(dir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if kind == "symlink" {
+				if err := os.Symlink(t.TempDir(), dir); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got, err := controlDir()
+			if kind == "new" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				info, err := os.Stat(got)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if info.Mode().Perm() != 0o700 {
+					t.Fatal(info.Mode())
+				}
+			} else {
+				if err == nil {
+					t.Fatal("accepted unsafe directory")
+				}
+				args := strings.Join(NewSSHTransport(SSHOptions{Target: "host"}).buildSSHArgs("true"), " ")
+				for _, option := range []string{"ControlPath=", "ControlMaster=", "ControlPersist="} {
+					if strings.Contains(args, option) {
+						t.Fatalf("unsafe multiplexing: %s", args)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestControlSocketPathLength(t *testing.T) {
+	path := filepath.Join(strings.Repeat("x", 48), "slurm-monitor-501", "cm-0123456789abcdef")
+	if len(path)+17 >= 104 {
+		t.Fatalf("socket path too long: %d", len(path)+17)
 	}
 }

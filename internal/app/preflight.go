@@ -133,6 +133,9 @@ func buildDoctorChecks(cfg config.Config, deps doctorDeps) []doctorCheck {
 		return checks
 	}
 
+	if ssh, ok := tr.(*transport.SSHTransport); ok {
+		checks = append(checks, doctorCheck{name: "ssh multiplexing", detail: ssh.MultiplexingStatus()})
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.CommandTimeout)
 	defer cancel()
 
