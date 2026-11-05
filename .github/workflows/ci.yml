@@ -1,6 +1,9 @@
 name: CI
 
 on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
   pull_request:
   push:
     branches:
@@ -23,7 +26,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
+          go-version: stable
           cache: true
 
       - name: Check formatting
@@ -46,6 +49,9 @@ jobs:
       - name: Run vet
         run: go vet ./...
 
+      - name: Check known vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
       - name: Build supported platforms
         run: |
           GOOS=linux GOARCH=amd64 go build -o /tmp/slurm-monitor-linux-amd64 ./cmd/slurm-monitor
@@ -53,6 +59,7 @@ jobs:
           GOOS=darwin GOARCH=arm64 go build -o /tmp/slurm-monitor-darwin-arm64 ./cmd/slurm-monitor
 
   security:
+    if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
     name: Security policy
     runs-on: ubuntu-latest
     steps:

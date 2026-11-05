@@ -13,7 +13,7 @@
 
 ## Requirements
 
-- Go `1.22+`
+- Go `1.26+`
 - POSIX `sh` available on the operator host and remote target environment
 - Slurm CLI tools available on target environment (`squeue`, `scontrol`)
 - OpenSSH `ssh` available for remote mode
