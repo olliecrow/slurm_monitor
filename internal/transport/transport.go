@@ -9,6 +9,9 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+	"unicode"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 type RunResult struct {
@@ -36,13 +39,13 @@ func (e *RunError) Error() string {
 	if e.ExitCode != 0 {
 		base += fmt.Sprintf(" [exit=%d]", e.ExitCode)
 	}
-	if s := strings.TrimSpace(e.Stderr); s != "" {
+	if s := LastErrorLine(e.Stderr); s != "" {
 		base += ": " + s
 	}
 	if e.Err != nil && e.ExitCode == 0 {
 		base += fmt.Sprintf(": %v", e.Err)
 	}
-	return base
+	return CleanText(base)
 }
 
 func (e *RunError) Unwrap() error {
@@ -150,4 +153,24 @@ func run(ctx context.Context, target, name string, args ...string) (RunResult, e
 func IsNameResolutionFailure(err error) bool {
 	var runErr *RunError
 	return errors.As(err, &runErr) && strings.Contains(strings.ToLower(runErr.Stderr), "could not resolve hostname")
+}
+
+// CleanText removes remote terminal sequences and control characters before display.
+func CleanText(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, ansi.Strip(s))
+}
+
+func LastErrorLine(s string) string {
+	lines := strings.Split(s, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if line := strings.TrimSpace(CleanText(lines[i])); line != "" {
+			return line
+		}
+	}
+	return ""
 }

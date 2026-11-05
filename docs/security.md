@@ -19,7 +19,9 @@
 ## Logging policy
 - Do not log sensitive credential material.
 - Transport errors omit executed commands and captured stdout.
-- SSH targets and stderr remain visible locally for diagnosis; review them before sharing terminal output.
+- Remote text is stripped of terminal control sequences before display.
+- Errors show the last non-empty stderr line. Run `ssh <target>` for full SSH diagnostics.
+- SSH targets and error summaries remain visible locally; review them before sharing terminal output.
 
 ## Development safeguards
 - Do not hardcode hostnames, users, ports, keys, or tokens in committed code.

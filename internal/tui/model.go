@@ -12,6 +12,7 @@ import (
 
 	"github.com/olliecrow/slurm_monitor/internal/monitor"
 	"github.com/olliecrow/slurm_monitor/internal/slurm"
+	"github.com/olliecrow/slurm_monitor/internal/transport"
 )
 
 type Options struct {
@@ -213,7 +214,7 @@ func (m Model) renderHeader(now time.Time) string {
 	}
 
 	title := m.styles.title.Render("SLURM MONITOR")
-	source := m.styles.value.Render(m.source)
+	source := m.styles.value.Render(transport.CleanText(m.source))
 	clock := m.styles.dim.Render(now.Format("15:04:05"))
 	age := m.styles.dim.Render(ageText)
 	right := statusChip.Render(statusText)
@@ -233,7 +234,7 @@ func (m Model) renderHeader(now time.Time) string {
 	if m.lastError == "" {
 		return line1
 	}
-	line2 := truncateRunes(m.styles.errorLabel.Render("error: "+m.lastError), m.width)
+	line2 := truncateRunes(m.styles.errorLabel.Render("error: "+transport.LastErrorLine(m.lastError)), m.width)
 	return line1 + "\n" + line2
 }
 

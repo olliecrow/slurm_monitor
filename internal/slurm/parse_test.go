@@ -361,3 +361,13 @@ func TestParseQueueLinesKeepsDifferentPendingReasonsSeparate(t *testing.T) {
 		t.Fatalf("expected two pending-reason groups, got %d", len(data.Jobs))
 	}
 }
+
+func TestQueueStripsTerminalControls(t *testing.T) {
+	data, err := parseQueueLines("1|PENDING|\x1b]0;title\aalice|\x1b[31mcpu\x1b[0m|1|4G|cpu=1|Prio\x07rity", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data.Users[0].User != "alice" || data.Partitions[0].Name != "cpu" || data.Jobs[0].Reason != "Priority" {
+		t.Fatalf("unsafe parsed fields: %+v", data)
+	}
+}

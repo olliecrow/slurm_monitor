@@ -186,3 +186,13 @@ func TestControlSocketPathLength(t *testing.T) {
 		t.Fatalf("socket path too long: %d", len(path)+17)
 	}
 }
+
+func TestErrorUsesLastSanitizedLine(t *testing.T) {
+	err := &RunError{Target: "ssh:host", ExitCode: 255, Stderr: "Warning\nDetails\n\x1b]0;title\a\x1b[2JHost key verification failed.\n\n"}
+	if got := err.Error(); got != "command failed on ssh:host [exit=255]: Host key verification failed." {
+		t.Fatalf("unexpected error: %q", got)
+	}
+	if got := CleanText("a\x1b]52;c;ignored\ab\x1b[31mc\t\r\x00"); got != "abc" {
+		t.Fatalf("unsafe text: %q", got)
+	}
+}

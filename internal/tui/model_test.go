@@ -1106,3 +1106,17 @@ func assertViewportBounds(t *testing.T, s string, width int, height int) {
 		}
 	}
 }
+
+func TestViewSanitizesRemoteError(t *testing.T) {
+	m := NewModel(Options{Source: "ssh:host", NoColor: true})
+	m.width = 80
+	m.height = 20
+	m.lastError = "warning\n\x1b]52;c;ignored\a\x1b[2JHost key verification failed."
+	view := m.View()
+	if strings.Contains(view, "\x1b") || !strings.Contains(view, "Host key verification failed.") {
+		t.Fatalf("unsafe view: %q", view)
+	}
+	if got := strings.Count(m.renderHeader(time.Now()), "\n"); got != 1 {
+		t.Fatalf("header has %d line breaks", got)
+	}
+}

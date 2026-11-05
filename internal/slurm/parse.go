@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/olliecrow/slurm_monitor/internal/transport"
 )
 
 var numPrefixRe = regexp.MustCompile(`^-?\d+`)
@@ -19,7 +21,7 @@ func parseAvailableResources(raw string) (AvailableResources, error) {
 			continue
 		}
 		fields := parseKVLine(line)
-		nodeName := fields["NodeName"]
+		nodeName := transport.CleanText(fields["NodeName"])
 		if nodeName == "" {
 			return AvailableResources{}, fmt.Errorf("node row %d: missing NodeName", lineIndex+1)
 		}
@@ -115,6 +117,9 @@ func parseQueueLines(raw string, pendingGPUCountByJobRoot map[string]int) (queue
 		parts := splitQueueRow(line)
 		if len(parts) < 8 {
 			return queueData{}, fmt.Errorf("queue row %d: expected 8 fields, got %d", lineIndex+1, len(parts))
+		}
+		for i := range parts {
+			parts[i] = transport.CleanText(parts[i])
 		}
 		jobID := strings.TrimSpace(parts[0])
 		state := strings.ToUpper(strings.TrimSpace(parts[1]))
