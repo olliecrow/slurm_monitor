@@ -117,6 +117,8 @@ func TestHelpTextIncludesUsageAndExamples(t *testing.T) {
 	text := HelpText()
 	required := []string{
 		"Usage:",
+		"q or Ctrl+C",
+		"flags work before or after the target",
 		"slurm-monitor [flags] [ssh-target]",
 		"slurm-monitor doctor [flags] [ssh-target]",
 		"slurm-monitor dry-run [flags] [ssh-target]",
