@@ -66,10 +66,12 @@ func IsRetryable(err error) bool {
 			return true
 		}
 
-		stderr := strings.ToLower(runErr.Stderr)
+		stderr := strings.ToLower(LastErrorLine(runErr.Stderr))
 		for _, signal := range []string{
 			"temporary failure in name resolution", "unable to contact slurm controller",
 			"zero bytes were transmitted or received", "backup controller in standby mode",
+			"controller is in standby mode", "communication connection failure",
+			"message send failure", "message receive failure",
 			"socket timed out", "resource temporarily unavailable",
 		} {
 			if strings.Contains(stderr, signal) {
@@ -80,6 +82,11 @@ func IsRetryable(err error) bool {
 			"permission denied",
 			"host key verification failed",
 			"remote host identification has changed",
+			"too many authentication failures",
+			"bad owner or permissions",
+			"unable to negotiate",
+			"controlpath too long",
+			"too long for unix domain socket",
 			"no such identity file",
 			"can't open user config file",
 			"bad configuration option",
@@ -119,8 +126,15 @@ func IsRetryable(err error) bool {
 }
 
 func run(ctx context.Context, target, name string, args ...string) (RunResult, error) {
+	return runPrepared(ctx, target, nil, name, args...)
+}
+
+func runPrepared(ctx context.Context, target string, prepare func(*exec.Cmd), name string, args ...string) (RunResult, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.WaitDelay = 2 * time.Second
+	if prepare != nil {
+		prepare(cmd)
+	}
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
@@ -129,7 +143,7 @@ func run(ctx context.Context, target, name string, args ...string) (RunResult, e
 	result := RunResult{
 		Stdout: outBuf.String(),
 	}
-	if err == nil {
+	if err == nil || (errors.Is(err, exec.ErrWaitDelay) && cmd.ProcessState != nil && cmd.ProcessState.Success() && ctx.Err() == nil) {
 		return result, nil
 	}
 

@@ -42,8 +42,8 @@ Two implementations satisfy it:
 
 - supports alias and `user@host` targets
 - supports custom ssh config and identity file flags
-- control sockets use a per-user directory owned by the user with mode 0700; unsafe directories disable tool-managed multiplexing
-- applies connect timeout and command timeout; inherited output pipes close within 2 seconds after cancellation
+- control sockets use a short per-user directory name, owned by the user with mode 0700; unsafe directories and paths over the 104-byte socket limit disable tool-managed multiplexing
+- applies connect timeout and command timeout; a local timeout kills the command process group, and SSH inherited output pipes close within 2 seconds after cancellation
 - classifies failures into retryable vs fatal
 - uses OpenSSH connection multiplexing (`ControlMaster` and `ControlPersist`) to reduce poll latency
 - uses `ServerAlive*` and `TCPKeepAlive` to detect broken connections and `ConnectionAttempts` to retry connection setup
@@ -116,7 +116,7 @@ Behavior:
 
 ### Retry policy
 
-Slurm controller unavailability and temporary DNS failures are transient. After a successful poll, all hostname-resolution failures retry with backoff.
+Slurm controller, communication, and standby failures, and temporary DNS failures, are transient. Permanent authentication, host-key, configuration, and socket-path failures are not. After a successful poll, all hostname-resolution failures retry with backoff.
 - bounded exponential backoff with jitter
 - immediate short retry on first failure
 - cap the retry delay

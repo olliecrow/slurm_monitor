@@ -12,8 +12,26 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
+)
+
+const (
+	// OpenSSH binds a temporary socket at ControlPath plus "." and 16 random
+	// characters. macOS sockaddr_un.sun_path is 104 bytes.
+	controlPathSuffix = 17
+	maxControlPath    = 104
+)
+
+const controlPathTooLongNotice = "slurm-monitor: SSH multiplexing disabled because the ControlPath would exceed the 104-byte socket limit"
+
+type muxState int
+
+const (
+	muxOn muxState = iota
+	muxOffUnsafe
+	muxOffTooLong
 )
 
 type SSHOptions struct {
@@ -27,12 +45,15 @@ type SSHOptions struct {
 type SSHTransport struct {
 	opts        SSHOptions
 	controlPath string
+	mux         muxState
 }
 
 func NewSSHTransport(opts SSHOptions) *SSHTransport {
+	path, state := buildControlPath(opts)
 	return &SSHTransport{
 		opts:        opts,
-		controlPath: buildControlPath(opts),
+		controlPath: path,
+		mux:         state,
 	}
 }
 
@@ -41,7 +62,21 @@ func (t *SSHTransport) Describe() string {
 }
 
 func (t *SSHTransport) Run(ctx context.Context, command string) (RunResult, error) {
+	if notice := t.multiplexingNotice(); notice != "" {
+		controlPathNotice.Do(func() {
+			fmt.Fprintln(os.Stderr, notice)
+		})
+	}
 	return run(ctx, t.Describe(), "ssh", t.buildSSHArgs(command)...)
+}
+
+var controlPathNotice sync.Once
+
+func (t *SSHTransport) multiplexingNotice() string {
+	if t.mux != muxOffTooLong {
+		return ""
+	}
+	return controlPathTooLongNotice
 }
 
 func (t *SSHTransport) buildSSHArgs(command string) []string {
@@ -82,23 +117,33 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
 }
 
-func buildControlPath(opts SSHOptions) string {
+func buildControlPath(opts SSHOptions) (string, muxState) {
 	base := fmt.Sprintf("%s|%s|%s|%d", opts.Target, opts.ConfigPath, opts.IdentityFile, opts.Port)
 	sum := sha256.Sum256([]byte(base))
 	id := hex.EncodeToString(sum[:8])
 	root, err := controlDir()
 	if err != nil {
-		return ""
+		return "", muxOffUnsafe
 	}
-	return filepath.Join(root, "cm-"+id)
+	path := filepath.Join(root, id)
+	if len(path)+controlPathSuffix >= maxControlPath {
+		return "", muxOffTooLong
+	}
+	return path, muxOn
+}
+
+func controlBase() string {
+	if base := os.Getenv("XDG_RUNTIME_DIR"); base != "" {
+		info, err := os.Stat(base)
+		if err == nil && info.IsDir() {
+			return base
+		}
+	}
+	return os.TempDir()
 }
 
 func controlDir() (string, error) {
-	base := os.Getenv("XDG_RUNTIME_DIR")
-	if base == "" {
-		base = os.TempDir()
-	}
-	dir := filepath.Join(base, fmt.Sprintf("slurm-monitor-%d", os.Getuid()))
+	dir := filepath.Join(controlBase(), fmt.Sprintf("slurm-mon-%d", os.Getuid()))
 	if err := os.Mkdir(dir, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
 		return "", err
 	}
@@ -114,8 +159,12 @@ func controlDir() (string, error) {
 }
 
 func (t *SSHTransport) MultiplexingStatus() string {
-	if t.controlPath == "" {
+	switch t.mux {
+	case muxOffTooLong:
+		return "disabled (ControlPath exceeds the 104-byte socket limit)"
+	case muxOffUnsafe:
 		return "disabled (no safe per-user control directory)"
+	default:
+		return filepath.Dir(t.controlPath)
 	}
-	return filepath.Dir(t.controlPath)
 }

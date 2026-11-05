@@ -72,6 +72,24 @@ func TestCheckSlurmAvailabilityMissingCommands(t *testing.T) {
 	}
 }
 
+func TestCheckSlurmAvailabilitySanitizesMissingCommands(t *testing.T) {
+	tr := fakeTransport{
+		result: transport.RunResult{Stdout: "__SLURM_MONITOR_MISSING__ squeue\x1b]0;title\a scontrol\n"},
+		err:    &transport.RunError{ExitCode: 7, Err: errors.New("exit status 7")},
+	}
+	err := checkSlurmAvailability(context.Background(), tr, 2*time.Second)
+	var missingErr *missingSlurmCommandsError
+	if !errors.As(err, &missingErr) {
+		t.Fatalf("expected missingSlurmCommandsError, got %T: %v", err, err)
+	}
+	if missingErr.missing != "squeue scontrol" {
+		t.Fatalf("missing commands %q", missingErr.missing)
+	}
+	if strings.ContainsAny(missingErr.Error(), "\x1b\x00") {
+		t.Fatalf("error retained control text: %q", missingErr.Error())
+	}
+}
+
 func TestCheckSlurmAvailabilityDoesNotTreatFailureOutputAsMissingCommands(t *testing.T) {
 	tr := fakeTransport{
 		result: transport.RunResult{Stdout: "remote login banner"},

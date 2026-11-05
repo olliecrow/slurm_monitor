@@ -53,7 +53,7 @@ The tool runs until the operator stops it or its configured duration expires. It
 - `--refresh <duration>`: poll interval (default `5s`).
 - Flags can precede or follow the target. `--` ends flag parsing. Targets cannot start with `-` or contain whitespace or control characters. Path flags expand `~/` to the current home directory.
 - `--connect-timeout <duration>`: SSH command connect timeout.
-- `--command-timeout <duration>`: per poll command timeout; pipe cleanup takes at most 2 additional seconds.
+- `--command-timeout <duration>`: per poll command timeout. A local timeout kills the command and its child processes. SSH pipe cleanup can take 2 more seconds.
 - `--ssh-config <path>`: optional custom SSH config file.
 - `--identity-file <path>`: optional SSH identity file.
 - `--port <int>`: optional SSH port override.
@@ -79,7 +79,7 @@ The tool runs until the operator stops it or its configured duration expires. It
 
 ### Failure semantics
 
-Slurm controller unavailability and temporary DNS failures are transient. After a successful poll, all hostname-resolution failures retry with backoff.
+Slurm controller, communication, and standby failures, and temporary DNS failures, are transient. Permanent authentication, host-key, configuration, and socket-path failures are not. After a successful poll, all hostname-resolution failures retry with backoff.
 - Non-recoverable startup failures are fatal:
   - missing required Slurm commands in selected context
   - invalid CLI argument combinations

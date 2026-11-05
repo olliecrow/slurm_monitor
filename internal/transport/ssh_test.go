@@ -18,30 +18,40 @@ func TestShellQuote(t *testing.T) {
 	}
 }
 
+func useShortRuntimeDir(t *testing.T) {
+	t.Helper()
+	dir := filepath.Join(os.TempDir(), fmt.Sprintf("sm%d-%d", os.Getpid(), time.Now().UnixNano()))
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	t.Setenv("XDG_RUNTIME_DIR", dir)
+}
+
 func TestBuildControlPath(t *testing.T) {
-	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
-	path := buildControlPath(SSHOptions{
+	useShortRuntimeDir(t)
+	path, state := buildControlPath(SSHOptions{
 		Target:       "host-a",
 		ConfigPath:   "/tmp/cfg",
 		IdentityFile: "/tmp/key",
 		Port:         22,
 	})
-	if path == "" {
+	if path == "" || state != muxOn {
 		t.Fatalf("expected non-empty control path")
 	}
-	path2 := buildControlPath(SSHOptions{
+	path2, state2 := buildControlPath(SSHOptions{
 		Target:       "host-a",
 		ConfigPath:   "/tmp/cfg",
 		IdentityFile: "/tmp/key",
 		Port:         22,
 	})
-	if path != path2 {
+	if path != path2 || state2 != muxOn {
 		t.Fatalf("expected deterministic control path, got %q vs %q", path, path2)
 	}
 }
 
 func TestBuildSSHArgsIncludesResilienceOptions(t *testing.T) {
-	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	useShortRuntimeDir(t)
 	tr := NewSSHTransport(SSHOptions{
 		Target:         "user@host",
 		ConfigPath:     "/tmp/ssh_config",
@@ -90,6 +100,13 @@ func TestIsRetryableRejectsPermanentSSHFailures(t *testing.T) {
 	tests := []string{
 		"Permission denied (publickey)",
 		"Can't open user config file /path/to/config: No such file or directory",
+		"Received disconnect from 192.0.2.1 port 22:2: Too many authentication failures",
+		"Bad owner or permissions on /x/.ssh/config",
+		"Unable to negotiate with 192.0.2.1 port 22: no matching host key type found.",
+		"ControlPath too long ('/tmp/socket' >= 108 bytes)",
+		"path \"/tmp/socket\" too long for Unix domain socket",
+		"Host key verification failed.",
+		"WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!",
 	}
 	for _, stderr := range tests {
 		err := &RunError{
@@ -125,6 +142,10 @@ func TestRetryableControllerAndResolverFailures(t *testing.T) {
 		"slurm_load_node error: Unable to contact slurm controller (connect failure)",
 		"slurm_load_jobs error: Zero Bytes were transmitted or received",
 		"slurm_load_jobs error: Slurm backup controller in standby mode",
+		"slurm_load_jobs error: Controller is in standby mode, try a different controller",
+		"slurm_load_jobs error: Communication connection failure",
+		"slurm_load_jobs error: Message send failure",
+		"slurm_load_jobs error: Message receive failure",
 		"slurm_load_jobs error: Socket timed out on send/recv operation",
 		"Resource temporarily unavailable",
 	} {
@@ -142,7 +163,7 @@ func TestControlDirSafety(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			base := t.TempDir()
 			t.Setenv("XDG_RUNTIME_DIR", base)
-			dir := filepath.Join(base, fmt.Sprintf("slurm-monitor-%d", os.Getuid()))
+			dir := filepath.Join(base, fmt.Sprintf("slurm-mon-%d", os.Getuid()))
 			if kind == "public" {
 				if err := os.Mkdir(dir, 0o755); err != nil {
 					t.Fatal(err)
@@ -180,10 +201,80 @@ func TestControlDirSafety(t *testing.T) {
 	}
 }
 
-func TestControlSocketPathLength(t *testing.T) {
-	path := filepath.Join(strings.Repeat("x", 48), "slurm-monitor-501", "cm-0123456789abcdef")
+func TestLongTempDirDisablesControlPath(t *testing.T) {
+	base := filepath.Join(t.TempDir(), strings.Repeat("r", 90))
+	if err := os.MkdirAll(base, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_RUNTIME_DIR", base)
+	tr := NewSSHTransport(SSHOptions{Target: "host.example"})
+	if tr.controlPath != "" {
+		t.Fatalf("expected multiplexing to be disabled, path length %d", len(tr.controlPath))
+	}
+	if !strings.Contains(tr.MultiplexingStatus(), "104") {
+		t.Fatalf("status %q", tr.MultiplexingStatus())
+	}
+	if notice := tr.multiplexingNotice(); !strings.Contains(notice, "104-byte") {
+		t.Fatalf("notice %q", notice)
+	}
+	joined := strings.Join(tr.buildSSHArgs("true"), "\n")
+	if strings.Contains(joined, "Control") {
+		t.Fatalf("control options present:\n%s", joined)
+	}
+}
+
+func TestControlPathUsesShortNames(t *testing.T) {
+	useShortRuntimeDir(t)
+	tr := NewSSHTransport(SSHOptions{Target: "host.example", Port: 22})
+	path := tr.controlPath
+	if path == "" {
+		t.Fatal("expected a control path")
+	}
+	if filepath.Base(filepath.Dir(path)) != fmt.Sprintf("slurm-mon-%d", os.Getuid()) {
+		t.Fatalf("directory %q", path)
+	}
+	if len(filepath.Base(path)) != 16 {
+		t.Fatalf("socket name %q", filepath.Base(path))
+	}
 	if len(path)+17 >= 104 {
 		t.Fatalf("socket path too long: %d", len(path)+17)
+	}
+}
+
+func TestMissingRuntimeDirFallsBack(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing-runtime")
+	fallback := filepath.Join(os.TempDir(), fmt.Sprintf("slurm-mon-%d", os.Getuid()))
+	_, statErr := os.Lstat(fallback)
+	t.Cleanup(func() {
+		if errors.Is(statErr, os.ErrNotExist) {
+			_ = os.Remove(fallback)
+		}
+	})
+	t.Setenv("XDG_RUNTIME_DIR", missing)
+	dir, err := controlDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.HasPrefix(dir, missing) {
+		t.Fatalf("used missing runtime dir %s", dir)
+	}
+	if filepath.Base(dir) != filepath.Base(fallback) {
+		t.Fatalf("dir %s", dir)
+	}
+}
+
+func TestRetryClassificationUsesLastLine(t *testing.T) {
+	profileThenRefused := "/etc/profile.d/x.sh: Permission denied\nslurm_load_jobs error: Connection refused"
+	if !IsRetryable(&RunError{Stderr: profileThenRefused, ExitCode: 1}) {
+		t.Fatal("expected the last transient line to retry")
+	}
+	noiseThenPermanent := "motd: temporary failure in name resolution\nsqueue: invalid option -- 'O'"
+	if IsRetryable(&RunError{Stderr: noiseThenPermanent, ExitCode: 1}) {
+		t.Fatal("expected the last permanent line to stop")
+	}
+	noiseThenAuth := "Connection refused\nReceived disconnect from 192.0.2.1 port 22:2: Too many authentication failures"
+	if IsRetryable(&RunError{Stderr: noiseThenAuth, ExitCode: 255}) {
+		t.Fatal("expected the last authentication failure to stop")
 	}
 }
 

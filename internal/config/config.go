@@ -60,7 +60,7 @@ func newFlagSet(cfg *Config) *flag.FlagSet {
 
 	fs.DurationVar(&cfg.Refresh, "refresh", cfg.Refresh, "poll interval for collecting new Slurm snapshots")
 	fs.DurationVar(&cfg.ConnectTimeout, "connect-timeout", cfg.ConnectTimeout, "max SSH connection setup time per command (remote mode)")
-	fs.DurationVar(&cfg.CommandTimeout, "command-timeout", cfg.CommandTimeout, "max command runtime; pipe cleanup takes at most 2 extra seconds")
+	fs.DurationVar(&cfg.CommandTimeout, "command-timeout", cfg.CommandTimeout, "max command runtime; a local timeout kills child processes, and SSH pipe cleanup can take 2 more seconds")
 	fs.StringVar(&cfg.SSHConfig, "ssh-config", "", "alternate OpenSSH config path (supports ~/, Host aliases/ProxyJump)")
 	fs.StringVar(&cfg.IdentityFile, "identity-file", "", "SSH private key path passed to ssh -i (supports ~/)")
 	fs.IntVar(&cfg.Port, "port", 0, "override SSH port for remote target (remote mode)")

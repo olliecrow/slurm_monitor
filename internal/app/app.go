@@ -116,7 +116,7 @@ func checkSlurmAvailability(ctx context.Context, tr transport.Transport, timeout
 			missing := ""
 			for line := range strings.SplitSeq(res.Stdout, "\n") {
 				if value, ok := strings.CutPrefix(strings.TrimSpace(line), missingMarker); ok {
-					missing = strings.TrimSpace(value)
+					missing = transport.CleanText(strings.TrimSpace(value))
 					break
 				}
 			}
