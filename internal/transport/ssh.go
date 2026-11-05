@@ -1,15 +1,12 @@
 package transport
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -41,36 +38,7 @@ func (t *SSHTransport) Describe() string {
 }
 
 func (t *SSHTransport) Run(ctx context.Context, command string) (RunResult, error) {
-	args := t.buildSSHArgs(command)
-
-	cmd := exec.CommandContext(ctx, "ssh", args...)
-	var outBuf, errBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &errBuf
-
-	err := cmd.Run()
-	result := RunResult{
-		Stdout: outBuf.String(),
-	}
-	if err == nil {
-		return result, nil
-	}
-
-	runErr := &RunError{
-		Target: t.Describe(),
-		Stderr: errBuf.String(),
-		Err:    err,
-	}
-
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		runErr.ExitCode = exitErr.ExitCode()
-	}
-	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		runErr.Timeout = true
-	}
-
-	return result, runErr
+	return run(ctx, t.Describe(), "ssh", t.buildSSHArgs(command)...)
 }
 
 func (t *SSHTransport) buildSSHArgs(command string) []string {

@@ -52,7 +52,7 @@ The tool runs until the operator stops it or its configured duration expires. It
 ### Main flags
 - `--refresh <duration>`: poll interval (default `2s`).
 - `--connect-timeout <duration>`: SSH command connect timeout.
-- `--command-timeout <duration>`: per poll command timeout.
+- `--command-timeout <duration>`: per poll command timeout; pipe cleanup takes at most 2 additional seconds.
 - `--ssh-config <path>`: optional custom SSH config file.
 - `--identity-file <path>`: optional SSH identity file.
 - `--port <int>`: optional SSH port override.

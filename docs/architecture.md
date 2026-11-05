@@ -42,7 +42,7 @@ Two implementations satisfy it:
 
 - supports alias and `user@host` targets
 - supports custom ssh config and identity file flags
-- applies connect timeout and command timeout
+- applies connect timeout and command timeout; inherited output pipes close within 2 seconds after cancellation
 - classifies failures into retryable vs fatal
 - uses OpenSSH connection multiplexing (`ControlMaster` and `ControlPersist`) to reduce poll latency
 - uses `ServerAlive*` and `TCPKeepAlive` to detect broken connections and `ConnectionAttempts` to retry connection setup

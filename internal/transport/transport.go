@@ -1,11 +1,14 @@
 package transport
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"os/exec"
 	"strings"
+	"time"
 )
 
 type RunResult struct {
@@ -101,4 +104,36 @@ func IsRetryable(err error) bool {
 	}
 
 	return false
+}
+
+func run(ctx context.Context, target, name string, args ...string) (RunResult, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.WaitDelay = 2 * time.Second
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	err := cmd.Run()
+	result := RunResult{
+		Stdout: outBuf.String(),
+	}
+	if err == nil {
+		return result, nil
+	}
+
+	runErr := &RunError{
+		Target: target,
+		Stderr: errBuf.String(),
+		Err:    err,
+	}
+
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		runErr.ExitCode = exitErr.ExitCode()
+	}
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		runErr.Timeout = true
+	}
+
+	return result, runErr
 }
