@@ -166,12 +166,11 @@ func extractPendingJobRoots(queueRaw string) []string {
 }
 
 func extractReqTRES(raw string) string {
-	idx := strings.Index(raw, "ReqTRES=")
-	if idx < 0 {
+	_, after, ok := strings.Cut(raw, "ReqTRES=")
+	if !ok {
 		return ""
 	}
-	tail := raw[idx+len("ReqTRES="):]
-	fields := strings.Fields(tail)
+	fields := strings.Fields(after)
 	if len(fields) == 0 {
 		return ""
 	}

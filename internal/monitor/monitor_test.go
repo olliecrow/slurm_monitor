@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -130,13 +131,7 @@ func TestLoopEmitsConnectedThenRecovering(t *testing.T) {
 	if got[0] != StateConnected {
 		t.Fatalf("expected first state connected, got %s", got[0])
 	}
-	foundRecovering := false
-	for _, s := range got {
-		if s == StateDisconnectedRecovering {
-			foundRecovering = true
-			break
-		}
-	}
+	foundRecovering := slices.Contains(got, StateDisconnectedRecovering)
 	if !foundRecovering {
 		t.Fatalf("expected disconnected-recovering state in updates: %v", got)
 	}

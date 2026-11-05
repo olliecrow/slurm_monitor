@@ -62,7 +62,7 @@ func parseAvailableResources(raw string) (AvailableResources, error) {
 
 func parseKVLine(line string) map[string]string {
 	out := make(map[string]string)
-	for _, token := range strings.Fields(line) {
+	for token := range strings.FieldsSeq(line) {
 		parts := strings.SplitN(token, "=", 2)
 		if len(parts) == 2 {
 			out[parts[0]] = parts[1]
@@ -326,7 +326,7 @@ func parseGPUCount(tres string) int {
 	genericTotal := 0
 	typedTotal := 0
 	hasGeneric := false
-	for _, part := range strings.Split(tres, ",") {
+	for part := range strings.SplitSeq(tres, ",") {
 		part = strings.TrimSpace(part)
 		matches := gpuResourceRe.FindStringSubmatch(part)
 		if len(matches) != 4 {

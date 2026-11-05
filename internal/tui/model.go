@@ -167,9 +167,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, waitForUpdate(m.updates)
 	case tickMsg:
 		m.now = msg.now
-		if len(pulseFrames) > 0 {
-			m.pulseIndex = (m.pulseIndex + 1) % len(pulseFrames)
-		}
+		m.pulseIndex = (m.pulseIndex + 1) % len(pulseFrames)
 		return m, tickCmd()
 	case channelClosedMsg:
 		return m, tea.Quit
@@ -193,10 +191,7 @@ func (m Model) View() string {
 	footer := m.styles.dim.Render("q or Ctrl+C to exit")
 	headerLines := lineCount(header)
 	footerLines := lineCount(footer)
-	bodyHeight := m.height - headerLines - footerLines
-	if bodyHeight < 1 {
-		bodyHeight = 1
-	}
+	bodyHeight := max(m.height-headerLines-footerLines, 1)
 
 	body := m.renderDashboard(bodyHeight)
 	top := lipgloss.JoinVertical(lipgloss.Left, header, body)
@@ -292,7 +287,7 @@ func (m Model) frameDashboard(content string, contentWidth int) string {
 	border := func(s string) string { return m.styles.dim.Render(s) }
 	horizontalWidth := contentWidth + 2*dashboardHorizontalPadding
 	lines := []string{border("╭" + strings.Repeat("─", horizontalWidth) + "╮")}
-	for _, line := range strings.Split(content, "\n") {
+	for line := range strings.SplitSeq(content, "\n") {
 		if line == "" {
 			lines = append(lines, border("├"+strings.Repeat("─", horizontalWidth)+"┤"))
 			continue
@@ -312,9 +307,6 @@ func (m Model) frameDashboard(content string, contentWidth int) string {
 }
 
 func (m Model) renderDashboardSectionsWithBudget(contentHeight int, expanded bool, contentWidth int) string {
-	if m.snapshot == nil {
-		return "scheduler summary\n(no data)"
-	}
 	if contentHeight <= 0 {
 		return ""
 	}
@@ -362,10 +354,7 @@ func allocateSectionLineBudgets(contentHeight int, summaryLines []string, detail
 			activeDetailSections++
 		}
 	}
-	reservedDetailLines := min(contentHeight-1, activeDetailSections)
-	if reservedDetailLines < 0 {
-		reservedDetailLines = 0
-	}
+	reservedDetailLines := max(min(contentHeight-1, activeDetailSections), 0)
 	summaryBudget := contentHeight - reservedDetailLines
 	if len(summaryLines) > summaryBudget {
 		summaryLines = clipLines(summaryLines, summaryBudget)
@@ -593,12 +582,12 @@ func aggregateGridLayoutForSnapshot(snapshot *slurm.Snapshot, contentWidth int) 
 	for _, user := range snapshot.Users {
 		include(user.User, userQueueSummary(user))
 	}
-	for group := 0; group < len(aggregateGroupHeadings); group++ {
+	for group := range len(aggregateGroupHeadings) {
 		pairWidth := max(layout.valueWidth[2*group], layout.valueWidth[2*group+1])
 		layout.valueWidth[2*group] = pairWidth
 		layout.valueWidth[2*group+1] = pairWidth
 	}
-	for group := 0; group < 2; group++ {
+	for group := range 2 {
 		pairWidth := max(layout.jobValueWidth[2*group], layout.jobValueWidth[2*group+1])
 		layout.jobValueWidth[2*group] = pairWidth
 		layout.jobValueWidth[2*group+1] = pairWidth
@@ -744,8 +733,8 @@ func pendingReasonLabel(reason string) string {
 	}
 
 	const unavailablePrefix = "ReqNodeNotAvail,"
-	if strings.HasPrefix(reason, unavailablePrefix) {
-		detail := strings.TrimSpace(strings.TrimPrefix(reason, unavailablePrefix))
+	if after, ok := strings.CutPrefix(reason, unavailablePrefix); ok {
+		detail := strings.TrimSpace(after)
 		if detail != "" {
 			return "Required node unavailable: " + detail
 		}
@@ -949,16 +938,10 @@ func joinWithPaddingKeepRight(left, right string, width int) string {
 	if rightWidth >= width {
 		return truncateRunes(right, width)
 	}
-	maxLeftWidth := width - rightWidth - 1
-	if maxLeftWidth < 0 {
-		maxLeftWidth = 0
-	}
+	maxLeftWidth := max(width-rightWidth-1, 0)
 	left = truncateRunes(left, maxLeftWidth)
 	leftWidth := lipgloss.Width(left)
-	padding := width - leftWidth - rightWidth
-	if padding < 1 {
-		padding = 1
-	}
+	padding := max(width-leftWidth-rightWidth, 1)
 	return left + strings.Repeat(" ", padding) + right
 }
 
@@ -1010,10 +993,7 @@ func pinFooterToBottom(top, footer string, height int) string {
 		topLines = strings.Split(top, "\n")
 	}
 
-	maxTopLines := height - len(footerLines)
-	if maxTopLines < 0 {
-		maxTopLines = 0
-	}
+	maxTopLines := max(height-len(footerLines), 0)
 	if len(topLines) > maxTopLines {
 		topLines = topLines[:maxTopLines]
 	}

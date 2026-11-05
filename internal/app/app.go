@@ -114,7 +114,7 @@ func checkSlurmAvailability(ctx context.Context, tr transport.Transport, timeout
 		var runErr *transport.RunError
 		if errors.As(err, &runErr) && runErr.ExitCode == 7 {
 			missing := ""
-			for _, line := range strings.Split(res.Stdout, "\n") {
+			for line := range strings.SplitSeq(res.Stdout, "\n") {
 				if value, ok := strings.CutPrefix(strings.TrimSpace(line), missingMarker); ok {
 					missing = strings.TrimSpace(value)
 					break

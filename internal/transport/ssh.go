@@ -47,10 +47,7 @@ func (t *SSHTransport) Run(ctx context.Context, command string) (RunResult, erro
 func (t *SSHTransport) buildSSHArgs(command string) []string {
 	args := make([]string, 0, 24)
 	if t.opts.ConnectTimeout > 0 {
-		seconds := int(math.Ceil(t.opts.ConnectTimeout.Seconds()))
-		if seconds < 1 {
-			seconds = 1
-		}
+		seconds := max(int(math.Ceil(t.opts.ConnectTimeout.Seconds())), 1)
 		args = append(args, "-o", fmt.Sprintf("ConnectTimeout=%d", seconds))
 	}
 	args = append(args,

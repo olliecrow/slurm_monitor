@@ -846,7 +846,7 @@ func TestUserSectionUsesAvailableHeightBeforeHidingUsers(t *testing.T) {
 	m.styles = defaultStyles(true)
 	m.width = 96
 	users := make([]slurm.UserSummary, 0, 15)
-	for i := 0; i < 15; i++ {
+	for i := range 15 {
 		users = append(users, slurm.UserSummary{
 			User:           fmt.Sprintf("user%02d", i),
 			RunningCPUJobs: 1,
@@ -883,7 +883,7 @@ func TestUserViewShowsHiddenCountWhenCapped(t *testing.T) {
 func TestViewShowsHiddenUserIndicatorInTightLayout(t *testing.T) {
 	m := seededModel()
 	m.styles = defaultStyles(true)
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		m.snapshot.Users = append(m.snapshot.Users, slurm.UserSummary{
 			User:           fmt.Sprintf("user-%02d", i),
 			RunningCPUJobs: 1,

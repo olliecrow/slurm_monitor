@@ -127,10 +127,7 @@ func (l *Loop) backoffDelay(attempt int) time.Duration {
 	}
 
 	jitterFactor := 0.8 + (l.Rand.Float64() * 0.4)
-	jittered := time.Duration(float64(delay) * jitterFactor)
-	if jittered < l.BaseBackoff {
-		jittered = l.BaseBackoff
-	}
+	jittered := max(time.Duration(float64(delay)*jitterFactor), l.BaseBackoff)
 	if jittered > l.MaxBackoff {
 		jittered = l.MaxBackoff
 	}

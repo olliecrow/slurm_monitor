@@ -144,7 +144,7 @@ func TestHelpExamplesParse(t *testing.T) {
 
 	inExamples := false
 	tested := 0
-	for _, line := range strings.Split(HelpText(), "\n") {
+	for line := range strings.SplitSeq(HelpText(), "\n") {
 		if line == "Examples:" {
 			inExamples = true
 			continue
