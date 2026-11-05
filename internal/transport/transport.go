@@ -64,6 +64,15 @@ func IsRetryable(err error) bool {
 		}
 
 		stderr := strings.ToLower(runErr.Stderr)
+		for _, signal := range []string{
+			"temporary failure in name resolution", "unable to contact slurm controller",
+			"zero bytes were transmitted or received", "backup controller in standby mode",
+			"socket timed out", "resource temporarily unavailable",
+		} {
+			if strings.Contains(stderr, signal) {
+				return true
+			}
+		}
 		permanentSignals := []string{
 			"permission denied",
 			"host key verification failed",
@@ -136,4 +145,9 @@ func run(ctx context.Context, target, name string, args ...string) (RunResult, e
 	}
 
 	return result, runErr
+}
+
+func IsNameResolutionFailure(err error) bool {
+	var runErr *RunError
+	return errors.As(err, &runErr) && strings.Contains(strings.ToLower(runErr.Stderr), "could not resolve hostname")
 }

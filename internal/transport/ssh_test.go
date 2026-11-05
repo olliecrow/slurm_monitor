@@ -113,3 +113,21 @@ func TestRunErrorDoesNotRepeatKnownExitStatus(t *testing.T) {
 		t.Fatalf("expected exit status not to be repeated, got %q", got)
 	}
 }
+
+func TestRetryableControllerAndResolverFailures(t *testing.T) {
+	for _, text := range []string{
+		"ssh: Could not resolve hostname host: Temporary failure in name resolution",
+		"slurm_load_node error: Unable to contact slurm controller (connect failure)",
+		"slurm_load_jobs error: Zero Bytes were transmitted or received",
+		"slurm_load_jobs error: Slurm backup controller in standby mode",
+		"slurm_load_jobs error: Socket timed out on send/recv operation",
+		"Resource temporarily unavailable",
+	} {
+		if !IsRetryable(&RunError{Stderr: text, ExitCode: 1}) {
+			t.Errorf("not retryable: %s", text)
+		}
+	}
+	if IsRetryable(&RunError{Stderr: "ssh: Could not resolve hostname host: Name or service not known", ExitCode: 255}) {
+		t.Fatal("invalid startup host should fail")
+	}
+}

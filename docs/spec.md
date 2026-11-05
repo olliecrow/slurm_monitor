@@ -77,6 +77,8 @@ The tool runs until the operator stops it or its configured duration expires. It
   - if the remote shell contract fails or a required Slurm command is missing, identify the failed capability and exit.
 
 ### Failure semantics
+
+Slurm controller unavailability and temporary DNS failures are transient. After a successful poll, all hostname-resolution failures retry with backoff.
 - Non-recoverable startup failures are fatal:
   - missing required Slurm commands in selected context
   - invalid CLI argument combinations

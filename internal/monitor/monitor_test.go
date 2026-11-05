@@ -3,6 +3,7 @@ package monitor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"sync"
 	"testing"
@@ -253,5 +254,41 @@ func TestLoopDoesNotReportContextCancellationAsFailure(t *testing.T) {
 		for update := range updates {
 			t.Fatalf("expected clean cancellation without an update, got %+v", update)
 		}
+	}
+}
+
+func TestDNSRecoveryDependsOnPreviousSuccess(t *testing.T) {
+	for _, previousSuccess := range []bool{false, true} {
+		t.Run(fmt.Sprint(previousSuccess), func(t *testing.T) {
+			steps := []collectStep{}
+			if previousSuccess {
+				steps = append(steps, collectStep{snapshot: slurm.Snapshot{CollectedAt: time.Now()}})
+			}
+			steps = append(steps, collectStep{err: &transport.RunError{Stderr: "ssh: Could not resolve hostname host: Name or service not known", ExitCode: 255}}, collectStep{snapshot: slurm.Snapshot{CollectedAt: time.Now()}})
+			loop := NewLoop(&scriptedCollector{steps: steps}, time.Millisecond)
+			loop.BaseBackoff = time.Millisecond
+			loop.MaxBackoff = time.Millisecond
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			updates := make(chan Update)
+			go loop.Run(ctx, updates)
+			want := []State{StateDisconnected}
+			if previousSuccess {
+				want = []State{StateConnected, StateReconnecting, StateConnected}
+			}
+			for _, state := range want {
+				select {
+				case update := <-updates:
+					if update.State != state {
+						t.Fatalf("want %s, got %s", state, update.State)
+					}
+				case <-ctx.Done():
+					t.Fatal("missing update")
+				}
+			}
+			cancel()
+			for range updates {
+			}
+		})
 	}
 }

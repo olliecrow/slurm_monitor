@@ -113,6 +113,8 @@ Behavior:
 - stop retrying after permanent configuration/auth/parser-contract failures and leave the UI disconnected until quit
 
 ### Retry policy
+
+Slurm controller unavailability and temporary DNS failures are transient. After a successful poll, all hostname-resolution failures retry with backoff.
 - bounded exponential backoff with jitter
 - immediate short retry on first failure
 - cap the retry delay

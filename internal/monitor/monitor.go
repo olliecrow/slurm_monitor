@@ -81,7 +81,7 @@ func (l *Loop) Run(ctx context.Context, updates chan<- Update) {
 		}
 
 		failures++
-		if !transport.IsRetryable(err) {
+		if !transport.IsRetryable(err) && (lastSuccess.IsZero() || !transport.IsNameResolutionFailure(err)) {
 			sendUpdate(ctx, updates, Update{
 				State:       StateDisconnected,
 				LastError:   err.Error(),
