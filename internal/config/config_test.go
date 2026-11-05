@@ -2,6 +2,8 @@ package config
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -163,5 +165,29 @@ func TestHelpExamplesParse(t *testing.T) {
 	}
 	if tested == 0 {
 		t.Fatal("expected at least one parseable help example")
+	}
+}
+
+func TestInterspersedFlagsAndTargetValidation(t *testing.T) {
+	for _, args := range [][]string{{"host", "--once"}, {"--once", "host"}, {"doctor", "host", "--port", "22"}, {"--", "host"}} {
+		if _, err := ParseArgs(args); err != nil {
+			t.Errorf("%v: %v", args, err)
+		}
+	}
+	for _, args := range [][]string{{"host", "extra"}, {"--", "-oProxyCommand=x"}, {"host name"}, {"host\x1b"}, {"--", "host", "--once"}} {
+		if _, err := ParseArgs(args); err == nil {
+			t.Errorf("accepted %v", args)
+		}
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := ParseArgs([]string{"host", "--ssh-config=~/config", "--identity-file", "~/key"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SSHConfig != filepath.Join(home, "config") || cfg.IdentityFile != filepath.Join(home, "key") {
+		t.Fatal("home paths not resolved")
 	}
 }

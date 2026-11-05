@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -92,7 +91,7 @@ func buildDoctorChecks(cfg config.Config, deps doctorDeps) []doctorCheck {
 		if strings.TrimSpace(path) == "" {
 			return
 		}
-		resolved := resolveHomePath(path)
+		resolved := path
 		info, err := deps.stat(resolved)
 		if err != nil {
 			checks = append(checks, doctorCheck{
@@ -192,14 +191,4 @@ func RunDryRun(cfg config.Config, out io.Writer) error {
 	fmt.Fprintln(out, "\ndry-run only: no local or remote commands were executed.")
 
 	return nil
-}
-
-func resolveHomePath(path string) string {
-	if strings.HasPrefix(path, "~/") {
-		home, err := os.UserHomeDir()
-		if err == nil && strings.TrimSpace(home) != "" {
-			return filepath.Join(home, strings.TrimPrefix(path, "~/"))
-		}
-	}
-	return path
 }

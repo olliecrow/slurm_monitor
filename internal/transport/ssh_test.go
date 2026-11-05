@@ -65,7 +65,7 @@ func TestBuildSSHArgsIncludesResilienceOptions(t *testing.T) {
 		"-F /tmp/ssh_config",
 		"-i /tmp/id",
 		"-p 2222",
-		"user@host",
+		"-- user@host",
 		"sh -lc 'echo hello'",
 	}
 	for _, token := range required {

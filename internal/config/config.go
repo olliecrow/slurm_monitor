@@ -5,8 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 )
 
 type Mode string
@@ -137,19 +140,41 @@ func ParseArgs(args []string) (Config, error) {
 	cfg.Command, args = splitCommand(args)
 	fs := newFlagSet(&cfg)
 
-	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return Config{}, ErrHelpRequested
+	var pos []string
+	for len(args) > 0 {
+		if args[0] == "--" {
+			pos = append(pos, args[1:]...)
+			break
 		}
-		return Config{}, err
+		if !strings.HasPrefix(args[0], "-") || args[0] == "-" {
+			pos = append(pos, args[0])
+			args = args[1:]
+			continue
+		}
+		n := 1
+		name, _, hasValue := strings.Cut(strings.TrimLeft(args[0], "-"), "=")
+		if f := fs.Lookup(name); f != nil && !hasValue {
+			boolFlag, ok := f.Value.(interface{ IsBoolFlag() bool })
+			if (!ok || !boolFlag.IsBoolFlag()) && len(args) > 1 {
+				n = 2
+			}
+		}
+		if err := fs.Parse(args[:n]); err != nil {
+			if errors.Is(err, flag.ErrHelp) {
+				return Config{}, ErrHelpRequested
+			}
+			return Config{}, err
+		}
+		args = args[n:]
 	}
-
-	pos := fs.Args()
 	if len(pos) > 1 {
 		return Config{}, fmt.Errorf("expected zero or one positional target, got %d", len(pos))
 	}
 	if len(pos) == 1 {
-		cfg.Target = strings.TrimSpace(pos[0])
+		cfg.Target = pos[0]
+		if strings.HasPrefix(cfg.Target, "-") || strings.ContainsFunc(cfg.Target, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) {
+			return Config{}, fmt.Errorf("invalid SSH target")
+		}
 	}
 
 	if cfg.Target == "" {
@@ -180,5 +205,17 @@ func ParseArgs(args []string) (Config, error) {
 		}
 	}
 
+	cfg.SSHConfig = resolveHomePath(cfg.SSHConfig)
+	cfg.IdentityFile = resolveHomePath(cfg.IdentityFile)
 	return cfg, nil
+}
+
+func resolveHomePath(path string) string {
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err == nil && strings.TrimSpace(home) != "" {
+			return filepath.Join(home, strings.TrimPrefix(path, "~/"))
+		}
+	}
+	return path
 }

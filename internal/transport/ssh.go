@@ -74,7 +74,7 @@ func (t *SSHTransport) buildSSHArgs(command string) []string {
 	}
 
 	remoteCommand := "sh -lc " + shellQuote(command)
-	args = append(args, t.opts.Target, remoteCommand)
+	args = append(args, "--", t.opts.Target, remoteCommand)
 	return args
 }
 

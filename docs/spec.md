@@ -51,6 +51,7 @@ The tool runs until the operator stops it or its configured duration expires. It
 
 ### Main flags
 - `--refresh <duration>`: poll interval (default `2s`).
+- Flags can precede or follow the target. `--` ends flag parsing. Targets cannot start with `-` or contain whitespace or control characters. Path flags expand `~/` to the current home directory.
 - `--connect-timeout <duration>`: SSH command connect timeout.
 - `--command-timeout <duration>`: per poll command timeout; pipe cleanup takes at most 2 additional seconds.
 - `--ssh-config <path>`: optional custom SSH config file.
