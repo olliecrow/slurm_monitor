@@ -230,6 +230,8 @@ func TestMonitorDurationExpiryIsCleanOnlyForInteractiveMonitor(t *testing.T) {
 
 func TestRunOncePrintsQueueAndUserCPUAndGPUSplit(t *testing.T) {
 	raw := strings.Join([]string{
+		"Login profile banner",
+		"__SLURM_MONITOR_BEGIN__",
 		"NodeName=node-a CPUAlloc=24 CPUEfctv=32 CPUTot=32 State=MIXED CfgTRES=cpu=32,gres/gpu=4 AllocTRES=cpu=24,gres/gpu=1",
 		"__SLURM_MONITOR_SPLIT__",
 		"1001|RUNNING|alice|gpu|8|20G|cpu=8,mem=20G,gres/gpu=1|None",

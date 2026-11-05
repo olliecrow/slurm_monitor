@@ -14,7 +14,7 @@ const (
 	// -r expands each array task onto its own row, so task and resource totals
 	// do not undercount arrays. tres-alloc supplies Slurm's running and pending
 	// TRES values. The trailing colons prevent -O from truncating TRES and reasons.
-	combinedCollectCommand = `scontrol show nodes --oneliner && printf '\n__SLURM_MONITOR_SPLIT__\n' && squeue -h -r -O "JobID:|,State:|,UserName:|,Partition:|,NumCPUs:|,MinMemory:|,tres-alloc:|,Reason:|"`
+	combinedCollectCommand = `printf '__SLURM_MONITOR_BEGIN__\n' && scontrol show nodes --oneliner && printf '\n__SLURM_MONITOR_SPLIT__\n' && squeue -h -r -O "JobID:|,State:|,UserName:|,Partition:|,NumCPUs:|,MinMemory:|,tres-alloc:|,Reason:|"`
 
 	maxPendingGPUProbesPerCollect = 4
 )
@@ -66,6 +66,10 @@ func (c *Collector) Collect(ctx context.Context) (Snapshot, error) {
 }
 
 func splitCombinedOutput(raw string) (nodes string, queue string, err error) {
+	_, raw, found := strings.Cut(raw, "__SLURM_MONITOR_BEGIN__\n")
+	if !found {
+		return "", "", fmt.Errorf("unexpected collector output format: begin marker missing")
+	}
 	const marker = "__SLURM_MONITOR_SPLIT__"
 	parts := strings.SplitN(raw, marker, 2)
 	if len(parts) != 2 {

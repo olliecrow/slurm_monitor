@@ -61,6 +61,7 @@ Collectors build these typed parts of a `Snapshot`:
 Each poll:
 
 - one combined read-only `scontrol show nodes --oneliner` and `squeue -r` command per poll tick, using node state/capacity plus queue `tres-alloc` and pending reason data
+- ignores login-profile output before the collector begin marker
 - at most four cached `scontrol show job` fallback probes per tick, within one command-timeout budget, and only when a pending row omits TRES details
 - parsers accept missing optional metrics
 - parse errors identify the row and failed field

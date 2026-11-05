@@ -11,6 +11,9 @@ import (
 )
 
 func TestCombinedCollectCommandIncludesNodesAndExpandedQueue(t *testing.T) {
+	if !strings.HasPrefix(combinedCollectCommand, "printf '__SLURM_MONITOR_BEGIN__") {
+		t.Fatal("missing begin marker")
+	}
 	if !strings.Contains(combinedCollectCommand, "scontrol show nodes --oneliner") {
 		t.Fatalf("collect command must include read-only node data: %q", combinedCollectCommand)
 	}
@@ -35,14 +38,14 @@ func TestCombinedCollectCommandIncludesNodesAndExpandedQueue(t *testing.T) {
 }
 
 func TestSplitCombinedOutput(t *testing.T) {
-	nodes, queue, err := splitCombinedOutput("NodeName=node-a\n__SLURM_MONITOR_SPLIT__\n1001|RUNNING")
+	nodes, queue, err := splitCombinedOutput("Welcome\n__SLURM_MONITOR_BEGIN__\nNodeName=node-a\n__SLURM_MONITOR_SPLIT__\n1001|RUNNING")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 	if nodes != "NodeName=node-a" || queue != "1001|RUNNING" {
 		t.Fatalf("unexpected split output: nodes=%q queue=%q", nodes, queue)
 	}
-	if _, _, err := splitCombinedOutput("missing marker"); err == nil {
+	if _, _, err := splitCombinedOutput("__SLURM_MONITOR_BEGIN__\nmissing split marker"); err == nil {
 		t.Fatal("expected missing marker error")
 	}
 }
@@ -109,5 +112,11 @@ func TestFillPendingGPURequestCacheOnlyProbesMissingDetailsWithinLimit(t *testin
 	}
 	if _, ok := collector.pendingGPUCountByJobRoot["2"]; ok {
 		t.Fatalf("job with complete CPU-only details must not be probed")
+	}
+}
+
+func TestSplitRejectsMissingBeginMarker(t *testing.T) {
+	if _, _, err := splitCombinedOutput("NodeName=node-a\n__SLURM_MONITOR_SPLIT__\n"); err == nil {
+		t.Fatal("expected begin marker error")
 	}
 }
