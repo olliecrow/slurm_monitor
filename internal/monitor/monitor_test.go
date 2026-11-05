@@ -287,3 +287,25 @@ func TestDNSRecoveryDependsOnPreviousSuccess(t *testing.T) {
 		})
 	}
 }
+
+func TestLoopIgnoresEarlierDNSNoise(t *testing.T) {
+	sc := &scriptedCollector{steps: []collectStep{
+		{snapshot: slurm.Snapshot{CollectedAt: time.Now()}},
+		{err: &transport.RunError{ExitCode: 255, Stderr: "profile helper: Could not resolve hostname example.invalid\nPermission denied (publickey).\n \n\x1b[0m"}},
+	}}
+	loop := NewLoop(sc, time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	updates := make(chan Update, 8)
+	go loop.Run(ctx, updates)
+	var states []State
+	for update := range updates {
+		states = append(states, update.State)
+		if len(states) == 2 {
+			cancel()
+		}
+	}
+	if !slices.Equal(states, []State{StateConnected, StateDisconnected}) {
+		t.Fatalf("permanent last line must stop retries, got %v", states)
+	}
+}

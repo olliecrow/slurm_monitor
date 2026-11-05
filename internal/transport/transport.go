@@ -166,7 +166,7 @@ func runPrepared(ctx context.Context, target string, prepare func(*exec.Cmd), na
 
 func IsNameResolutionFailure(err error) bool {
 	var runErr *RunError
-	return errors.As(err, &runErr) && strings.Contains(strings.ToLower(runErr.Stderr), "could not resolve hostname")
+	return errors.As(err, &runErr) && strings.Contains(strings.ToLower(LastErrorLine(runErr.Stderr)), "could not resolve hostname")
 }
 
 // CleanText removes remote terminal sequences and control characters before display.
