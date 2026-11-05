@@ -16,6 +16,7 @@ permissions:
 jobs:
   quality:
     name: Go quality
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -61,6 +62,7 @@ jobs:
   security:
     if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
     name: Security policy
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -91,9 +93,12 @@ jobs:
         run: |
           set -euo pipefail
           range="$(bash scripts/security/ci-range.sh)"
-          log_opts="--text --no-textconv --no-ext-diff ${range}"
-          gitleaks git --redact --verbose --config .gitleaks.toml --log-opts="${log_opts}"
-          gitleaks git --redact --verbose --config .gitleaks-paths.toml --log-opts="${log_opts}"
+          bash scripts/security/gitleaks-range.sh "$range" .gitleaks.toml
+
+      - name: Test scanner failures and CI timeouts
+        run: |
+          bash scripts/security/test-gitleaks-range.sh
+          bash scripts/security/test-ci-timeouts.sh
 
       - name: Test commit range selection
         run: bash scripts/security/test-ci-range.sh

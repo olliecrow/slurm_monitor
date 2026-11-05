@@ -48,16 +48,16 @@ printf '/Users/%s\n' YOUNG >"$path_dir/young.txt"
 printf '/home/%s\n' userbob >"$path_dir/userbob.txt"
 printf '/Users/YOU /Users/%s\n' example >"$path_dir/mixed.txt"
 printf '%s:\\Users\\%s\n' C example >"$path_dir/windows.txt"
-printf '/Users/YOU\n/home/user\n/home/username\n' >"$path_dir/placeholders.txt"
+printf '/Users/YOU\n/Users/username\n/home/user\n/home/username\n' >"$path_dir/placeholders.txt"
+printf '%s:\\Users\\%s\n' C YOU >>"$path_dir/placeholders.txt"
 
-for config in "$repo_root/.gitleaks.toml" "$repo_root/.gitleaks-paths.toml"; do
-  reject scan_paths "$config" "$path_dir/young.txt"
-  reject scan_paths "$config" "$path_dir/mixed.txt"
-  reject scan_paths "$config" "$path_dir/windows.txt"
-  allow scan_paths "$config" "$path_dir/placeholders.txt"
-done
-reject scan_paths "$repo_root/.gitleaks-paths.toml" "$path_dir/home.txt"
-reject scan_paths "$repo_root/.gitleaks-paths.toml" "$path_dir/userbob.txt"
+config="$repo_root/.gitleaks.toml"
+reject scan_paths "$config" "$path_dir/home.txt"
+reject scan_paths "$config" "$path_dir/userbob.txt"
+reject scan_paths "$config" "$path_dir/young.txt"
+reject scan_paths "$config" "$path_dir/mixed.txt"
+reject scan_paths "$config" "$path_dir/windows.txt"
+allow scan_paths "$config" "$path_dir/placeholders.txt"
 
 commit_as() {
   git -C "$1" -c user.name=Test -c user.email=test@example.com commit -qm "$2"

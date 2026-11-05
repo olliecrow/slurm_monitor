@@ -11,10 +11,6 @@ repos:
       - id: gitleaks
         args:
           - --config=.gitleaks.toml
-      - id: gitleaks
-        alias: gitleaks-paths
-        args:
-          - --config=.gitleaks-paths.toml
 
   - repo: local
     hooks:

@@ -86,3 +86,13 @@ if grep -Fq "$private_email_fixture" "$output_file"; then
   echo "Git identity checker exposed a private address" >&2
   exit 1
 fi
+
+# Build synthetic values at runtime so the fixtures cannot resemble real keys.
+for prefix in sk-ant-oat01- sk-ant-api03- sk-proj- ghp_ gho_ ghu_ ghs_ ghr_ github_pat_; do
+  value="${prefix}$(printf 'a%.0s' {1..80})"
+  printf '%s\n' "$value" >"$tmp_dir/token.txt"
+  assert_blocked_without_exposure "$tmp_dir/token.txt" "$value" "$prefix"
+done
+value="eyJ$(printf 'a%.0s' {1..20}).eyJ$(printf 'b%.0s' {1..20}).$(printf 'c%.0s' {1..43})"
+printf '%s\n' "$value" >"$tmp_dir/token.txt"
+assert_blocked_without_exposure "$tmp_dir/token.txt" "$value" "JWT"

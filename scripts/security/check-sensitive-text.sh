@@ -15,7 +15,7 @@ fi
 local_path_regex='(/Users/[A-Za-z0-9._-]+|/home/[A-Za-z0-9._-]+|[A-Za-z]:\\+Users\\+[A-Za-z0-9._-]+)'
 allowed_path_placeholder_regex='(/Users/(YOU|USER|username)|/home/(user|USER|username)|[A-Za-z]:\\+Users\\+(YOU|USER|USERNAME|username))'
 secret_assignment_regex='([Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Ss][Ee][Cc][Rr][Ee][Tt])[[:space:]]*[:=][[:space:]]*["'"'"']?[A-Za-z0-9_./+=-]{12,}'
-known_token_regex='((ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20,})'
+known_token_regex='((ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|sk-(ant-(oat01|api03)-|proj-)?[A-Za-z0-9_-]{20,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{20,})'
 email_regex='[A-Za-z0-9.!#$%&*+/=?^_{}|~-]+@[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z][A-Za-z]+'
 allowed_email_regex='^([^@]+@([A-Za-z0-9-]+\.)*(example\.com|example\.net|example\.org|users\.noreply\.github\.com|noreply\.github\.com)|noreply@github\.com)$'
 labelled_phone_regex='([Pp][Hh][Oo][Nn][Ee]|[Mm][Oo][Bb][Ii][Ll][Ee]|[Tt][Ee][Ll]([Ee][Pp][Hh][Oo][Nn][Ee])?)([[:space:]]+[Nn][Uu][Mm][Bb][Ee][Rr])?[[:space:]]*[:=][[:space:]]*[+]?([0-9][[:space:].()-]*){7,}'
