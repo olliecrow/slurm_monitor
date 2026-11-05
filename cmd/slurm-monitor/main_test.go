@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -10,6 +12,7 @@ func TestCompletionHelpTextIncludesUsage(t *testing.T) {
 	for _, want := range []string{
 		"slurm-monitor completion",
 		"Usage:",
+		"mkdir -p ~/.local/share/bash-completion/completions",
 		"slurm-monitor completion [bash|zsh]",
 	} {
 		if !strings.Contains(help, want) {
@@ -54,6 +57,22 @@ func TestCompletionScriptsDoNotAdvertiseUnsupportedHelpCommand(t *testing.T) {
 		}
 		if strings.Contains(script, "help:") || strings.Contains(script, " monitor help") {
 			t.Fatalf("%s completion advertises unsupported help command:\n%s", shell, script)
+		}
+	}
+}
+
+func TestBashCompletesFlagsAtAnyPosition(t *testing.T) {
+	script, err := completionScript("bash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, position := range []int{1, 2, 3} {
+		setup := fmt.Sprintf("\n_init_completion() { cur=--re; cword=%d; words=(slurm-monitor host --re); }\n_slurm_monitor_completion\nprintf '%%s\\n' \"${COMPREPLY[@]}\"\n", position)
+		cmd := exec.Command("bash")
+		cmd.Stdin = strings.NewReader(script + setup)
+		out, err := cmd.CombinedOutput()
+		if err != nil || strings.TrimSpace(string(out)) != "--refresh" {
+			t.Fatalf("position %d: %q, %v", position, out, err)
 		}
 	}
 }

@@ -67,20 +67,27 @@ Usage:
   slurm-monitor completion [bash|zsh]
 
 Examples:
+  mkdir -p ~/.local/share/bash-completion/completions
   slurm-monitor completion bash > ~/.local/share/bash-completion/completions/slurm-monitor
   mkdir -p ~/.zsh/completions
   slurm-monitor completion zsh > ~/.zsh/completions/_slurm-monitor
 `
 }
 
+const completionFlags = "--refresh --connect-timeout --command-timeout --ssh-config --identity-file --port --no-color --compact --once --duration"
+
 func completionScript(shell string) (string, error) {
 	switch shell {
 	case "bash":
-		return `# bash completion for slurm-monitor
+		return strings.ReplaceAll(`# bash completion for slurm-monitor
 _slurm_monitor_completion() {
   local cur prev words cword
   _init_completion || return
   local commands="doctor dry-run completion monitor"
+  if [[ ${cur} == -* ]]; then
+    COMPREPLY=( $(compgen -W "__FLAGS__" -- "${cur}") )
+    return
+  fi
   if [[ ${cword} -eq 1 ]]; then
     COMPREPLY=( $(compgen -W "${commands}" -- "${cur}") )
     return
@@ -90,7 +97,7 @@ _slurm_monitor_completion() {
       COMPREPLY=( $(compgen -W "bash zsh" -- "${cur}") )
       ;;
     doctor|dry-run|monitor)
-      COMPREPLY=( $(compgen -W "--refresh --connect-timeout --command-timeout --ssh-config --identity-file --port --no-color --compact --once --duration" -- "${cur}") )
+      COMPREPLY=( $(compgen -W "__FLAGS__" -- "${cur}") )
       ;;
     *)
       COMPREPLY=( $(compgen -W "${commands}" -- "${cur}") )
@@ -98,9 +105,9 @@ _slurm_monitor_completion() {
   esac
 }
 complete -F _slurm_monitor_completion slurm-monitor
-`, nil
+`, "__FLAGS__", completionFlags), nil
 	case "zsh":
-		return `#compdef slurm-monitor
+		return strings.ReplaceAll(`#compdef slurm-monitor
 _slurm_monitor() {
   local -a commands
   commands=(
@@ -109,6 +116,10 @@ _slurm_monitor() {
     'dry-run:print planned execution order'
     'completion:print shell completion script'
   )
+  if [[ ${words[CURRENT]} == -* ]]; then
+    _values 'flag' __FLAGS__
+    return
+  fi
   if (( CURRENT == 2 )); then
     _describe 'command' commands
     return
@@ -118,7 +129,7 @@ _slurm_monitor() {
       _values 'shell' bash zsh
       ;;
     doctor|dry-run|monitor)
-      _values 'flag' --refresh --connect-timeout --command-timeout --ssh-config --identity-file --port --no-color --compact --once --duration
+      _values 'flag' __FLAGS__
       ;;
     *)
       _message 'optional ssh target'
@@ -126,7 +137,7 @@ _slurm_monitor() {
   esac
 }
 _slurm_monitor "$@"
-`, nil
+`, "__FLAGS__", completionFlags), nil
 	default:
 		return "", fmt.Errorf("unsupported shell %q (expected bash or zsh)", shell)
 	}

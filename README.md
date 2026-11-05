@@ -19,36 +19,6 @@
 - OpenSSH `ssh` available for remote mode
 - macOS or Linux on the operator host
 
-## Repository security checks
-
-- `gitleaks` runs in local pre-commit hooks and in GitHub Actions.
-- Staged files and commit messages are blocked if they contain personal contact details, user-home path prefixes, or credential-like values.
-- Commits must use a GitHub no-reply or reserved example address for author and committer metadata.
-- Outbound pushes are blocked locally when new identities, messages, or added lines violate the same policy.
-- Pull request titles and descriptions are checked in CI.
-
-Install [pre-commit](https://pre-commit.com/#install), then set up the repository hooks.
-
-```bash
-pre-commit install
-```
-
-Run all configured hooks manually.
-
-```bash
-pre-commit run --all-files
-```
-
-Run the Go development checks.
-
-```bash
-gofmt -l .
-go mod verify
-go test ./...
-go test -race ./...
-go vet ./...
-```
-
 ## Quick start
 
 Install the latest public version.
@@ -73,6 +43,7 @@ Install shell tab completion.
 
 ```bash
 # bash
+mkdir -p ~/.local/share/bash-completion/completions
 go run ./cmd/slurm-monitor completion bash > ~/.local/share/bash-completion/completions/slurm-monitor
 
 # zsh
@@ -115,45 +86,13 @@ go run ./cmd/slurm-monitor --once cluster_alias
 
 `--once` prints queue job and resource totals, available CPU and GPU capacity, and up to 10 rows from each sorted partition, user, pending-reason, and grouped-job list. Queue counts include each array task. The job list groups tasks only when root job, user, partition, state, and pending reason match.
 
-## Doctor output example
+## Keys
 
-```text
-slurm-monitor doctor
-mode: local
-target: local
-
-[ok] local tool sh: /bin/sh
-[ok] local tool squeue: /usr/bin/squeue
-[ok] local tool scontrol: /usr/bin/scontrol
-[ok] slurm preflight: required Slurm commands are reachable on local
-
-doctor result: PASS
-```
-
-## Dry-run output example
-
-```text
-slurm-monitor dry-run
-mode: local
-target: local
-refresh: 5s
-connect-timeout: 10s
-command-timeout: 15s
-duration: unbounded
-once: false
-compact: false
-no-color: false
-
-planned sequence:
-1. Parse flags and build the configured transport.
-2. Run a local preflight check for sh, squeue, and scontrol.
-3. Start the polling loop and render the live TUI until interrupted or duration is reached.
-4. Exit without mutating any Slurm queue or cluster state.
-
-dry-run only: no local or remote commands were executed.
-```
+Press `q` or Ctrl+C to exit and restore the terminal.
 
 ## Common options
+
+Flags work before or after the target. SSH path flags expand `~/`.
 
 - `--refresh <duration>`, default `5s`
 - `--connect-timeout <duration>`, default `10s`
@@ -171,31 +110,36 @@ dry-run only: no local or remote commands were executed.
 - The monitor cannot cancel, requeue, hold, release, or submit jobs.
 - Remote mode requires working OpenSSH access and remote Slurm command availability.
 - Large clusters use capped tables that state how many rows are hidden.
+- Totals reflect what your Slurm account can see. `PrivateData` or hidden partitions reduce them.
 
-## Completion command
+## Repository security checks
 
-- `slurm-monitor completion [bash|zsh]`
-- `slurm-monitor completion --help`
+- `gitleaks` runs in local pre-commit hooks and in GitHub Actions.
+- Staged files and commit messages are blocked if they contain personal contact details, user-home path prefixes, or credential-like values.
+- Commits must use a GitHub no-reply or reserved example address for author and committer metadata.
+- Outbound pushes are blocked locally when new identities, messages, or added lines violate the same policy.
+- Pull request titles and descriptions are checked in CI.
 
-## Optional shell alias
-
-If `slurm-monitor` is in your `PATH`, use:
+Install [pre-commit](https://pre-commit.com/#install), then set up the repository hooks.
 
 ```bash
-alias slurm_monitor='slurm-monitor'
+pre-commit install
 ```
 
-To run from this repository, use:
+Run all configured hooks manually.
 
 ```bash
-alias slurm_monitor='go run /path/to/slurm_monitor/cmd/slurm-monitor'
+pre-commit run --all-files
 ```
 
-Reload your shell config.
+Run the Go development checks.
 
 ```bash
-source ~/.bashrc
-source ~/.zshrc
+gofmt -l .
+go mod verify
+go test ./...
+go test -race ./...
+go vet ./...
 ```
 
 ## Runtime stack
