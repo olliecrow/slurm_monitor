@@ -23,6 +23,19 @@ scan HEAD
 scan HEAD..HEAD
 reject missing-ref..HEAD "invalid range"
 reject 'HEAD ' "whitespace"
+# A real finding must show the rule, file, and commit, but not the value.
+leak_name="notuser"
+printf '/home/%s/notes\n' "$leak_name" >"$root/repo/path.txt"
+git -C "$root/repo" add path.txt
+git -C "$root/repo" -c user.name=Test -c user.email=test@example.com commit -qm leak
+reject HEAD "home path"
+for field in RuleID: File: Commit:; do
+  grep -q "^${field}" "$root/log" || { echo "gitleaks output lacks ${field}" >&2; exit 1; }
+done
+if grep -Fq "$leak_name" "$root/log"; then
+  echo "gitleaks output exposed the finding" >&2
+  exit 1
+fi
 cat >"$root/bin/gitleaks" <<'MOCK'
 #!/usr/bin/env bash
 case "$SCAN_MODE" in

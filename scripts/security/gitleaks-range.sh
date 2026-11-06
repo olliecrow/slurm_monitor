@@ -18,9 +18,10 @@ fi
 log="$(mktemp)"
 trap 'rm -- "$log"' EXIT
 status=0
-NO_COLOR=1 gitleaks git --no-banner --redact --log-level info --config "$2" \
+# --verbose shows the rule, file, and commit of a finding; --redact hides its value.
+NO_COLOR=1 gitleaks git --no-banner --redact --verbose --log-level info --config "$2" \
   --log-opts="--text --no-textconv --no-ext-diff ${range}" >"$log" 2>&1 || status=$?
-# Keep scanner details out of output: even git errors can contain private text.
+cat -- "$log"
 if [[ "$status" -ne 0 ]]; then
   echo "gitleaks failed (status ${status})" >&2
   exit "$status"
