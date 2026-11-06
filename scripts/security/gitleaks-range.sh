@@ -16,11 +16,24 @@ if [[ "$expected" -eq 0 ]]; then
   exit 0
 fi
 log="$(mktemp)"
-trap 'rm -- "$log"' EXIT
+patch="$(mktemp)"
+trap 'rm -- "$log" "$patch"' EXIT
+# Inspect every commit, not the net diff: added text can be deleted later.
+git log --format= -p --unified=0 --text --no-textconv --no-ext-diff \
+  --diff-merges=first-parent "$range" -- >"$patch" || {
+  echo "unable to inspect scan patches" >&2
+  exit 1
+}
+adds_lines="$(awk '
+  /^diff --git / { hunk=0 }
+  /^@@ / { hunk=1; next }
+  hunk && /^\+/ { found=1 }
+  END { print found ? 1 : 0 }
+' "$patch")" || exit 1
 status=0
 # --verbose shows the rule, file, and commit of a finding; --redact hides its value.
 NO_COLOR=1 gitleaks git --no-banner --redact --verbose --log-level info --config "$2" \
-  --log-opts="--text --no-textconv --no-ext-diff ${range}" >"$log" 2>&1 || status=$?
+  --log-opts="--text --no-textconv --no-ext-diff --diff-merges=first-parent ${range}" >"$log" 2>&1 || status=$?
 cat -- "$log"
 if [[ "$status" -ne 0 ]]; then
   echo "gitleaks failed (status ${status})" >&2
@@ -30,8 +43,12 @@ if grep -Eq '(^|[[:space:]])(ERR|FTL)([[:space:]]|$)' "$log"; then
   echo "gitleaks logged an error" >&2
   exit 1
 fi
-if ! grep -Eq '(^|[[:space:]])[1-9][0-9]* commits? scanned\.' "$log"; then
+if ! grep -Eq '(^|[[:space:]])[0-9]+ commits? scanned\.' "$log"; then
   echo "gitleaks did not confirm scanned commits" >&2
+  exit 1
+fi
+if [[ "$adds_lines" -eq 1 ]] && ! grep -Eq '(^|[[:space:]])[1-9][0-9]* commits? scanned\.' "$log"; then
+  echo "gitleaks scanned zero commits despite added lines" >&2
   exit 1
 fi
 echo "gitleaks scanned commits without leaks"

@@ -39,6 +39,7 @@ fi
 cat >"$root/bin/gitleaks" <<'MOCK'
 #!/usr/bin/env bash
 case "$SCAN_MODE" in
+ fatal) echo 'FTL simulated error'; echo '1 commits scanned.';;
  error) echo 'ERR [git] fatal: simulated error'; echo '1 commits scanned.';;
  zero) echo '0 commits scanned.'; echo 'no leaks found';;
  missing) echo 'no leaks found';;
@@ -47,7 +48,7 @@ esac
 MOCK
 chmod +x "$root/bin/gitleaks"
 export PATH="$root/bin:$PATH"
-for SCAN_MODE in error zero missing; do
+for SCAN_MODE in error fatal zero missing; do
   export SCAN_MODE
   reject HEAD "$SCAN_MODE"
 done
