@@ -9,7 +9,8 @@ base=$(git -C "$root" rev-parse HEAD)
 git -C "$root" update-ref refs/remotes/origin/main "$base"
 git -C "$root" -c user.name=Test -c user.email=test@users.noreply.github.com commit -q --allow-empty -m first
 git -C "$root" -c user.name=Test -c user.email=test@users.noreply.github.com commit -q --allow-empty -m second
-export GITHUB_SHA=$(git -C "$root" rev-parse HEAD)
+GITHUB_SHA=$(git -C "$root" rev-parse HEAD)
+export GITHUB_SHA
 export GITHUB_EVENT_NAME=push GITHUB_REF_NAME=olliecrow/ci-staging
 cd "$root"
 for PUSH_BEFORE_SHA in '' 0000000000000000000000000000000000000000 1111111111111111111111111111111111111111 "$base"; do

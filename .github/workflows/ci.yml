@@ -95,6 +95,9 @@ jobs:
           range="$(bash scripts/security/ci-range.sh)"
           bash scripts/security/gitleaks-range.sh "$range" .gitleaks.toml
 
+      - name: Lint shell scripts
+        run: git ls-files -z -- '*.sh' | xargs -0 shellcheck -S warning
+
       - name: Test scanner failures and CI timeouts
         run: |
           bash scripts/security/test-gitleaks-range.sh
