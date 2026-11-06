@@ -96,3 +96,28 @@ done
 value="eyJ$(printf 'a%.0s' {1..20}).eyJ$(printf 'b%.0s' {1..20}).$(printf 'c%.0s' {1..43})"
 printf '%s\n' "$value" >"$tmp_dir/token.txt"
 assert_blocked_without_exposure "$tmp_dir/token.txt" "$value" "JWT"
+
+# Real-shaped values: mixed case, digits, and "_" or "-" in the known bodies.
+body="$(printf 'Ab3_xY9-Qz%.0s' {1..4})"
+alnum="$(printf 'Ab3xY9Qz%.0s' {1..5})"
+for value in "sk-ant-oat01-${body}" "x=sk-ant-api03-${body}" "\"sk-proj-${body}\"" "sk-${alnum}" \
+  "ghp_${alnum}" "Bearer github_pat_${alnum}_${alnum}" "(AKIA$(printf 'Q7%.0s' {1..8}))"; do
+  printf '%s\n' "$value" >"$tmp_dir/token.txt"
+  assert_blocked_without_exposure "$tmp_dir/token.txt" "$value" "real-shaped token"
+done
+
+# A token prefix inside an ordinary word is not a token.
+printf '%s\n' 'class="task-list-item"' 'class="task-list-item-checkbox-v2"' \
+  'the risk-assessment-for-new-users doc' 'see desk-booking_service_module' \
+  "xxghp_${alnum}" "XAKIA$(printf 'Q7%.0s' {1..8})" >"$tmp_dir/prose.txt"
+bash "$checker" --context=policy-selftest "$tmp_dir/prose.txt"
+
+# A block names the file and line, not the value.
+value="sk-proj-${body}"
+printf 'one\ntwo\n%s\n' "$value" >"$tmp_dir/line.txt"
+assert_blocked_without_exposure "$tmp_dir/line.txt" "$value" "line report"
+grep -Fq "$tmp_dir/line.txt:3 (known token format)" "$output_file" || {
+  echo "block message does not name the file and line" >&2
+  exit 1
+}
+echo "Sensitive text tests passed"
